@@ -9,9 +9,9 @@ It calculates the weight of the list of specified orders in kilograms
 to estimate what vehicle can deliver them.
 
 You can play with primitive data tags. F.e. you can add a new possible type 
-of measurement to Order struct and run `mix dialyzer` to get insights about
-changes needed in the rest of the codebase (it takes some time during 
-the first run).
+of measurement to Order struct, or mix up the construction of the Order struct with existing one.
+Run `mix dialyzer` to get insights about changes needed in the codebase 
+(it takes some time during the first run).
 
 ## Starting the server
 

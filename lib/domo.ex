@@ -1,8 +1,27 @@
 defmodule Domo do
   @moduledoc """
-  Domo is a library for modeling data with custom composable types
-  beyond structs and keyword lists. That enables-compile time verification
-  of the business domain model consistency.
+  **⚠️ Preview, requires Elixir 1.11.0-dev to run**
+
+  Domo is a library for defining custom composable types for fields of a struct
+  to make these pieces of data to flow through the app consistently.
+
+  The library aims for two goals:
+
+    * to model a business domain entity's possible valid states with custom
+      types for fields of struct representing the entity
+    * to verify that entity structs are assembled to one of the allowed
+      valid states at compile-time
+
+  It's a library to define what piece of data is what and make
+  a compiler and dialyzer to cover one's back, reminding about taken
+  definitions.
+
+  The validation of the incoming data is on the author of the concrete
+  application. The library can only ensure the consistent processing
+  of that valid data throughout the system.
+
+  The library has the means to build structs and depends on the [TypedStruct](https://hexdocs.pm/typed_struct/)
+  to do so.
 
   ## Rationale
 
@@ -19,16 +38,16 @@ defmodule Domo do
   and modification of the struct's data can be done with a function of
   the following signature:
 
-      @spec put_quantity(Order.t(), quantity: float()) :: Order.t()
-      def put_quantity(ord, quantity: q) ...
+      @spec put_quantity(Order.t(), float()) :: Order.t()
+      def put_quantity(order, quantity) ...
 
-  Primitive types of binary and float are universal and have no relation
-  to the Order struct specifically. That is, any data of that type
+  Primitive types of `binary` and `float` are universal and have no relation
+  to the `Order` struct specifically. That is, any data of these types
   can leak into the new struct instance by mistake.
-  Float type defining quantity reflects no measure from the business domain.
-  Meaning, that a new requirement to measure quantity in Kilograms or Units
-  makes space for misinterpretation of the quantity field's value processed
-  in any part of the app.
+  The `float` type defining quantity reflects no measure from the business
+  domain. Meaning, that a new requirement - to measure quantity in Kilograms
+  or Units makes space for misinterpretation of the quantity field's value
+  processed in any part of the app.
 
   ### How about some domain modeling?
 
@@ -71,11 +90,11 @@ defmodule Domo do
         note: Note --- "Deliver on Tue"
       })
 
-  And a signature of a custom function to modify struct becomes like this:
+  And a signature of a custom function to modify the struct becomes like this:
 
       @spec put_quantity(Order.t(), Order.Quantity.t()) :: Order.t()
-      def put_quantity(ord, Quantity --- Units --- q) ...
-      def put_quantity(ord, Quantity --- Kilograms --- q) ...
+      def put_quantity(order, Quantity --- Units --- units) ...
+      def put_quantity(order, Quantity --- Kilograms --- kilos) ...
 
   Thanks to the Domo library, every field of the structure becomes a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
   consisting of a tag and a value. A tag is a module itself.
@@ -164,7 +183,8 @@ defmodule Domo do
   Each field is defined through `field/3` macro. The generated structure has
   all fields enforced, default values specified by `default:` key,
   and type t() constructed with field types.
-  See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/) for implementation details.
+  See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/)
+  for implementation details.
 
   Use `new!/1` and `put!/3` functions that are automatically defined
   for the struct to create a new instance and update an existing one.
@@ -186,7 +206,7 @@ defmodule Domo do
 
   #### Options
 
-      * `undefined_tag_error_as_warning` - if set tot true, prints warning
+      * `undefined_tag_error_as_warning` - if set to true, prints warning
         instead of raising an exception for undefined tags.
 
       * `no_field` - if set to true, skips import of typedstruct/1
@@ -248,6 +268,16 @@ defmodule Domo do
       |> Enum.intersperse("_")
       |> Enum.join()
       |> tag(Id)
+
+
+  ## Limitations
+
+  Only a map is expected as the fields argument for the `new!/1` function
+  because it's impossible to define a typespec for a keyword list with a
+  set of required key-value pairs.
+
+  It's still possible to construct a struct with a `new/1` function with
+  fields of the wrong shape at runtime overlooking the dialyzer warnings.
 
   """
   @doc false

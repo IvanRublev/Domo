@@ -1,13 +1,36 @@
 # Domo
 
-> To give the example app a try:
+> This is an experimental library to play with for fun and joy.
+
+> To give the [example app](example_app/) a try:
 > 1. Clone this repo
-> 2. Switch to master version of the Elixir with `asdf local elixir master`
+> 2. Switch to the master version of the Elixir with `asdf local elixir master`
 > 3. Change to `example_app` directory and follow instructions from README.md
 
-Domo is a library for modeling data with custom composable types
-beyond structs and keyword lists. That enables-compile time verification
-of the business domain model consistency.
+--------------
+
+**⚠️ Preview, requires Elixir 1.11.0-dev to run**
+
+Domo is a library for defining custom composable types for fields of a struct
+to make these pieces of data to flow through the app consistently.
+
+The library aims for two goals:
+
+  * to model a business domain entity's possible valid states with custom
+    types for fields of struct representing the entity
+  * to verify that entity structs are assembled to one of the allowed
+    valid states at compile-time
+
+It's a library to define what piece of data is what and make
+a compiler and dialyzer to cover one's back, reminding about taken
+definitions.
+
+The validation of the incoming data is on the author of the concrete
+application. The library can only ensure the consistent processing
+of that valid data throughout the system.
+
+The library has the means to build structs and depends on the [TypedStruct](https://hexdocs.pm/typed_struct/)
+to do so.
 
 ## Rationale
 
@@ -15,25 +38,29 @@ To model a business domain entity, one may define a named struct with several
 fields of primitive data types. Construction of the struct from parsed data
 can look like this:
 
-    %Order{
-      id: "156",
-      quantity: 2.5
-      note: "Deliver on Tue"
-    }
+```elixir
+%Order{
+  id: "156",
+  quantity: 2.5
+  note: "Deliver on Tue"
+}
+```
 
 and modification of the struct's data can be done with a function of
 the following signature:
 
-    @spec put_quantity(Order.t(), quantity: float()) :: Order.t()
-    def put_quantity(ord, quantity: q) ...
+```elixir
+@spec put_quantity(Order.t(), float()) :: Order.t()
+def put_quantity(order, quantity) ...
+```
 
-Primitive types of binary and float are universal and have no relation
-to the Order struct specifically. That is, any data of that type
+Primitive types of `binary` and `float` are universal and have no relation
+to the `Order` struct specifically. That is, any data of these types
 can leak into the new struct instance by mistake.
-Float type defining quantity reflects no measure from the business domain.
-Meaning, that a new requirement to measure quantity in Kilograms or Units
-makes space for misinterpretation of the quantity field's value processed
-in any part of the app.
+The `float` type defining quantity reflects no measure from the business
+domain. Meaning, that a new requirement - to measure quantity in Kilograms
+or Units makes space for misinterpretation of the quantity field's value
+processed in any part of the app.
 
 ### How about some domain modeling?
 
@@ -47,40 +74,46 @@ only valid states for Order struct fields, that enables:
 
 One possible valid way to do this is to use Domo library like the following:
 
-    defmodule Order do
-      use Domo
+```elixir
+defmodule Order do
+  use Domo
 
-      deftag Id, for_type: String.t()
+  deftag Id, for_type: String.t()
 
-      deftag Quantity do
-          for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
+  deftag Quantity do
+      for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
 
-          deftag Kilograms, for_type: float
-          deftag Units, for_type: integer
-      end
+      deftag Kilograms, for_type: float
+      deftag Units, for_type: integer
+  end
 
-      deftag Note, for_type: :none | String.t()
+  deftag Note, for_type: :none | String.t()
 
-      typedstruct do
-        field :id, Id.t()
-        field :quantity, Quantity.t()
-        field :note, Note.t(), default: Note --- :none
-      end
-    end
+  typedstruct do
+    field :id, Id.t()
+    field :quantity, Quantity.t()
+    field :note, Note.t(), default: Note --- :none
+  end
+end
+```
 
 Then the construction of the struct becomes like this:
 
-    Order.new!(%{
-      id: Id --- "156",
-      quantity: Quantity --- Kilograms --- 2.5
-      note: Note --- "Deliver on Tue"
-    })
+```elixir
+Order.new!(%{
+  id: Id --- "156",
+  quantity: Quantity --- Kilograms --- 2.5
+  note: Note --- "Deliver on Tue"
+})
+```
 
-And a signature of a custom function to modify struct becomes like this:
+And a signature of a custom function to modify the struct becomes like this:
 
-    @spec put_quantity(Order.t(), Order.Quantity.t()) :: Order.t()
-    def put_quantity(ord, Quantity --- Units --- q) ...
-    def put_quantity(ord, Quantity --- Kilograms --- q) ...
+```elixir
+@spec put_quantity(Order.t(), Order.Quantity.t()) :: Order.t()
+def put_quantity(order, Quantity --- Units --- units) ...
+def put_quantity(order, Quantity --- Kilograms --- kilos) ...
+```
 
 Thanks to the Domo library, every field of the structure becomes a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
 consisting of a tag and a value. A tag is a module itself.
@@ -95,15 +128,19 @@ contracts for the structure itself and the structure's field values.
 
 To use Domo in your project, add this to your Mix dependencies:
 
-    {:domo, "~> 0.1.0"}
+```elixir
+{:domo, "~> 0.0.7"}
+```
 
 To avoid `mix format` putting parentheses on tagged tuples definitions
 made with `---/2` operator, you can add to your `.formatter.exs`:
 
-    [
-      ...,
-      import_deps: [:typed_struct]
-    ]
+```elixir
+[
+  ...,
+  import_deps: [:typed_struct]
+]
+```
 
 ### General usage
 
@@ -112,15 +149,17 @@ made with `---/2` operator, you can add to your `.formatter.exs`:
 To define a tag on the top level of a file import `Domo`, then define the
 tag name and type associated value with `deftag/2` macro.
 
-    import Domo
+```elixir
+import Domo
 
-    deftag Title, for_type: String.t()
-    deftag Height do
-      for_type: __MODULE__.Meters.t() | __MODULE__.Foots.t()
+deftag Title, for_type: String.t()
+deftag Height do
+  for_type: __MODULE__.Meters.t() | __MODULE__.Foots.t()
 
-      deftag Meters, for_type: float
-      deftag Foots, for_type: float
-    end
+  deftag Meters, for_type: float
+  deftag Foots, for_type: float
+end
+```
 
 Any tag is a module by itself. Type `t()` of the tag is a tagged tuple.
 When defining a tag in a block form, you can specify the associated value
@@ -128,21 +167,25 @@ type through the `for_type/1` macro.
 
 To add a tag or a tag chain to a value use `---/2` macro.
 
-    alias Height.{Meters, Foots}
+```elixir
+alias Height.{Meters, Foots}
 
-    t = Title --- "Eiffel tower"
-    m = Height --- Meters --- 324.0
-    f = Height --- Foots --- 1062.992
+t = Title --- "Eiffel tower"
+m = Height --- Meters --- 324.0
+f = Height --- Foots --- 1062.992
+```
 
 Under the hood, the tag chain is a series of nested tagged tuples where the
 value is in the core. Because of that, you can use the `---/2` macro
 in pattern matching.
 
-    {Height, {Meters, 324.0}} == m
+```elixir
+{Height, {Meters, 324.0}} == m
 
-    @spec to_string(Height.t()) :: String.t()
-    def to_string(Height --- Meters --- val), do: to_string(val) <> " m"
-    def to_string(Height --- Foots --- val), do: to_string(val) <> " ft"
+@spec to_string(Height.t()) :: String.t()
+def to_string(Height --- Meters --- val), do: to_string(val) <> " m"
+def to_string(Height --- Foots --- val), do: to_string(val) <> " ft"
+```
 
 Each tag module has type `t()` of tagged tuple with the name of tag itself
 and a value type specified with `for_type`. Use `t()` in the function spec to
@@ -153,33 +196,38 @@ inform the dialyzer about the tagged argument.
 To define a structure with field value's contracts, use `Domo`, then define
 your struct with a `typedstruct/1` block.
 
-    defmodule Order do
-      use Domo
+```elixir
+defmodule Order do
+  use Domo
 
-      deftag Id, for_type: String.t()
-      deftag Note, for_type: :none | String.t()
+  deftag Id, for_type: String.t()
+  deftag Note, for_type: :none | String.t()
 
-      @typedoc "An Order from Sales context"
-      typedstruct do
-        field :id, Id.t()
-        field :note, Note.t(), default: Note --- :none
-      end
-    end
+  @typedoc "An Order from Sales context"
+  typedstruct do
+    field :id, Id.t()
+    field :note, Note.t(), default: Note --- :none
+  end
+end
+```
 
 Each field is defined through `field/3` macro. The generated structure has
 all fields enforced, default values specified by `default:` key,
 and type t() constructed with field types.
-See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/) for implementation details.
+See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/)
+for implementation details.
 
 Use `new!/1` and `put!/3` functions that are automatically defined
 for the struct to create a new instance and update an existing one.
 
-    alias Order
-    alias Order.{Id, Note}
+```elixir
+alias Order
+alias Order.{Id, Note}
 
-    %{id: Id --- "o123556"}
-    |> Order.new!()
-    |> Order.put!(:note, Note --- "Deliver on Tue")
+%{id: Id --- "o123556"}
+|> Order.new!()
+|> Order.put!(:note, Note --- "Deliver on Tue")
+```
 
 The dialyzer can check if properly tagged values are passed as parameters
 to these functions. The `new!/1` function can be overridden to make data
@@ -191,7 +239,7 @@ The following options can be passed with `use Domo, ...`
 
 #### Options
 
-    * `undefined_tag_error_as_warning` - if set tot true, prints warning
+    * `undefined_tag_error_as_warning` - if set to true, prints warning
       instead of raising an exception for undefined tags.
 
     * `no_field` - if set to true, skips import of typedstruct/1
@@ -207,35 +255,37 @@ Additionally each tag module defines `__tag__?/0` function that returns
 
 For example:
 
-    iex.(1)> defmodule Order do
-    ....(1)>   use Domo
-    ....(1)>
-    ....(1)>   deftag Id, for_type: String.t()
-    ....(1)>
-    ....(1)>   deftag Quantity do
-    ....(1)>      for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
-    ....(1)>
-    ....(1)>      deftag Kilograms, for_type: float
-    ....(1)>      deftag Units, for_type: integer
-    ....(1)>   end
-    ....(1)>
-    ....(1)>   deftag Note, for_type: :none | String.t()
-    ....(1)>
-    ....(1)>   typedstruct do
-    ....(1)>     field :id, Id.t()
-    ....(1)>     field :quantity, Quantity.t()
-    ....(1)>     field :note, Note.t(), default: Note --- :none
-    ....(1)>   end
-    ....(1)> end
-    {:module, Order,
-    <<70, 79, 82, 49, 0, 0, 17, 156, 66, 69, 65, 77, 65, 116, 85, 56, 0, 0, 1, 131,
-      0, 0, 0, 41, 12, 69, 108, 105, 120, 105, 114, 46, 79, 114, 100, 101, 114, 8,
-      95, 95, 105, 110, 102, 111, 95, 95, 7, ...>>,
-    [put!: 3, put!: 3, put!: 3, put!: 3, put!: 3]}
-    iex.(2)> Order.__tags__
-    [Order.Id, Order.Quantity, Order.Note]
-    iex.(3)> Order.Id.__tag__?
-    true
+```elixir
+iex.(1)> defmodule Order do
+....(1)>   use Domo
+....(1)>
+....(1)>   deftag Id, for_type: String.t()
+....(1)>
+....(1)>   deftag Quantity do
+....(1)>      for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
+....(1)>
+....(1)>      deftag Kilograms, for_type: float
+....(1)>      deftag Units, for_type: integer
+....(1)>   end
+....(1)>
+....(1)>   deftag Note, for_type: :none | String.t()
+....(1)>
+....(1)>   typedstruct do
+....(1)>     field :id, Id.t()
+....(1)>     field :quantity, Quantity.t()
+....(1)>     field :note, Note.t(), default: Note --- :none
+....(1)>   end
+....(1)> end
+{:module, Order,
+<<70, 79, 82, 49, 0, 0, 17, 156, 66, 69, 65, 77, 65, 116, 85, 56, 0, 0, 1, 131,
+  0, 0, 0, 41, 12, 69, 108, 105, 120, 105, 114, 46, 79, 114, 100, 101, 114, 8,
+  95, 95, 105, 110, 102, 111, 95, 95, 7, ...>>,
+[put!: 3, put!: 3, put!: 3, put!: 3, put!: 3]}
+iex.(2)> Order.__tags__
+[Order.Id, Order.Quantity, Order.Note]
+iex.(3)> Order.Id.__tag__?
+true
+```
 
 ### Pipeland
 
@@ -244,12 +294,50 @@ and to remove use `untag!/2` macro appropriately.
 
 For instance:
 
-    import Domo
-    alias Order.Id
+```elixir
+import Domo
+alias Order.Id
 
-    identifier
-    |> untag!(Id)
-    |> String.graphemes()
-    |> Enum.intersperse("_")
-    |> Enum.join()
-    |> tag(Id)
+identifier
+|> untag!(Id)
+|> String.graphemes()
+|> Enum.intersperse("_")
+|> Enum.join()
+|> tag(Id)
+```
+
+## Contributing
+
+1. Fork the repository and make a feature branch
+
+2. Working on the feature, please add typespecs
+
+3. After working on the feature format code with
+
+       mix format
+
+   run the tests and static analyzers to ensure that all works as expected with
+
+       mix test && mix dialyzer
+
+   and make sure that the code coverage is ~100% what can be seen with
+
+       mix coveralls.html
+
+4. Make a PR to this repository
+
+## Roadmap
+
+* [ ] It's still possible to construct a struct with a `new/1` function with
+      fields of the wrong shape at runtime overlooking the dialyzer warnings. 
+      Check if the field values passed as argument to the `new/1` matches 
+      the shape that is defined in `typedstruct/1`.
+
+* [ ] Add keyword list as a possible argument for `new!/1` (probably need
+      to update credo to support lists with required key-value pairs).
+
+## License
+
+Copyright © 2020 Ivan Rublev
+
+This project is licensed under the [MIT license](LICENSE).
