@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "0.0.7"
+  @version "0.0.8"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -9,6 +9,7 @@ defmodule Domo.MixProject do
       app: :domo,
       version: @version,
       elixir: ">= 1.11.0-dev",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
 
@@ -27,9 +28,8 @@ defmodule Domo.MixProject do
       # Package
       package: package(),
       description:
-        "A library for defining custom composable types " <>
-          "for fields of a struct to make these pieces of data " <>
-          "to flow through the app consistently. " <>
+        "Domo is a library to model a business domain with composable tags " <>
+          "and type-safe structs. " <>
           "**⚠️ Preview, requires Elixir 1.11.0-dev to run**"
     ]
   end
@@ -40,6 +40,10 @@ defmodule Domo.MixProject do
     ]
   end
 
+  # Specifies which paths to compile per environment.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   defp deps do
     [
       # Development and test dependencies
@@ -48,7 +52,7 @@ defmodule Domo.MixProject do
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
 
       # Project dependencies
-      {:typed_struct, "~> 0.1.4"},
+      {:typed_struct, ">= 0.0.0"},
 
       # Documentation dependencies
       {:ex_doc, "~> 0.19", only: :docs, runtime: false}

@@ -18,9 +18,13 @@ defmodule App.Core.Order do
     end
   end
 
-  def new!(%{id: Id --- id} = map) do
+  def new!(enumerable) do
+    validate!(Enum.into(enumerable, %{}))
+    super(enumerable)
+  end
+
+  defp validate!(%{id: Id --- id}) do
     assert!(is_binary(id) and id =~ ~r/ord[0-9]{8}/)
-    super(map)
   end
 
   def new_id(id),

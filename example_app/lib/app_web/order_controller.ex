@@ -25,22 +25,22 @@ defmodule AppWeb.OrderController do
   # --- add order ---------------------------
   def add_order(conn, %{"id" => id, "units" => units} = params) do
     ord =
-      Order.new!(%{
+      Order.new!(
         id: Order.new_id(id),
         quantity: Quantity --- Units --- units_from_map(units),
         note: note(params["note"])
-      })
+      )
 
     json(conn, %{"result" => inspect(Orders.create_order(ord))})
   end
 
   def add_order(conn, %{"id" => id, "kilograms" => kilos} = params) when is_float(kilos) do
     ord =
-      Order.new!(%{
+      Order.new!(
         id: Order.new_id(id),
         quantity: Quantity --- Kilograms --- kilos,
         note: note(params["note"])
-      })
+      )
 
     json(conn, %{"result" => inspect(Orders.create_order(ord))})
   end

@@ -7,30 +7,35 @@
 > 2. Switch to the master version of the Elixir with `asdf local elixir master`
 > 3. Change to `example_app` directory and follow instructions from README.md
 
---------------
-
 **⚠️ Preview, requires Elixir 1.11.0-dev to run**
 
-Domo is a library for defining custom composable types for fields of a struct
-to make these pieces of data to flow through the app consistently.
+--------------
+
+Domo is a library to model a business domain with composable tags
+and type-safe structs.
+
+It's a library to define what piece of data is what and make
+a dialyzer and run-time type checks to cover one's back,
+reminding about taken definitions.
 
 The library aims for two goals:
 
   * to model a business domain entity's possible valid states with custom
-    types for fields of struct representing the entity
+    types for fields of the struct representing the entity
   * to verify that entity structs are assembled to one of the allowed
-    valid states at compile-time
-
-It's a library to define what piece of data is what and make
-a compiler and dialyzer to cover one's back, reminding about taken
-definitions.
+    valid states in run-time
 
 The validation of the incoming data is on the author of the concrete
 application. The library can only ensure the consistent processing
-of that valid data throughout the system.
+of that valid data according to type specs and definitions throughout
+the system.
 
-The library has the means to build structs and depends on the [TypedStruct](https://hexdocs.pm/typed_struct/)
-to do so.
+The library has the means to build structs and relies on the [TypedStruct](https://hexdocs.pm/typed_struct/)
+to do so. It's possible to extend and configure many of the TypedStruct
+features transparently.
+
+If you practice Domain Driven Design, this library can be used to
+model entities, value objects, and aggregates because it's delightful.
 
 ## Rationale
 
@@ -70,9 +75,9 @@ only valid states for Order struct fields, that enables:
   * local reasoning about the relation of value to the struct in any nested
     function of the app
   * compile-time verification of assembling/updating of the structure
-    from values that relates only to it
+    from the values that relate only to it
 
-One possible valid way to do this is to use Domo library like the following:
+One possible valid way to do so is to use Domo library like the following:
 
 ```elixir
 defmodule Order do
@@ -100,11 +105,11 @@ end
 Then the construction of the struct becomes like this:
 
 ```elixir
-Order.new!(%{
+Order.new!(
   id: Id --- "156",
   quantity: Quantity --- Kilograms --- 2.5
   note: Note --- "Deliver on Tue"
-})
+)
 ```
 
 And a signature of a custom function to modify the struct becomes like this:
@@ -115,12 +120,14 @@ def put_quantity(order, Quantity --- Units --- units) ...
 def put_quantity(order, Quantity --- Kilograms --- kilos) ...
 ```
 
-Thanks to the Domo library, every field of the structure becomes a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
-consisting of a tag and a value. A tag is a module itself.
-Several tags can be nested, defining valid tag chains as a shape for values
-of primitive type. That makes it possible to do pattern matching against
-the shape of the struct's value. That enables the dialyzer to validate
-contracts for the structure itself and the structure's field values.
+Thanks to the Domo library, every field of the structure becomes
+a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
+consisting of a tag and a value. The tag is a module itself.
+Several tags can be nested, defining valid tag chains. These are playing
+the role of shapes for values of primitive type. That makes it possible
+to perform pattern matching against the shape of the struct's value.
+That enables the dialyzer to validate contracts for the structure itself
+and the structure's field values.
 
 ## Usage
 
@@ -129,7 +136,7 @@ contracts for the structure itself and the structure's field values.
 To use Domo in your project, add this to your Mix dependencies:
 
 ```elixir
-{:domo, "~> 0.0.7"}
+{:domo, "~> 0.0.8"}
 ```
 
 To avoid `mix format` putting parentheses on tagged tuples definitions
@@ -217,8 +224,9 @@ and type t() constructed with field types.
 See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/)
 for implementation details.
 
-Use `new!/1` and `put!/3` functions that are automatically defined
-for the struct to create a new instance and update an existing one.
+Use `new/1`, `merge/2`, and `put/3` function or their raising versions
+that are all automatically defined for the struct to create a new instance
+and update an existing one.
 
 ```elixir
 alias Order
@@ -229,12 +237,27 @@ alias Order.{Id, Note}
 |> Order.put!(:note, Note --- "Deliver on Tue")
 ```
 
-The dialyzer can check if properly tagged values are passed as parameters
-to these functions. The `new!/1` function can be overridden to make data
-validations.
+At the compile-time the dialyzer can check if properly tagged values are passed
+as parameters to these functions.
+
+At the run-time, each function checks the values passed in against the types set
+in the `field/3` macro. In case of mismatch, the functions raise an error.
+
+That works with tags, and with any other user or system type, you may specify
+for the field. You can introduce tags in the project gracefully,
+taking them in appropriate proportion with the type safe-structs.
+
+The functions mentioned above can be overridden to make data validations.
+Please, be careful and modify struct with a super(...) call. This call should
+be the last call in the overridden function.
+
+It's still possible to modify a struct with %{... | s } map syntax and other
+standard functions directly skipping the checks.
+Please, use the functions mentioned above for the type-safety.
 
 After the module compilation, the Domo library checks if all tags that
 are used with the `---/2` operator are defined and appropriately aliased.
+
 The following options can be passed with `use Domo, ...`
 
 #### Options
@@ -306,6 +329,16 @@ identifier
 |> tag(Id)
 ```
 
+## Limitations
+
+We can't make you know the business problem; at the same time,
+the Domo library can help you to model the problem and understand it better.
+
+## Limitations
+
+We can't make you know the business problem, same time the Domo library
+can help you to model the problem and understand it better.
+
 ## Contributing
 
 1. Fork the repository and make a feature branch
@@ -328,13 +361,23 @@ identifier
 
 ## Roadmap
 
-* [ ] It's still possible to construct a struct with a `new/1` function with
-      fields of the wrong shape at runtime overlooking the dialyzer warnings. 
-      Check if the field values passed as argument to the `new/1` matches 
-      the shape that is defined in `typedstruct/1`.
+* [x] Check if the field values passed as argument to the `new/1`, and `put/3`
+      matches the field types defined in `typedstruct/1`.
 
-* [ ] Add keyword list as a possible argument for `new!/1` (probably need
-      to update credo to support lists with required key-value pairs).
+* [x] Add keyword list as a possible argument for `new!/1`.
+
+* [ ] Add documentation to the generated `new(!)/1`, `put(!)/3`, and `merge(!)/2` 
+      functions in struct.
+
+* [ ] Make the `typedstruct/1` to raise an error on default value that mismatches 
+      the field's type at the end of compilation (At the moment it's checked 
+      during the construction of the struct with default values). 
+
+* [ ] Add module option to put warning in the counsole instead of raising 
+      of the ArgumentError on value type mismatch.
+
+* [ ] Make global environment configuration options to turn errors into warnings
+      that are equivalent to module ones.
 
 ## License
 

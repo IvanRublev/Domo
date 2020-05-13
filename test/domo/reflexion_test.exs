@@ -1,5 +1,5 @@
 defmodule Domo.ReflexionTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   import Domo
   deftag ATag, for_type: integer

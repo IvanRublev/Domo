@@ -70,11 +70,11 @@ defmodule App.Repo.DBOrder do
 
   @spec to_order!(%__MODULE__{}) :: Order.t()
   def to_order!(%__MODULE__{id: id} = ord) do
-    Order.new!(%{
+    Order.new!(
       id: Id --- id,
       quantity: quantity_tuple(ord),
       note: note_tuple(ord)
-    })
+    )
   end
 
   @spec quantity_tuple(%__MODULE__{}) :: Quantity.t()

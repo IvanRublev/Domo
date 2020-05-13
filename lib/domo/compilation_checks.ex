@@ -1,8 +1,15 @@
 defmodule Domo.CompilationChecks do
   @moduledoc """
-  Module to validate tags used in the module
+  Module to validate tags and structs after compilation of a given module.
   """
 
+  @doc """
+  Emits warnings about missing aliases for tag modules. After emmiting
+  all warnings raises the CompileError with count of missing tags.
+
+  If all referenced tags are defined does nothing.
+  """
+  @spec warn_and_raise_undefined_tags(map, any) :: nil
   def warn_and_raise_undefined_tags(env, _bytecode) do
     env.module
     |> Module.get_attribute(:domo_tags)

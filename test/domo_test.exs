@@ -36,25 +36,16 @@ defmodule DomoTest do
     end
   end
 
-  defmodule K do
-    use Domo
-
-    typedstruct do
-      field :first, integer
-      field :second, float
-    end
-  end
-
   describe "typedstruct should" do
     test "define a structure with all keys enforced" do
       assert_raise ArgumentError, ~r/\[:second, :first\]/, fn ->
-        K.__struct__(%{})
+        TwoFieldStruct.__struct__(%{})
       end
     end
 
     test "define a typed structure" do
       {:module, _, bytecode, _} =
-        defmodule P do
+        defmodule Typed do
           use Domo
 
           typedstruct do
@@ -62,65 +53,267 @@ defmodule DomoTest do
           end
         end
 
-      assert [type: {:t, _, _}] = types(bytecode)
+      assert true == Enum.any?(types(bytecode), &match?({:type, {:t, _, _}}, &1))
+    end
+
+    test "bypass definitions down to TypedStruct.typedstruct macro" do
+      assert true == TwoFieldStruct.plugin_injected?()
     end
   end
 
-  defmodule Ovr do
-    use Domo
-
-    typedstruct do
-      field :first, integer
-      field :second, integer, default: 0
+  describe "typedstruct should make new/1" do
+    test "constructor function to be in the module" do
+      true = Code.ensure_loaded?(TwoFieldStruct)
+      assert true == Kernel.function_exported?(TwoFieldStruct, :new, 1)
     end
 
-    def new!(map), do: %__MODULE__{super(map) | second: 4}
+    test "construct a structure" do
+      assert {:ok, %TwoFieldStruct{first: 1, second: 2.0}} ==
+               TwoFieldStruct.new(%{first: 1, second: 2.0})
+
+      assert {:ok, %TwoFieldStruct{first: 1, second: 2.0}} ==
+               TwoFieldStruct.new(first: 1, second: 2.0)
+    end
+
+    test "return error on a missing key" do
+      assert {:error, {:key_err, "the following keys must also be given \
+when building struct OverridenNew: [:first]"}} = OverridenNew.new(%{})
+    end
+
+    test "return error on default value that doesn't match the field's type" do
+      assert {:error, {:value_err, "Can't construct %IncorrectDefault{...} with \
+new(%{second: \"hello\", third: 1.0})\n    Unexpected value type for the field :default. The value 1 doesn't match \
+the Generator.an_atom() type."}} == IncorrectDefault.new(%{second: "hello", third: 1.0})
+    end
+
+    test "return error on argument values that doesn't match the fields type" do
+      assert {:error, {:value_err, "Can't construct %IncorrectDefault{...} with new\
+(%{default: :hello, second: :hello, third: 1})\
+\n    Unexpected value type for the field :second. The value :hello doesn't \
+match the Generator.a_str() type.\n    Unexpected value type for the field :third. \
+The value 1 doesn't match the float type."}} ==
+               IncorrectDefault.new(%{default: :hello, second: :hello, third: 1})
+    end
   end
 
   describe "typedstruct should make new!/1" do
     test "constructor function to be in the module" do
-      assert Kernel.function_exported?(Ovr, :new!, 1)
+      true = Code.ensure_loaded?(TwoFieldStruct)
+      assert true == Kernel.function_exported?(TwoFieldStruct, :new!, 1)
     end
 
     test "construct a structure" do
-      assert K.new!(%{first: 1, second: 2.0}) == %K{first: 1, second: 2.0}
+      assert %TwoFieldStruct{first: 1, second: 2.0} ==
+               TwoFieldStruct.new!(%{first: 1, second: 2.0})
+
+      assert %TwoFieldStruct{first: 1, second: 2.0} ==
+               TwoFieldStruct.new!(first: 1, second: 2.0)
     end
 
     test "raise on missing key" do
       assert_raise ArgumentError, ~r/\[:first\]/, fn ->
-        Ovr.new!(%{})
+        OverridenNew.new!(%{})
       end
     end
 
-    test "overridable" do
-      assert Ovr.new!(%{first: 3}) == %Ovr{first: 3, second: 4}
+    test "raise on default value that doesn't match the field's type" do
+      assert_raise ArgumentError,
+                   "Can't construct %IncorrectDefault{...} with new!(%{second: \"hello\", \
+third: 1.0})\n    Unexpected value type for the field :default. The value 1 doesn't match \
+the Generator.an_atom() type.",
+                   fn ->
+                     IncorrectDefault.new!(%{second: "hello", third: 1.0})
+                   end
+    end
+
+    test "raise on argument values that doesn't match the fields type" do
+      assert_raise ArgumentError,
+                   "Can't construct %IncorrectDefault{...} with new!(%{default: :hello, \
+second: :hello, third: 1})\n    Unexpected value type for the field :second. The value :hello \
+doesn't match the Generator.a_str() type.\n    Unexpected value type for the field :third. \
+The value 1 doesn't match the float type.",
+                   fn ->
+                     IncorrectDefault.new!(%{default: :hello, second: :hello, third: 1})
+                   end
+    end
+  end
+
+  describe "typedstruct should make put/3" do
+    test "function to be in the module" do
+      true = Code.ensure_loaded?(OverridenNew)
+      assert true == Kernel.function_exported?(OverridenNew, :put, 3)
+    end
+
+    test "to be able to change each value in a struct" do
+      st = TwoFieldStruct.new!(%{first: 1, second: 0.0})
+      assert {:ok, %TwoFieldStruct{first: 2, second: 0.0}} == TwoFieldStruct.put(st, :first, 2)
+      assert {:ok, %TwoFieldStruct{first: 1, second: 2.0}} == TwoFieldStruct.put(st, :second, 2.0)
+    end
+
+    test "return error if argument struct name differs" do
+      assert {:error, {:unexpected_struct, "OverridenNew structure was expected \
+as the first argument and TwoFieldStruct was received."}} ==
+               OverridenNew.put(TwoFieldStruct.new!(first: 1, second: 2.0), :second, 3)
+    end
+
+    test "return error for non present key" do
+      {:error, {:key_err, err}} =
+        TwoFieldStruct.put(TwoFieldStruct.new!(first: 1, second: 2.0), :invalid_key, 1)
+
+      assert true == Regex.match?(~r/:invalid_key/, err)
+    end
+
+    test "return error on value that doesn't match the field's type" do
+      {:error, {:value_err, err}} =
+        TwoFieldStruct.put(TwoFieldStruct.new!(first: 1, second: 2.0), :first, 1.0)
+
+      assert "Unexpected value type for the field :first. The value 1.0 \
+doesn't match the integer type." == err
     end
   end
 
   describe "typedstruct should make put!/3" do
     test "function to be in the module" do
-      assert Kernel.function_exported?(Ovr, :put!, 3)
+      true = Code.ensure_loaded?(OverridenNew)
+      assert true == Kernel.function_exported?(OverridenNew, :put!, 3)
     end
 
-    test "can change each value in a struct" do
-      st = Ovr.new!(%{first: 1})
-      assert Ovr.put!(st, :first, 2) == %DomoTest.Ovr{first: 2, second: 4}
-      assert Ovr.put!(st, :second, 2) == %DomoTest.Ovr{first: 1, second: 2}
+    test "to be able to change each value in a struct" do
+      st = TwoFieldStruct.new!(%{first: 0, second: 0.0})
+      assert %TwoFieldStruct{first: 0, second: 4.0} == TwoFieldStruct.put!(st, :second, 4.0)
+      assert %TwoFieldStruct{first: 1, second: 0.0} == TwoFieldStruct.put!(st, :first, 1)
     end
 
-    test "raise if struct differs from the funciton's module" do
+    test "raise if argument struct name differs" do
       assert_raise ArgumentError,
-                   "DomoTest.Ovr structure was expected as the first argument and DomoTest.K was received.",
+                   "OverridenNew structure was expected as the first argument and TwoFieldStruct was received.",
                    fn ->
-                     Ovr.put!(K.new!(first: 1, second: 2.0), :second, 3)
+                     OverridenNew.put!(TwoFieldStruct.new!(first: 1, second: 2.0), :second, 3)
                    end
     end
 
     test "raise for non present key" do
       assert_raise KeyError, ~r/:invalid_key/, fn ->
-        assert Ovr.put!(Ovr.new!(%{first: 1}), :invalid_key, 1)
+        assert TwoFieldStruct.put!(TwoFieldStruct.new!(first: 1, second: 2.0), :invalid_key, 1)
       end
     end
+
+    test "raise on value that doesn't match the field's type" do
+      assert_raise ArgumentError,
+                   "Unexpected value type for the field :first. The value 1.0 doesn't match the integer type.",
+                   fn ->
+                     TwoFieldStruct.put!(TwoFieldStruct.new!(first: 1, second: 2.0), :first, 1.0)
+                   end
+    end
+  end
+
+  describe "typedstruct should make merge/2" do
+    test "function to be in the module" do
+      true = Code.ensure_loaded?(OverridenNew)
+      assert true == Kernel.function_exported?(OverridenNew, :merge, 2)
+    end
+
+    test "to be able to update struct values skipping nonexisting keys" do
+      assert {:ok, %TwoFieldStruct{first: 2, second: 4.0}} ==
+               TwoFieldStruct.merge(TwoFieldStruct.new!(%{first: 1, second: 0.0}),
+                 first: 2,
+                 second: 4.0,
+                 third: 5
+               )
+    end
+
+    test "to keep the struct the same if no overlapping keys in passed enumerable" do
+      assert {:ok, %TwoFieldStruct{first: 1, second: 2.0}} ==
+               TwoFieldStruct.merge(
+                 TwoFieldStruct.new!(first: 1, second: 2.0),
+                 %{non: 2, existing: 4, key: 5}
+               )
+    end
+
+    test "return error if the given struct's name differs from the module's name" do
+      assert {:error, {:unexpected_struct, "IncorrectDefault structure was expected as the first \
+argument and TwoFieldStruct was received."}} ==
+               IncorrectDefault.merge(TwoFieldStruct.new!(first: 1, second: 2.0), second: 3)
+    end
+
+    test "return error on value that doesn't match the field's type" do
+      assert {:error, {:value_err, "Unexpected value type for the field :first. \
+The value 2.0 doesn't match the integer type.\nUnexpected value type for the field :second. \
+The value :three doesn't match the float type."}} ==
+               TwoFieldStruct.merge(TwoFieldStruct.new!(first: 1, second: 2.0),
+                 first: 2.0,
+                 second: :three
+               )
+    end
+  end
+
+  describe "typedstruct should make merge!/2" do
+    test "function to be in the module" do
+      true = Code.ensure_loaded?(OverridenNew)
+      assert true == Kernel.function_exported?(OverridenNew, :merge!, 2)
+    end
+
+    test "to be able to update struct values skipping nonexisting keys" do
+      assert %TwoFieldStruct{first: 2, second: 4.0} ==
+               TwoFieldStruct.merge!(TwoFieldStruct.new!(%{first: 1, second: 2.0}),
+                 first: 2,
+                 second: 4.0,
+                 third: 5
+               )
+    end
+
+    test "to keep the struct the same if no overlapping keys in passed enumerable" do
+      assert %TwoFieldStruct{first: 1, second: 2.0} ==
+               TwoFieldStruct.merge!(
+                 TwoFieldStruct.new!(first: 1, second: 2.0),
+                 %{non: 2, existing: 4, key: 5}
+               )
+    end
+
+    test "raise if the given struct's name differs from the module's name" do
+      assert_raise ArgumentError,
+                   "IncorrectDefault structure was expected as the first argument and TwoFieldStruct was received.",
+                   fn ->
+                     IncorrectDefault.merge!(TwoFieldStruct.new!(first: 1, second: 2.0), second: 3)
+                   end
+    end
+
+    test "raise on value that doesn't match the field's type" do
+      assert_raise ArgumentError,
+                   "Unexpected value type for the field :first. The value 2.0 doesn't match \
+the integer type.\nUnexpected value type for the field :second. The value :three doesn't match the float type.",
+                   fn ->
+                     TwoFieldStruct.merge!(TwoFieldStruct.new!(first: 1, second: 2.0),
+                       first: 2.0,
+                       second: :three
+                     )
+                   end
+    end
+  end
+
+  test "new(!)/1, merge(!)/2, and put(!)/3 functions should be overridable" do
+    assert %OverridenNew{first: 3, second: 4} == OverridenNew.new!(%{first: 3})
+    assert {:ok, %OverridenNew{first: 3, second: 4}} == OverridenNew.new(%{first: 3})
+
+    assert %OverridenNew{first: 555, second: 4} ==
+             OverridenNew.merge!(OverridenNew.new!(%{first: 3}), %{first: 4})
+
+    assert {:ok, %OverridenNew{first: 666, second: 4}} ==
+             OverridenNew.merge(OverridenNew.new!(%{first: 3}), %{first: 4})
+
+    assert %OverridenNew{first: 24, second: 4} ==
+             OverridenNew.put!(OverridenNew.new!(%{first: 3}), :first, 4)
+
+    assert {:ok, %OverridenNew{first: 64, second: 4}} ==
+             OverridenNew.put(OverridenNew.new!(%{first: 3}), :first, 4)
+  end
+
+  test "merge(!)/2 and put(!)/3 functions should Not be added to the struct if no fields are specified" do
+    true = Code.ensure_loaded?(NoFieldsStruct)
+    assert false == Kernel.function_exported?(NoFieldsStruct, :merge!, 2)
+    assert false == Kernel.function_exported?(NoFieldsStruct, :merge, 2)
+    assert false == Kernel.function_exported?(NoFieldsStruct, :put!, 3)
+    assert false == Kernel.function_exported?(NoFieldsStruct, :put, 3)
   end
 
   test "tag function should return tagged tuple by joining tag chain of up to 6 tags with a value" do

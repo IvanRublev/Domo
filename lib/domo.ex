@@ -2,26 +2,31 @@ defmodule Domo do
   @moduledoc """
   **⚠️ Preview, requires Elixir 1.11.0-dev to run**
 
-  Domo is a library for defining custom composable types for fields of a struct
-  to make these pieces of data to flow through the app consistently.
+  Domo is a library to model a business domain with composable tags
+  and type-safe structs.
+
+  It's a library to define what piece of data is what and make
+  a dialyzer and run-time type checks to cover one's back,
+  reminding about taken definitions.
 
   The library aims for two goals:
 
     * to model a business domain entity's possible valid states with custom
-      types for fields of struct representing the entity
+      types for fields of the struct representing the entity
     * to verify that entity structs are assembled to one of the allowed
-      valid states at compile-time
-
-  It's a library to define what piece of data is what and make
-  a compiler and dialyzer to cover one's back, reminding about taken
-  definitions.
+      valid states in run-time
 
   The validation of the incoming data is on the author of the concrete
   application. The library can only ensure the consistent processing
-  of that valid data throughout the system.
+  of that valid data according to type specs and definitions throughout
+  the system.
 
-  The library has the means to build structs and depends on the [TypedStruct](https://hexdocs.pm/typed_struct/)
-  to do so.
+  The library has the means to build structs and relies on the [TypedStruct](https://hexdocs.pm/typed_struct/)
+  to do so. It's possible to extend and configure many of the TypedStruct
+  features transparently.
+
+  If you practice Domain Driven Design, this library can be used to
+  model entities, value objects, and aggregates because it's delightful.
 
   ## Rationale
 
@@ -57,9 +62,9 @@ defmodule Domo do
     * local reasoning about the relation of value to the struct in any nested
       function of the app
     * compile-time verification of assembling/updating of the structure
-      from values that relates only to it
+      from the values that relate only to it
 
-  One possible valid way to do this is to use Domo library like the following:
+  One possible valid way to do so is to use Domo library like the following:
 
       defmodule Order do
         use Domo
@@ -84,11 +89,11 @@ defmodule Domo do
 
   Then the construction of the struct becomes like this:
 
-      Order.new!(%{
+      Order.new!(
         id: Id --- "156",
         quantity: Quantity --- Kilograms --- 2.5
         note: Note --- "Deliver on Tue"
-      })
+      )
 
   And a signature of a custom function to modify the struct becomes like this:
 
@@ -96,12 +101,14 @@ defmodule Domo do
       def put_quantity(order, Quantity --- Units --- units) ...
       def put_quantity(order, Quantity --- Kilograms --- kilos) ...
 
-  Thanks to the Domo library, every field of the structure becomes a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
-  consisting of a tag and a value. A tag is a module itself.
-  Several tags can be nested, defining valid tag chains as a shape for values
-  of primitive type. That makes it possible to do pattern matching against
-  the shape of the struct's value. That enables the dialyzer to validate
-  contracts for the structure itself and the structure's field values.
+  Thanks to the Domo library, every field of the structure becomes
+  a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
+  consisting of a tag and a value. The tag is a module itself.
+  Several tags can be nested, defining valid tag chains. These are playing
+  the role of shapes for values of primitive type. That makes it possible
+  to perform pattern matching against the shape of the struct's value.
+  That enables the dialyzer to validate contracts for the structure itself
+  and the structure's field values.
 
   ## Usage
 
@@ -186,8 +193,9 @@ defmodule Domo do
   See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/)
   for implementation details.
 
-  Use `new!/1` and `put!/3` functions that are automatically defined
-  for the struct to create a new instance and update an existing one.
+  Use `new/1`, `merge/2`, and `put/3` function or their raising versions
+  that are all automatically defined for the struct to create a new instance
+  and update an existing one.
 
       alias Order
       alias Order.{Id, Note}
@@ -196,12 +204,27 @@ defmodule Domo do
       |> Order.new!()
       |> Order.put!(:note, Note --- "Deliver on Tue")
 
-  The dialyzer can check if properly tagged values are passed as parameters
-  to these functions. The `new!/1` function can be overridden to make data
-  validations.
+  At the compile-time the dialyzer can check if properly tagged values are passed
+  as parameters to these functions.
+
+  At the run-time, each function checks the values passed in against the types set
+  in the `field/3` macro. In case of mismatch, the functions raise an error.
+
+  That works with tags, and with any other user or system type, you may specify
+  for the field. You can introduce tags in the project gracefully,
+  taking them in appropriate proportion with the type safe-structs.
+
+  The functions mentioned above can be overridden to make data validations.
+  Please, be careful and modify struct with a super(...) call. This call should
+  be the last call in the overridden function.
+
+  It's still possible to modify a struct with %{... | s } map syntax and other
+  standard functions directly skipping the checks.
+  Please, use the functions mentioned above for the type-safety.
 
   After the module compilation, the Domo library checks if all tags that
   are used with the `---/2` operator are defined and appropriately aliased.
+
   The following options can be passed with `use Domo, ...`
 
   #### Options
@@ -272,12 +295,8 @@ defmodule Domo do
 
   ## Limitations
 
-  Only a map is expected as the fields argument for the `new!/1` function
-  because it's impossible to define a typespec for a keyword list with a
-  set of required key-value pairs.
-
-  It's still possible to construct a struct with a `new/1` function with
-  fields of the wrong shape at runtime overlooking the dialyzer warnings.
+  We can't make you know the business problem; at the same time,
+  the Domo library can help you to model the problem and understand it better.
 
   """
   @doc false
@@ -422,33 +441,38 @@ defmodule Domo do
   end
 
   @doc """
-  Defines a struct with all keys enforced, a `new!/1`, and a `put!/2` functions
-  into it.
+  Defines a struct with all keys enforced, a `new/1`, `merge/2`, `put/2`
+  and their bang versions into it.
 
   The macro defines a struct by passing an `[enforced: true]` option,
   and the `do` block to the `typed_struct` function of the same-named library.
-  See the [TypedStruct documentation](https://hexdocs.pm/typed_struct)
-  for syntax details.
+  It's possible to use plugins for the TypedStruct in place,
+  see [library's documentation](https://hexdocs.pm/typed_struct) for syntax details.
 
   The default implementation of the `new!/1` constructor function looks like
   the following:
 
       def new!(map), do: struct!(__MODULE__, map)
 
-  The function can be overridden.
+  The `merge!/2` function should be used to update several keys of the existing
+  structure at once. The missing keys are ignored.
 
-  The `put!/2` function should be used to update the existing structure.
+      def merge!(%__MODULE__{} = s, enumerable), do: ...
+
+  The `put!/2` function should be used to update one key of the existing structure.
   Its definition looks like the following:
 
-      def put!(%__MODULE__{} = s, field, value)
+      def put!(%__MODULE__{} = s, field, value), do: ...
 
   Both `new!/1` and `put!/2` have type specs defined from the struct fields.
   Meaning, that the dialyzer can indicate contract break when values with wrong
   tags are used to construct or modify the structure.
 
-  Unfortunately, the dialyzer can't analyze wrongly typed values mixed
-  with correctly typed in the keyword list. Because of that, the function
-  taking a list of fields and values to be updated is impossible to define.
+  At the run-time the functions check every argument against the type spec
+  set for the field with `field/3` macro. And raises or returns an error
+  on mismatch of the value type and the field's type.
+
+  These functions can be overridden.
 
   ## Examples
 
@@ -462,7 +486,8 @@ defmodule Domo do
       ...> end
       ...>
       ...> p = Person.new!(%{name: "Sarah Connor"})
-      ...> Person.put!(p, :name, "Connor")
+      ...> p = Person.put!(p, :name, "Connor")
+      ...> {:error, _} = Person.merge(p, name: 9)
 
   All defined fields are enforced automatically. We can specify an optional
   field with an atom and override `new!/1` to verify values before construction.
@@ -491,21 +516,107 @@ defmodule Domo do
 
     block = expand_in_block_once(block, __CALLER__)
 
-    fields_spec =
+    fields_kw_spec =
       Enum.reverse(List.wrap(Module.get_attribute(__CALLER__.module, :domo_struct_key_type)))
 
-    put_defs = quoted_put_funs(fields_spec)
+    field_error_defs = quoted_field_error_funs(fields_kw_spec, __CALLER__)
+    put_defs = if not Enum.empty?(fields_kw_spec), do: quoted_put_funs(fields_kw_spec)
+    merge_defs = if not Enum.empty?(fields_kw_spec), do: quoted_merge_funs(fields_kw_spec)
 
-    quote do
+    quote location: :keep do
+      alias Domo.TypeContract
+
       require TypedStruct
+
+      @type fn_new_argument ::
+              [unquote_splicing(fields_kw_spec)] | %{unquote_splicing(fields_kw_spec)}
+      @type fn_new_field_error :: %{field: atom, value: any, type: String.t()}
+
       TypedStruct.typedstruct([enforce: true], do: unquote(block))
 
-      @spec new!(map :: %{unquote_splicing(fields_spec)}) :: __MODULE__.t()
-      def new!(map), do: struct!(__MODULE__, map)
+      @spec new!(fn_new_argument()) :: t()
+      def new!(enumerable) do
+        __raise_mistyped_fields_if_needed(struct!(__MODULE__, enumerable), fn ->
+          "new!(#{inspect(enumerable)})"
+        end)
+      end
 
-      defoverridable new!: 1
+      @spec new(fn_new_argument()) :: {:ok, t()} | {:error, {:key_err | :value_err, String.t()}}
+      def new(enumerable) do
+        with {:ok, s} <- __struct_or_err(enumerable),
+             {:ok, s} = res <-
+               __struct_or_mistyped_fields_err(s, fn -> "new(#{inspect(enumerable)})" end) do
+          res
+        else
+          err -> err
+        end
+      end
+
+      defoverridable new!: 1, new: 1
+
+      @spec __struct_or_err(fn_new_argument()) :: {:ok, t()} | {:error, {:key_err, String.t()}}
+      defp __struct_or_err(enumerable) do
+        try do
+          {:ok, struct!(__MODULE__, enumerable)}
+        rescue
+          err in [ArgumentError] -> {:error, {:key_err, err.message}}
+        end
+      end
+
+      @spec __format_mistyped_construction_error([fn_new_field_error()], String.t()) :: String.t()
+      defp __format_mistyped_construction_error(list, call_site) do
+        "Can't construct %#{inspect(__MODULE__)}{...}"
+        |> Kernel.<>(if String.length(call_site) == 0, do: "", else: " with " <> call_site)
+        |> Kernel.<>("\n")
+        |> Kernel.<>(__format_value_type_error(list))
+      end
+
+      @spec __format_value_type_error([fn_new_field_error()], padding: boolean) :: String.t()
+      defp __format_value_type_error(list, opts \\ [padding: true]) do
+        list
+        |> Enum.map(&"Unexpected value type for the field #{inspect(&1.field)}. \
+The value #{inspect(&1.value)} doesn't match the #{&1.type} type.")
+        |> Enum.map(&(if(true == opts[:padding], do: "    ", else: "") <> &1))
+        |> Enum.join("\n")
+      end
+
+      @spec __struct_or_mistyped_fields_err(t(), (() -> String.t())) ::
+              {:ok, t()} | {:error, {:value_err, String.t()}}
+      defp __struct_or_mistyped_fields_err(struct, call_site_fn) do
+        case __mistyped_fields(Map.from_struct(struct)) do
+          [] ->
+            {:ok, struct}
+
+          list ->
+            {:error, {:value_err, __format_mistyped_construction_error(list, call_site_fn.())}}
+        end
+      end
+
+      @spec __raise_mistyped_fields_if_needed(t(), (() -> String.t())) :: t()
+      defp __raise_mistyped_fields_if_needed(struct, call_site_fn) do
+        case __mistyped_fields(Map.from_struct(struct)) do
+          [] ->
+            struct
+
+          list ->
+            raise(
+              ArgumentError,
+              __format_mistyped_construction_error(list, call_site_fn.())
+            )
+        end
+      end
+
+      @spec __mistyped_fields(fn_new_argument()) :: [fn_new_field_error()]
+      defp __mistyped_fields(enumerable) do
+        Enum.filter(Enum.map(enumerable, &__field_error/1), &(not is_nil(&1)))
+      end
+
+      @spec __field_error({atom, any}) :: fn_new_field_error() | nil
+      unquote(field_error_defs)
+      defp __field_error({_unknown_field, _value}), do: nil
 
       unquote(put_defs)
+      unquote(merge_defs)
     end
   end
 
@@ -517,36 +628,127 @@ defmodule Domo do
     Macro.expand_once(field, env)
   end
 
-  defp quoted_put_funs(fields_spec) do
-    fields_spec
-    |> Enum.map(fn {key, type} -> quoted_put(key, type) end)
-    |> List.insert_at(-1, quoted_put_raise_nonpresent_key())
-    |> List.insert_at(-1, quoted_put_raise_struct_name())
+  defp quoted_field_error_funs(fields_kw_spec, caller_env) do
+    fields_kw_spec
+    |> Enum.map(fn {field, type} -> {field, Macro.escape(type), Macro.to_string(type)} end)
+    |> Enum.map(&quoted_field_error(&1, caller_env))
   end
 
-  defp quoted_put(key, type) do
+  defp quoted_field_error({field, type_esc, type_str}, caller_env) do
+    caller_env = Macro.escape(caller_env)
+
     quote do
-      @spec put!(s :: __MODULE__.t(), unquote(key), unquote(type)) :: __MODULE__.t()
-      def put!(%__MODULE__{} = s, unquote(key), value), do: Map.replace!(s, unquote(key), value)
+      defp __field_error({unquote(field) = name, value}) do
+        case TypeContract.valid?(value, unquote(type_esc), unquote(caller_env)) do
+          true -> nil
+          false -> %{field: name, value: value, type: unquote(type_str)}
+        end
+      end
     end
   end
 
-  defp quoted_put_raise_nonpresent_key do
+  defp quoted_merge_funs(fields_spec) do
+    struct_keys = Keyword.keys(fields_spec)
+
+    quote location: :keep do
+      @spec merge(t(), keyword() | map()) ::
+              {:ok, t()} | {:error, {:unexpected_struct | :value_err, String.t()}}
+      def merge(%__MODULE__{} = s, enumerable) do
+        case __filter_mistyped_fields(enumerable) do
+          [] -> {:ok, struct(s, enumerable)}
+          list -> {:error, {:value_err, __format_value_type_error(list, padding: false)}}
+        end
+      end
+
+      def merge(%name{}, _enum) do
+        {:error, {:unexpected_struct, "#{inspect(__MODULE__)} structure was expected \
+as the first argument and #{inspect(name)} was received."}}
+      end
+
+      @spec merge!(t(), keyword() | map()) :: t()
+      def merge!(%__MODULE__{} = s, enumerable) do
+        case __filter_mistyped_fields(enumerable) do
+          [] -> struct(s, enumerable)
+          list -> raise(ArgumentError, __format_value_type_error(list, padding: false))
+        end
+      end
+
+      def merge!(%name{}, _enum),
+        do: raise(ArgumentError, "#{inspect(__MODULE__)} structure was expected \
+as the first argument and #{inspect(name)} was received.")
+
+      @spec __filter_mistyped_fields(keyword() | map()) :: [fn_new_field_error()] | []
+      defp __filter_mistyped_fields(enumerable) do
+        enumerable
+        |> Enum.filter(fn {key, _value} -> Enum.member?(unquote(struct_keys), key) end)
+        |> Enum.into(%{})
+        |> __mistyped_fields()
+      end
+
+      defoverridable merge!: 2, merge: 2
+    end
+  end
+
+  defp quoted_put_funs(fields_spec) do
+    fields_spec
+    |> Enum.map(fn {key, type} -> quoted_puts(key, type) end)
+    |> List.insert_at(-1, quoted_put_bang_raise_nonpresent_key())
+    |> List.insert_at(-1, quoted_put_bang_raise_struct_name())
+    |> List.insert_at(-1, quoted_put_err_nonpresent_key())
+    |> List.insert_at(-1, quoted_put_err_struct_name())
+    |> List.insert_at(-1, quote(do: defoverridable(put!: 3, put: 3)))
+  end
+
+  defp quoted_puts(key, type) do
+    quote location: :keep do
+      @spec put!(t(), unquote(key), unquote(type)) :: t()
+      def put!(%__MODULE__{} = s, unquote(key), value) do
+        case __field_error({unquote(key), value}) do
+          %{} = err -> raise(ArgumentError, __format_value_type_error([err], padding: false))
+          nil -> Map.replace!(s, unquote(key), value)
+        end
+      end
+
+      @spec put(t(), unquote(key), unquote(type)) ::
+              {:ok, t()}
+              | {:error, {:unexpected_struct | :key_err | :value_err, String.t()}}
+      def put(%__MODULE__{} = s, unquote(key), value) do
+        case __field_error({unquote(key), value}) do
+          %{} = err -> {:error, {:value_err, __format_value_type_error([err], padding: false)}}
+          nil -> {:ok, Map.replace!(s, unquote(key), value)}
+        end
+      end
+    end
+  end
+
+  defp quoted_put_bang_raise_nonpresent_key do
     quote do
       def put!(%__MODULE__{} = s, key, val), do: Map.replace!(s, key, val)
     end
   end
 
-  defp quoted_put_raise_struct_name do
+  defp quoted_put_bang_raise_struct_name do
     quote do
       def put!(%name{}, _key, _val),
-        do:
-          raise(
-            ArgumentError,
-            "#{inspect(__MODULE__)} structure was expected as the first argument and #{
-              inspect(name)
-            } was received."
-          )
+        do: raise(ArgumentError, "#{inspect(__MODULE__)} structure was expected \
+as the first argument and #{inspect(name)} was received.")
+    end
+  end
+
+  defp quoted_put_err_nonpresent_key do
+    quote do
+      def put(%__MODULE__{} = s, key, val) do
+        {:error, {:key_err, "no #{inspect(key)} key found in the struct."}}
+      end
+    end
+  end
+
+  defp quoted_put_err_struct_name do
+    quote do
+      def put(%name{}, _key, _val) do
+        {:error, {:unexpected_struct, "#{inspect(__MODULE__)} structure was expected \
+as the first argument and #{inspect(name)} was received."}}
+      end
     end
   end
 
@@ -627,8 +829,6 @@ defmodule Domo do
     f = String.first(Atom.to_string(a))
     f == String.upcase(f)
   end
-
-  # Kernel.function_exported?(m, :tag?, 0)
 
   @doc """
   Returns tagged tuple by joining a tag chain with a value.
