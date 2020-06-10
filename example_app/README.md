@@ -17,7 +17,7 @@ Run `mix dialyzer` to get insights about changes needed in the codebase
 
 To start your Phoenix server:
 
-  * Run a PostgreSQL docker container with `docker run -ti -d --name "domo_example_app_db" -p 15678:5432 postgres:latest`
+  * Run a PostgreSQL docker container with `docker run -d --name "domo_example_app_db" -p 15678:5432 postgres:latest`
   * Install dependencies with `mix deps.get`
   * Setup database with `mix ecto.setup`
   * Start Phoenix endpoint with `mix phx.server`

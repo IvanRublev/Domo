@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "0.0.8"
+  @version "0.0.9"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -28,7 +28,7 @@ defmodule Domo.MixProject do
       # Package
       package: package(),
       description:
-        "Domo is a library to model a business domain with composable tags " <>
+        "A library to model a business domain with composable tags " <>
           "and type-safe structs. " <>
           "**⚠️ Preview, requires Elixir 1.11.0-dev to run**"
     ]

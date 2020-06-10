@@ -16,21 +16,6 @@ defmodule Domo.RuntimeChecksTest do
     |> Enum.sort()
   end
 
-  defp types_to_strings(bytecode) do
-    bytecode
-    |> types()
-    |> Enum.map(fn {_, {type_name, _, _} = type} ->
-      {type_name, Macro.to_string(Code.Typespec.type_to_quoted(type))}
-    end)
-  end
-
-  defp types(bytecode) do
-    bytecode
-    |> Code.Typespec.fetch_types()
-    |> elem(1)
-    |> Enum.sort()
-  end
-
   setup_all do
     {:module, _, multi_field_bytecode, _} =
       defmodule SpecTestOrder do
@@ -87,49 +72,54 @@ defmodule Domo.RuntimeChecksTest do
   end
 
   describe "new/1 constructor functions added to module should have a spec with" do
-    test "argument of fn_new_argument type and return of the result tuple", %{
+    test "return of the result tuple", %{
       multi_field_bytecode: bytecode
     } do
       {:ok, new_spec} = Keyword.fetch(spec_to_strings(bytecode), :new)
 
-      assert "new(fn_new_argument()) :: {:ok, t()} | {:error, {:key_err | :value_err, String.t()}}" ==
-               new_spec
+      assert new_spec =~ ~r/:: {:ok, t\(\)} | {:error, {:key_err | :value_err, String.t\(\)}}$/
     end
   end
 
   describe "new!/1 constructor functions added to module should have a spec with" do
-    test "argument of fn_new_argument type and return of t()", %{multi_field_bytecode: bytecode} do
+    test "return type of t()", %{multi_field_bytecode: bytecode} do
       {:ok, new_spec} = Keyword.fetch(spec_to_strings(bytecode), :new!)
 
-      assert "new!(fn_new_argument()) :: t()" == new_spec
+      assert new_spec =~ ~r/:: t\(\)$/
     end
   end
 
-  describe "new functions argument type should be" do
-    test "a enum with values of specified filed types", %{multi_field_bytecode: bytecode} do
-      {:ok, new_arg_spec} = Keyword.fetch(types_to_strings(bytecode), :fn_new_argument)
+  describe "new(!)/1 functions argument in spec should be" do
+    defp argument(bytecode, f) do
+      {:ok, new_spec} = Keyword.fetch(spec_to_strings(bytecode), f)
+      [arg] = Regex.run(~r/^[^\(]+\((.*)\) :: .*$/, new_spec, capture: :all_but_first)
+      arg
+    end
 
-      assert "fn_new_argument() :: [id: Domo.RuntimeChecksTest.SpecTestOrder.Id.t(), \
+    test "a enum with values of specified filed types", %{multi_field_bytecode: bytecode} do
+      expected = "[id: Domo.RuntimeChecksTest.SpecTestOrder.Id.t(), \
 note: Domo.RuntimeChecksTest.SpecTestOrder.Note.t(), \
 quantity: Domo.RuntimeChecksTest.SpecTestOrder.Quantity.t(), \
 comment: String.t(), version: integer()] | \
 %{id: Domo.RuntimeChecksTest.SpecTestOrder.Id.t(), \
 note: Domo.RuntimeChecksTest.SpecTestOrder.Note.t(), \
 quantity: Domo.RuntimeChecksTest.SpecTestOrder.Quantity.t(), \
-comment: String.t(), version: integer()}" == new_arg_spec
+comment: String.t(), version: integer()}"
+      assert expected == argument(bytecode, :new)
+      assert expected == argument(bytecode, :new!)
     end
 
     test "one field enum in case", %{one_field_bytecode: bytecode} do
-      {:ok, new_arg_spec} = Keyword.fetch(types_to_strings(bytecode), :fn_new_argument)
-
-      assert "fn_new_argument() :: [{:one_key, :none | float() | integer()}] | \
-%{one_key: :none | float() | integer()}" == new_arg_spec
+      expected = "[{:one_key, :none | float() | integer()}] | \
+%{one_key: :none | float() | integer()}"
+      assert expected == argument(bytecode, :new)
+      assert expected == argument(bytecode, :new!)
     end
 
     test "empty enum if no filelds are specified", %{no_fields_bytecode: bytecode} do
-      {:ok, new_arg_spec} = Keyword.fetch(types_to_strings(bytecode), :fn_new_argument)
-
-      assert "fn_new_argument() :: [] | %{}" == new_arg_spec
+      expected = "[] | %{}"
+      assert expected == argument(bytecode, :new)
+      assert expected == argument(bytecode, :new!)
     end
   end
 

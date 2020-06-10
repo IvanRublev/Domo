@@ -129,6 +129,43 @@ to perform pattern matching against the shape of the struct's value.
 That enables the dialyzer to validate contracts for the structure itself
 and the structure's field values.
 
+### Run-time type checking
+
+Complicated function calls can produce states that are unavailable
+to the dialyzer's static analysis. That can lead to a mix up of the data
+in the instances of the structures.
+
+To catch possible logical errors, every struct modifying function
+that is added by Domo library checks a value of the field against its type
+spec when called. That makes it possible to fail closer to the origin
+of the error.
+
+Creating a new structure with wrongly tagged value raises the ArgumentError
+like the following.
+
+```elixir
+Order.new!(
+  id: Id --- "ord000000012",
+  quantity: Quantity --- Kilograms --- 2.5,
+  note: Note --- :whaat
+)
+
+** (ArgumentError) Can't construct %App.Core.Order{...} with new!([id: {App.Core.Order.Id, "ord000000012"}, quantity: {App.Core.Order.Quantity, {App.Core.Order.Quantity.Kilograms, 2.5}}, note: {App.Core.Order.Note, :whaat}])
+  Unexpected value type for the field :note. The value {App.Core.Order.Note, :whaat} doesn't match the Note.t() type.
+  (app 0.1.0) lib/domo/struct_functions_generator.ex:18: App.Core.Order."new! (overridable 1)"/1
+```
+
+Modification of the existing structure with mismatching type raises
+the ArgumentError like that.
+
+```elixir
+Order.merge!(order, note: :foo, quantity: :bar)
+
+** (ArgumentError) Unexpected value type for the field :note. The value :foo doesn't match the Note.t() type.
+  Unexpected value type for the field :quantity. The value :bar doesn't match the Quantity.t() type.
+  (app 0.1.0) lib/domo/struct_functions_generator.ex:74: App.Core.Order.merge!/2
+```
+
 ## Usage
 
 ### Setup
@@ -145,7 +182,7 @@ made with `---/2` operator, you can add to your `.formatter.exs`:
 ```elixir
 [
   ...,
-  import_deps: [:typed_struct]
+  import_deps: [:domo]
 ]
 ```
 
@@ -331,13 +368,13 @@ identifier
 
 ## Limitations
 
-We can't make you know the business problem; at the same time,
-the Domo library can help you to model the problem and understand it better.
+When one uses a remote type for the field of a struct, the runtime type check
+will work properly only if the remote type's module is compiled into
+the .beam file on the disk, which means, that modules generated in memory
+are not supported. That's because of the way the Erlang functions load types.
 
-## Limitations
-
-We can't make you know the business problem, same time the Domo library
-can help you to model the problem and understand it better.
+We may not know your business problem; at the same time, the Domo library can help you
+to model the problem and understand it better.
 
 ## Contributing
 

@@ -110,6 +110,39 @@ defmodule Domo do
   That enables the dialyzer to validate contracts for the structure itself
   and the structure's field values.
 
+  ### Run-time type checking
+
+  Complicated function calls can produce states that are unavailable
+  to the dialyzer's static analysis. That can lead to a mix up of the data
+  in the instances of the structures.
+
+  To catch possible logical errors, every struct modifying function
+  that is added by Domo library checks a value of the field against its type
+  spec when called. That makes it possible to fail closer to the origin
+  of the error.
+
+  Creating a new structure with wrongly tagged value raises the ArgumentError
+  like the following.
+
+      Order.new!(
+        id: Id --- "ord000000012",
+        quantity: Quantity --- Kilograms --- 2.5,
+        note: Note --- :whaat
+      )
+
+      ** (ArgumentError) Can't construct %App.Core.Order{...} with new!([id: {App.Core.Order.Id, "ord000000012"}, quantity: {App.Core.Order.Quantity, {App.Core.Order.Quantity.Kilograms, 2.5}}, note: {App.Core.Order.Note, :whaat}])
+          Unexpected value type for the field :note. The value {App.Core.Order.Note, :whaat} doesn't match the Note.t() type.
+          (app 0.1.0) lib/domo/struct_functions_generator.ex:18: App.Core.Order."new! (overridable 1)"/1
+
+  Modification of the existing structure with mismatching type raises
+  the ArgumentError like that.
+
+      Order.merge!(order, note: :foo, quantity: :bar)
+
+      ** (ArgumentError) Unexpected value type for the field :note. The value :foo doesn't match the Note.t() type.
+          Unexpected value type for the field :quantity. The value :bar doesn't match the Quantity.t() type.
+          (app 0.1.0) lib/domo/struct_functions_generator.ex:74: App.Core.Order.merge!/2
+
   ## Usage
 
   ### Setup
@@ -123,7 +156,7 @@ defmodule Domo do
 
       [
         ...,
-        import_deps: [:typed_struct]
+        import_deps: [:domo]
       ]
 
   ### General usage
@@ -295,8 +328,13 @@ defmodule Domo do
 
   ## Limitations
 
-  We can't make you know the business problem; at the same time,
-  the Domo library can help you to model the problem and understand it better.
+  When one uses a remote type for the field of a struct, the runtime type check
+  will work properly only if the remote type's module is compiled into
+  the .beam file on the disk, which means, that modules generated in memory
+  are not supported. That's because of the way the Erlang functions load types.
+
+  We may not know your business problem; at the same time, the Domo library can help you
+  to model the problem and understand it better.
 
   """
   @doc false
@@ -470,7 +508,7 @@ defmodule Domo do
 
   At the run-time the functions check every argument against the type spec
   set for the field with `field/3` macro. And raises or returns an error
-  on mismatch of the value type and the field's type.
+  on mismatch between the value type and the field's type.
 
   These functions can be overridden.
 
@@ -485,12 +523,13 @@ defmodule Domo do
       ...>   end
       ...> end
       ...>
-      ...> p = Person.new!(%{name: "Sarah Connor"})
+      ...> p = Person.new!(name: "Sarah Connor")
       ...> p = Person.put!(p, :name, "Connor")
       ...> {:error, _} = Person.merge(p, name: 9)
 
   All defined fields are enforced automatically. We can specify an optional
-  field with an atom and override `new!/1` to verify values before construction.
+  field with an atom. The default implementation of `new!/1` assures that
+  arguments value match the type spec before construction of the struct.
 
       iex> defmodule Hero do
       ...>   use Domo
@@ -501,122 +540,40 @@ defmodule Domo do
       ...>     field :optional_kid, :none | String.t(), default: :none
       ...>   end
       ...>
-      ...>   def new!(name) when is_binary(name), do: super(%{name: name})
-      ...>
-      ...>   def new!(%{optional_kid: kid} = map) when kid in ["John Connor", :none],
-      ...>     do: super(map)
+      ...>   def new!(name) when is_binary(name), do: super(name: name)
+      ...>   def new!(args), do: super(args)
       ...> end
       ...>
       ...> Hero.new!("Sarah Connor")
-      ...> Hero.new!(%{name: "Sarah Connor", optional_kid: "John Connor"})
+      ...> Hero.new!(name: "Sarah Connor", optional_kid: "John Connor")
+      ...>
+      ...> Hero.new!(name: "Sarah Connor", optional_kid: nil)
+      ** (ArgumentError) Can't construct %DomoTest.Hero{...} with new!([name: "Sarah Connor", optional_kid: nil])
+          Unexpected value type for the field :optional_kid. The value nil doesn't match the :none | String.t() type.
 
   """
   defmacro typedstruct(do: block) do
     Module.register_attribute(__CALLER__.module, :domo_struct_key_type, accumulate: true)
 
+    # :domo_struct_key_type is accumulated during the following expansion
     block = expand_in_block_once(block, __CALLER__)
 
     fields_kw_spec =
       Enum.reverse(List.wrap(Module.get_attribute(__CALLER__.module, :domo_struct_key_type)))
 
-    field_error_defs = quoted_field_error_funs(fields_kw_spec, __CALLER__)
-    put_defs = if not Enum.empty?(fields_kw_spec), do: quoted_put_funs(fields_kw_spec)
-    merge_defs = if not Enum.empty?(fields_kw_spec), do: quoted_merge_funs(fields_kw_spec)
+    alias Domo.StructFunctionsGenerator
+    alias Domo.TypeCheckerGenerator
 
     quote location: :keep do
-      alias Domo.TypeContract
+      unquote(TypeCheckerGenerator.module(fields_kw_spec, __CALLER__))
 
       require TypedStruct
 
-      @type fn_new_argument ::
-              [unquote_splicing(fields_kw_spec)] | %{unquote_splicing(fields_kw_spec)}
-      @type fn_new_field_error :: %{field: atom, value: any, type: String.t()}
-
       TypedStruct.typedstruct([enforce: true], do: unquote(block))
 
-      @spec new!(fn_new_argument()) :: t()
-      def new!(enumerable) do
-        __raise_mistyped_fields_if_needed(struct!(__MODULE__, enumerable), fn ->
-          "new!(#{inspect(enumerable)})"
-        end)
-      end
-
-      @spec new(fn_new_argument()) :: {:ok, t()} | {:error, {:key_err | :value_err, String.t()}}
-      def new(enumerable) do
-        with {:ok, s} <- __struct_or_err(enumerable),
-             {:ok, s} = res <-
-               __struct_or_mistyped_fields_err(s, fn -> "new(#{inspect(enumerable)})" end) do
-          res
-        else
-          err -> err
-        end
-      end
-
-      defoverridable new!: 1, new: 1
-
-      @spec __struct_or_err(fn_new_argument()) :: {:ok, t()} | {:error, {:key_err, String.t()}}
-      defp __struct_or_err(enumerable) do
-        try do
-          {:ok, struct!(__MODULE__, enumerable)}
-        rescue
-          err in [ArgumentError] -> {:error, {:key_err, err.message}}
-        end
-      end
-
-      @spec __format_mistyped_construction_error([fn_new_field_error()], String.t()) :: String.t()
-      defp __format_mistyped_construction_error(list, call_site) do
-        "Can't construct %#{inspect(__MODULE__)}{...}"
-        |> Kernel.<>(if String.length(call_site) == 0, do: "", else: " with " <> call_site)
-        |> Kernel.<>("\n")
-        |> Kernel.<>(__format_value_type_error(list))
-      end
-
-      @spec __format_value_type_error([fn_new_field_error()], padding: boolean) :: String.t()
-      defp __format_value_type_error(list, opts \\ [padding: true]) do
-        list
-        |> Enum.map(&"Unexpected value type for the field #{inspect(&1.field)}. \
-The value #{inspect(&1.value)} doesn't match the #{&1.type} type.")
-        |> Enum.map(&(if(true == opts[:padding], do: "    ", else: "") <> &1))
-        |> Enum.join("\n")
-      end
-
-      @spec __struct_or_mistyped_fields_err(t(), (() -> String.t())) ::
-              {:ok, t()} | {:error, {:value_err, String.t()}}
-      defp __struct_or_mistyped_fields_err(struct, call_site_fn) do
-        case __mistyped_fields(Map.from_struct(struct)) do
-          [] ->
-            {:ok, struct}
-
-          list ->
-            {:error, {:value_err, __format_mistyped_construction_error(list, call_site_fn.())}}
-        end
-      end
-
-      @spec __raise_mistyped_fields_if_needed(t(), (() -> String.t())) :: t()
-      defp __raise_mistyped_fields_if_needed(struct, call_site_fn) do
-        case __mistyped_fields(Map.from_struct(struct)) do
-          [] ->
-            struct
-
-          list ->
-            raise(
-              ArgumentError,
-              __format_mistyped_construction_error(list, call_site_fn.())
-            )
-        end
-      end
-
-      @spec __mistyped_fields(fn_new_argument()) :: [fn_new_field_error()]
-      defp __mistyped_fields(enumerable) do
-        Enum.filter(Enum.map(enumerable, &__field_error/1), &(not is_nil(&1)))
-      end
-
-      @spec __field_error({atom, any}) :: fn_new_field_error() | nil
-      unquote(field_error_defs)
-      defp __field_error({_unknown_field, _value}), do: nil
-
-      unquote(put_defs)
-      unquote(merge_defs)
+      unquote(StructFunctionsGenerator.quoted_new_funs(fields_kw_spec, __CALLER__.module))
+      unquote(StructFunctionsGenerator.quoted_put_funs(fields_kw_spec))
+      unquote(StructFunctionsGenerator.quoted_merge_funs(fields_kw_spec))
     end
   end
 
@@ -626,130 +583,6 @@ The value #{inspect(&1.value)} doesn't match the #{&1.type} type.")
 
   defp expand_in_block_once(field, env) do
     Macro.expand_once(field, env)
-  end
-
-  defp quoted_field_error_funs(fields_kw_spec, caller_env) do
-    fields_kw_spec
-    |> Enum.map(fn {field, type} -> {field, Macro.escape(type), Macro.to_string(type)} end)
-    |> Enum.map(&quoted_field_error(&1, caller_env))
-  end
-
-  defp quoted_field_error({field, type_esc, type_str}, caller_env) do
-    caller_env = Macro.escape(caller_env)
-
-    quote do
-      defp __field_error({unquote(field) = name, value}) do
-        case TypeContract.valid?(value, unquote(type_esc), unquote(caller_env)) do
-          true -> nil
-          false -> %{field: name, value: value, type: unquote(type_str)}
-        end
-      end
-    end
-  end
-
-  defp quoted_merge_funs(fields_spec) do
-    struct_keys = Keyword.keys(fields_spec)
-
-    quote location: :keep do
-      @spec merge(t(), keyword() | map()) ::
-              {:ok, t()} | {:error, {:unexpected_struct | :value_err, String.t()}}
-      def merge(%__MODULE__{} = s, enumerable) do
-        case __filter_mistyped_fields(enumerable) do
-          [] -> {:ok, struct(s, enumerable)}
-          list -> {:error, {:value_err, __format_value_type_error(list, padding: false)}}
-        end
-      end
-
-      def merge(%name{}, _enum) do
-        {:error, {:unexpected_struct, "#{inspect(__MODULE__)} structure was expected \
-as the first argument and #{inspect(name)} was received."}}
-      end
-
-      @spec merge!(t(), keyword() | map()) :: t()
-      def merge!(%__MODULE__{} = s, enumerable) do
-        case __filter_mistyped_fields(enumerable) do
-          [] -> struct(s, enumerable)
-          list -> raise(ArgumentError, __format_value_type_error(list, padding: false))
-        end
-      end
-
-      def merge!(%name{}, _enum),
-        do: raise(ArgumentError, "#{inspect(__MODULE__)} structure was expected \
-as the first argument and #{inspect(name)} was received.")
-
-      @spec __filter_mistyped_fields(keyword() | map()) :: [fn_new_field_error()] | []
-      defp __filter_mistyped_fields(enumerable) do
-        enumerable
-        |> Enum.filter(fn {key, _value} -> Enum.member?(unquote(struct_keys), key) end)
-        |> Enum.into(%{})
-        |> __mistyped_fields()
-      end
-
-      defoverridable merge!: 2, merge: 2
-    end
-  end
-
-  defp quoted_put_funs(fields_spec) do
-    fields_spec
-    |> Enum.map(fn {key, type} -> quoted_puts(key, type) end)
-    |> List.insert_at(-1, quoted_put_bang_raise_nonpresent_key())
-    |> List.insert_at(-1, quoted_put_bang_raise_struct_name())
-    |> List.insert_at(-1, quoted_put_err_nonpresent_key())
-    |> List.insert_at(-1, quoted_put_err_struct_name())
-    |> List.insert_at(-1, quote(do: defoverridable(put!: 3, put: 3)))
-  end
-
-  defp quoted_puts(key, type) do
-    quote location: :keep do
-      @spec put!(t(), unquote(key), unquote(type)) :: t()
-      def put!(%__MODULE__{} = s, unquote(key), value) do
-        case __field_error({unquote(key), value}) do
-          %{} = err -> raise(ArgumentError, __format_value_type_error([err], padding: false))
-          nil -> Map.replace!(s, unquote(key), value)
-        end
-      end
-
-      @spec put(t(), unquote(key), unquote(type)) ::
-              {:ok, t()}
-              | {:error, {:unexpected_struct | :key_err | :value_err, String.t()}}
-      def put(%__MODULE__{} = s, unquote(key), value) do
-        case __field_error({unquote(key), value}) do
-          %{} = err -> {:error, {:value_err, __format_value_type_error([err], padding: false)}}
-          nil -> {:ok, Map.replace!(s, unquote(key), value)}
-        end
-      end
-    end
-  end
-
-  defp quoted_put_bang_raise_nonpresent_key do
-    quote do
-      def put!(%__MODULE__{} = s, key, val), do: Map.replace!(s, key, val)
-    end
-  end
-
-  defp quoted_put_bang_raise_struct_name do
-    quote do
-      def put!(%name{}, _key, _val),
-        do: raise(ArgumentError, "#{inspect(__MODULE__)} structure was expected \
-as the first argument and #{inspect(name)} was received.")
-    end
-  end
-
-  defp quoted_put_err_nonpresent_key do
-    quote do
-      def put(%__MODULE__{} = s, key, val) do
-        {:error, {:key_err, "no #{inspect(key)} key found in the struct."}}
-      end
-    end
-  end
-
-  defp quoted_put_err_struct_name do
-    quote do
-      def put(%name{}, _key, _val) do
-        {:error, {:unexpected_struct, "#{inspect(__MODULE__)} structure was expected \
-as the first argument and #{inspect(name)} was received."}}
-      end
-    end
   end
 
   @doc """
