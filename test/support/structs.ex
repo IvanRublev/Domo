@@ -10,6 +10,28 @@ defmodule TypedStructSamplePlugin do
   end
 end
 
+defmodule NoDefaultOneFieldStruct do
+  use Domo
+
+  typedstruct do
+    plugin(TypedStructSamplePlugin)
+
+    field :first, integer
+    field :second, float, default: 1.0
+  end
+end
+
+defmodule AllDefaultsStruct do
+  use Domo
+
+  typedstruct do
+    plugin(TypedStructSamplePlugin)
+
+    field :first, integer, default: 1
+    field :second, float, default: 1.0
+  end
+end
+
 defmodule TwoFieldStruct do
   use Domo
 

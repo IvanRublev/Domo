@@ -1,14 +1,6 @@
 defmodule Domo.CompilationChecks do
-  @moduledoc """
-  Module to validate tags and structs after compilation of a given module.
-  """
+  @moduledoc false
 
-  @doc """
-  Emits warnings about missing aliases for tag modules. After emmiting
-  all warnings raises the CompileError with count of missing tags.
-
-  If all referenced tags are defined does nothing.
-  """
   @spec warn_and_raise_undefined_tags(map, any) :: nil
   def warn_and_raise_undefined_tags(env, _bytecode) do
     env.module
@@ -44,14 +36,16 @@ defmodule Domo.CompilationChecks do
         true -> "A tag was not defined with deftag\/2. See warning."
       end
 
-    v =
-      Keyword.fetch(
-        Module.get_attribute(env.module, :domo_opts),
-        :undefined_tag_error_as_warning
-      )
+    domo_options = Module.get_attribute(env.module, :domo_options)
 
-    case v do
-      {:ok, true} ->
+    warning_option =
+      case Keyword.fetch(domo_options, :undefined_tag_error_as_warning) do
+        {:ok, value} -> value
+        _ -> Application.get_env(:domo, :undefined_tag_error_as_warning, false)
+      end
+
+    case warning_option do
+      true ->
         IO.warn(msg)
 
       _ ->

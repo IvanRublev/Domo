@@ -138,6 +138,18 @@ The value 1 doesn't match the float type.",
     end
   end
 
+  describe "defstruct should, when fields default" do
+    test "all have been set, make call to new(!)/0 build a struct instance" do
+      assert %AllDefaultsStruct{first: 1, second: 1.0} == AllDefaultsStruct.new!()
+      assert {:ok, %AllDefaultsStruct{first: 1, second: 1.0}} == AllDefaultsStruct.new()
+    end
+
+    test "have at least one unspecified, make call to new(!)/0 build a struct instance" do
+      assert_raise ArgumentError, ~r//, fn -> NoDefaultOneFieldStruct.new!() end
+      assert {:error, _} = NoDefaultOneFieldStruct.new()
+    end
+  end
+
   describe "typedstruct should make put/3" do
     test "function to be in the module" do
       true = Code.ensure_loaded?(OverridenNew)

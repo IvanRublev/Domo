@@ -1,4 +1,6 @@
 defmodule Domo.TypeSpecMatchable.QuotedType do
+  @moduledoc false
+
   @type t :: {any, any, any}
 
   @spec get_final_type(t()) :: {:ok, t()} | {:error, {:unknown_typedef_shape, binary}}

@@ -18,8 +18,9 @@ defprotocol Domo.TypeSpecMatchable do
   Returns true if the given term matches a single typespec
   given in the quoted form.
 
-  The third argument is for internal use and holds the module types information
-  during the run.
+  The metadata is a map with info to resolve remote types. Should contain
+  the caller environment with the `env` key. Other keys can be
+  populated during the run internally.
   """
   @spec match_spec?(t(), t_spec(), metadata()) :: boolean()
   def match_spec?(term, spec, metadata)
@@ -384,7 +385,7 @@ defimpl Domo.TypeSpecMatchable, for: List do
   alias Domo.TypeSpecMatchable
 
   defmodule ImproperList do
-    @moduledoc "Module to match an improper list with appropriate specs"
+    @moduledoc false
 
     def match_spec?([head | tail], head_type, termination_type, metadata) do
       TypeSpecMatchable.match_spec?(head, head_type, metadata) and
@@ -535,7 +536,7 @@ defimpl Domo.TypeSpecMatchable, for: Map do
   alias Domo.TypeSpecMatchable.TermList
 
   defmodule MapMatcher do
-    @moduledoc "A module to match a term with a map key specs"
+    @moduledoc false
 
     def match_mixed_spec?(term, req_kw_types, opt_kw_types, false = _opt_any, metadata) do
       term = Enum.reduce(opt_kw_types, term, &TermList.reject(&2, &1, metadata))
@@ -665,11 +666,11 @@ defmodule Domo.TypeContract do
   @doc """
   Validates if the value matches the @type contract.
 
-  Contract should be given in Elixir quoted form.
-  Environment is a module's environment where aliases for remote types should
-  be resolved. Usually it should be a caller environment, that can be obtained
-  in a macro on the call site.
+  The contract is a type spec in Elixir quoted form. The environment
+  is a module's environment to resolve aliases for remote types.
+  Usually, it should be a caller environment that the `Kernel.SpecialForms.__ENV__/0` macro returns.
   """
+  @spec valid?(any, Macro.t(), Macro.Env.t()) :: boolean
   def valid?(value, contract, env) do
     match_spec?(value, contract, %{env: env})
   end

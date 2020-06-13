@@ -11,160 +11,236 @@
 
 --------------
 
-Domo is a library to model a business domain with composable tags
-and type-safe structs.
+Domo is a library to model a business domain with type-safe structs and
+composable tags.
 
-It's a library to define what piece of data is what and make
-a dialyzer and run-time type checks to cover one's back,
-reminding about taken definitions.
+It's a library to define what piece of data is what and make a dialyzer
+and run-time type verification to cover one's back, reminding about taken
+definitions.
 
 The library aims for two goals:
 
-  * to model a business domain entity's possible valid states with custom
-    types for fields of the struct representing the entity
-  * to verify that entity structs are assembled to one of the allowed
-    valid states in run-time
+  * to allow a business domain entity's valid states with a struct of fields
+    of generic and tagged types
+
+  * to automatically verify that the construction of the entity's struct
+    leads to one of the allowed valid states only
 
 The validation of the incoming data is on the author of the concrete
-application. The library can only ensure the consistent processing
-of that valid data according to type specs and definitions throughout
-the system.
-
-The library has the means to build structs and relies on the [TypedStruct](https://hexdocs.pm/typed_struct/)
-to do so. It's possible to extend and configure many of the TypedStruct
-features transparently.
-
-If you practice Domain Driven Design, this library can be used to
-model entities, value objects, and aggregates because it's delightful.
+application. The library can only ensure the consistent assembly
+of that valid data into structs according to given definitions throughout
+the app.
 
 ## Rationale
 
-To model a business domain entity, one may define a named struct with several
-fields of primitive data types. Construction of the struct from parsed data
-can look like this:
+The struct is one of the foundations of domain models in Elixir. One common
+way to validate that input data is of the model's type is to do it within
+a constructor function like the following:
 
 ```elixir
-%Order{
-  id: "156",
-  quantity: 2.5
-  note: "Deliver on Tue"
-}
+defmodule User do
+  type t :: %__MODULE__{id: integer, name: String.t()}
+
+  defstruct [:id, :name]
+
+  def new(id: id, name: name) when is_integer(id) and is_binary(name),
+    do: struct!(__MODULE__, id: id, name: name)
+end
 ```
 
-and modification of the struct's data can be done with a function of
-the following signature:
+The code written above repeats for almost every entity in the application.
+And it'd be great to make it generated automatically reducing the structure
+definition to the minimal preferably declarative style.
+
+One way to do this is with the Domo library like that:
 
 ```elixir
-@spec put_quantity(Order.t(), float()) :: Order.t()
-def put_quantity(order, quantity) ...
+defmodule User do
+  use Domo
+
+  typedstruct do
+    field :id, integer
+    field :name, String.t()
+    field :post_address, :not_given | String.t(), default: :not_given
+  end
+end
 ```
 
-Primitive types of `binary` and `float` are universal and have no relation
-to the `Order` struct specifically. That is, any data of these types
-can leak into the new struct instance by mistake.
-The `float` type defining quantity reflects no measure from the business
-domain. Meaning, that a new requirement - to measure quantity in Kilograms
-or Units makes space for misinterpretation of the quantity field's value
-processed in any part of the app.
+Thanks to the declarative syntax from the [TypedStruct](https://hexdocs.pm/typed_struct/),
+the type and struct definitions are in the module. What's the Domo library
+adds on top is the set of `new/1` `put/1` and `merge/1` functions and their
+raising versions `new!/1`, `put!/1`, and `merge!/1`. These functions verify
+that arguments are of the field types and then build or modify the struct
+otherwise returning an error or raising the ArgumentError exception.
 
-### How about some domain modeling?
+The construction with automatic verification of the User struct can
+be as immediate as that:
 
-In the context given above, it'd be great to define a contract to allow
-only valid states for Order struct fields, that enables:
+```elixir
+User.new!(id: 1, name: "John")
+%User{id: 1, name: "John", post_address: :not_given}
 
-  * local reasoning about the relation of value to the struct in any nested
-    function of the app
-  * compile-time verification of assembling/updating of the structure
-    from the values that relate only to it
+User.new!(id: 2, name: nil, post_address: 3)
+** (ArgumentError) Can't construct %User{...} with new!([id: 2, name: nil, post_address: 3])
+    Unexpected value type for the field :name. The value nil doesn't match the String.t() type.
+    Unexpected value type for the field :post_address. The value 3 doesn't match the :not_given | String.t() type.
+```
 
-One possible valid way to do so is to use Domo library like the following:
+To modify an existing struct the put of merge functions can be used like that:
+
+```elixir
+User.put!(user, :name, "John Bongiovi")
+%User{id: 1, name: "John Bongiovi", post_address: :not_given}
+
+User.merge!(user, %{name: "John Francis Bongiovi", post_address: :not_given, genre: :rock, albums: 20})
+%User{id: 1, name: "John Francis Bongiovi", post_address: :not_given}
+```
+
+The merge!/2 function verifies fields that belong to struct ignoring others.
+All generated functions accept any enumerable with field key-value pairs
+like maps or keyword lists.
+
+### Further refinement with tags
+
+So far, so good. Let's say that we have another entity in our
+system - the Order that has an identifier as well. Both ids for User
+and Order structs are of the integer type. How to ensure that we don't mix
+them up throughout the various execution paths in the application?
+One way to do that is to attach an appropriate tag to each of the ids
+with [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples) like the following:
+
+```elixir
+defmodule User do
+  use Domo
+
+  defmodule Id do end
+
+  typedstruct do
+    field :id, {Id, integer}
+    field :name, String.t()
+    field :post_address, :none | String.t(), default: :none
+  end
+end
+
+defmodule Order do
+  use Domo
+
+  defmodule Id do end
+
+  typedstruct do
+    field :id, {Id, integer}
+    field :name, String.t()
+  end
+end
+
+User.new!(id: {User.Id, 152}, name: "Bob")
+%User{id: {User.Id, 152}, name: "Bob"}
+
+User.new!(id: {Order.Id, 153}, name: "Fruits")
+** (ArgumentError) Can't construct %User{...} with new!([id: {Order.Id, 153}, name: "Fruits"])
+    Unexpected value type for the field :id. The value {Order.Id, 153} doesn't match the {User.Id, integer} type.
+```
+
+The additional tuples here and there seem cumbersome. One way to make
+the tag definition elegant and to reduce the extra pair of brackets
+is with `deftag/2` macro and `---/2` operator. We can rewrite the code to more
+compact way like this:
+
+```elixir
+defmodule User do
+  use Domo
+
+  deftag Id, for_type: integer
+
+  typedstruct do
+    field :id, Id.t()
+    field :name, String.t()
+    field :post_address, :none | String.t(), default: :none
+  end
+end
+
+defmodule Order do
+  use Domo
+
+  deftag Id, for_type: integer
+
+  typedstruct do
+    field :id, Id.t()
+    field :name, String.t()
+  end
+end
+
+import Domo
+User.new!(id: User.Id --- 152, name: "Bob")
+%User{id: {User.Id, 152}, name: "Bob", post_address: :none}
+
+Order.new!(id: Order.Id --- 153, name: "Fruits")
+%Order{id: {Order.Id, 153}, name: "Fruits"}
+```
+
+In the example above the `deftag/2` macro defines the tag - Id module and
+the type t :: {Id, integer} in it. And `---/2` operator quickly defines
+a tuple of  two elements, a tag and a value.
+
+### Third dimension for structures with tag chains 🍿
+
+Let's say one of the business requirements is to register the quantity
+of the Order in kilograms or units. That means that the structure's quantity
+field value can be float or integer. It'd be great to keep the kind
+of quantity alongside the value for the sake of local reasoning in different
+parts of the application. One possible way to do that is to use tag chains
+like that:
 
 ```elixir
 defmodule Order do
   use Domo
 
-  deftag Id, for_type: String.t()
+  deftag Id, for_type: integer
 
   deftag Quantity do
-      for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
+    for_type __MODULE__.Kilograms.t() | __MODULE__.Units.t()
 
-      deftag Kilograms, for_type: float
-      deftag Units, for_type: integer
+    deftag Kilograms, for_type: float
+    deftag Units, for_type: integer
   end
-
-  deftag Note, for_type: :none | String.t()
 
   typedstruct do
     field :id, Id.t()
+    field :name, String.t()
     field :quantity, Quantity.t()
-    field :note, Note.t(), default: Note --- :none
   end
 end
+
+import Domo
+alias Order.{Id, Quantity}
+alias Order.Quantity.{Kilograms, Units}
+
+Order.new!(id: Id --- 158, name: "Fruits", quantity: Quantity --- Kilograms --- 12.5)
+%Order{
+  id: {Order.Id, 158},
+  name: "Fruits",
+  quantity: {Order.Quantity, {Order.Quantity.Kilograms, 12.5}}
+}
+
+Order.new!(id: Id --- 159, name: "Bananas", quantity: Quantity --- "5 boxes")
+** (ArgumentError) Can't construct %Order{...} with new!([id: {Order.Id, 159}, name: "Bananas", quantity: {Order.Quantity, "5 boxes"}])
+    Unexpected value type for the field :quantity. The value {Order.Quantity, "5 boxes"} doesn't match the Quantity.t() type.
+
+def to_string(%Order{quantity: Quantity --- Kilograms --- kilos}), do: to_string(kilos) <> "kg"
+def to_string(%Order{quantity: Quantity --- Units --- kilos}), do: to_string(kilos) <> " units"
 ```
 
-Then the construction of the struct becomes like this:
+The `---/2` operator is right-associative. It can attach a chain of tags
+to a value that produces a series of nested tagged tuples with the value
+in the core. Such kind of definition works in pattern-matching.
 
-```elixir
-Order.new!(
-  id: Id --- "156",
-  quantity: Quantity --- Kilograms --- 2.5
-  note: Note --- "Deliver on Tue"
-)
-```
+In the example above the construction with invalid quantity raises
+the exception. And if there is no `to_string` function for one of the quantity
+kinds defined the no function clause matching error raises in run-time.
 
-And a signature of a custom function to modify the struct becomes like this:
-
-```elixir
-@spec put_quantity(Order.t(), Order.Quantity.t()) :: Order.t()
-def put_quantity(order, Quantity --- Units --- units) ...
-def put_quantity(order, Quantity --- Kilograms --- kilos) ...
-```
-
-Thanks to the Domo library, every field of the structure becomes
-a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples)
-consisting of a tag and a value. The tag is a module itself.
-Several tags can be nested, defining valid tag chains. These are playing
-the role of shapes for values of primitive type. That makes it possible
-to perform pattern matching against the shape of the struct's value.
-That enables the dialyzer to validate contracts for the structure itself
-and the structure's field values.
-
-### Run-time type checking
-
-Complicated function calls can produce states that are unavailable
-to the dialyzer's static analysis. That can lead to a mix up of the data
-in the instances of the structures.
-
-To catch possible logical errors, every struct modifying function
-that is added by Domo library checks a value of the field against its type
-spec when called. That makes it possible to fail closer to the origin
-of the error.
-
-Creating a new structure with wrongly tagged value raises the ArgumentError
-like the following.
-
-```elixir
-Order.new!(
-  id: Id --- "ord000000012",
-  quantity: Quantity --- Kilograms --- 2.5,
-  note: Note --- :whaat
-)
-
-** (ArgumentError) Can't construct %App.Core.Order{...} with new!([id: {App.Core.Order.Id, "ord000000012"}, quantity: {App.Core.Order.Quantity, {App.Core.Order.Quantity.Kilograms, 2.5}}, note: {App.Core.Order.Note, :whaat}])
-  Unexpected value type for the field :note. The value {App.Core.Order.Note, :whaat} doesn't match the Note.t() type.
-  (app 0.1.0) lib/domo/struct_functions_generator.ex:18: App.Core.Order."new! (overridable 1)"/1
-```
-
-Modification of the existing structure with mismatching type raises
-the ArgumentError like that.
-
-```elixir
-Order.merge!(order, note: :foo, quantity: :bar)
-
-** (ArgumentError) Unexpected value type for the field :note. The value :foo doesn't match the Note.t() type.
-  Unexpected value type for the field :quantity. The value :bar doesn't match the Quantity.t() type.
-  (app 0.1.0) lib/domo/struct_functions_generator.ex:74: App.Core.Order.merge!/2
-```
+That's how possible to define valid states for `Order` with `typedstruct/1`
+and `deftag/2` macro and keep the structs consistent throughout the app
+with type verifications in autogenerated `new/1`, `put/1`, and `merge/1` functions.
 
 ## Usage
 
@@ -173,7 +249,7 @@ Order.merge!(order, note: :foo, quantity: :bar)
 To use Domo in your project, add this to your Mix dependencies:
 
 ```elixir
-{:domo, "~> 0.0.8"}
+{:domo, "~> #{Mix.Project.config()[:version]}"}
 ```
 
 To avoid `mix format` putting parentheses on tagged tuples definitions
@@ -188,39 +264,72 @@ made with `---/2` operator, you can add to your `.formatter.exs`:
 
 ### General usage
 
-#### Define a tag
+#### Define a structure
 
-To define a tag on the top level of a file import `Domo`, then define the
-tag name and type associated value with `deftag/2` macro.
+To describe a structure with field value contracts, use Domo, then define
+your struct with a typedstruct/1 block.
+
+```elixir
+defmodule Wonder do
+  use Domo
+
+  @typedoc "A world wonder. Ancient or contemporary."
+  typedstruct do
+    field :id, integer
+    field :name, String.t(), default: ""
+  end
+end
+```
+
+Define each field with field/3 macro. The generated structure has all fields
+enforced, default values if specified for fields, and type t() constructed
+from field types. See TypedStruct library documentation for implementation
+details.
+
+Same time the generated structure has `new/1`, merge/2, and put/3 functions
+or their raising versions automatically defined. These functions have specs
+with field types defined. Use these functions to create a new instance
+and update an existing one.
+
+```elixir
+%{id: 123556}
+|> Wonder.new!()
+|> Wonder.put!(:name, "Eiffel tower")
+%Wonder{id: 123556, name: "Eiffel tower"}
+```
+
+At the compile-time, the dialyzer can do static analysis of functions
+contract.
+At the run-time, each function checks the values passed in against
+the types set in the field/3 macro. In case of mismatch, the functions
+raise an ArgumentError.
+
+#### Define a tag to enrich the field's type
+
+To define a tag on the top level of a file import Domo, then give
+the tag name and type associated value with `deftag/2` macro.
 
 ```elixir
 import Domo
-
-deftag Title, for_type: String.t()
 deftag Height do
-  for_type: __MODULE__.Meters.t() | __MODULE__.Foots.t()
+  for_type __MODULE__.Meters.t() | __MODULE__.Foots.t()
 
   deftag Meters, for_type: float
   deftag Foots, for_type: float
 end
 ```
 
-Any tag is a module by itself. Type `t()` of the tag is a tagged tuple.
-When defining a tag in a block form, you can specify the associated value
-type through the `for_type/1` macro.
-
+Any tag is a module by itself. Type t() of the tag is a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples).
 To add a tag or a tag chain to a value use `---/2` macro.
 
 ```elixir
 alias Height.{Meters, Foots}
-
-t = Title --- "Eiffel tower"
 m = Height --- Meters --- 324.0
 f = Height --- Foots --- 1062.992
 ```
 
-Under the hood, the tag chain is a series of nested tagged tuples where the
-value is in the core. Because of that, you can use the `---/2` macro
+Under the hood, the tag chain is a series of nested tagged tuples where
+the value is in the core. Because of that, you can use the `---/2` macro
 in pattern matching.
 
 ```elixir
@@ -231,80 +340,74 @@ def to_string(Height --- Meters --- val), do: to_string(val) <> " m"
 def to_string(Height --- Foots --- val), do: to_string(val) <> " ft"
 ```
 
-Each tag module has type `t()` of tagged tuple with the name of tag itself
-and a value type specified with `for_type`. Use `t()` in the function spec to
-inform the dialyzer about the tagged argument.
+#### Combine struct and tags
 
-#### Define a structure
-
-To define a structure with field value's contracts, use `Domo`, then define
-your struct with a `typedstruct/1` block.
+To refine different kinds of field values, use the tag's t() type like that:
 
 ```elixir
-defmodule Order do
+defmodule Wonder do
   use Domo
 
-  deftag Id, for_type: String.t()
-  deftag Note, for_type: :none | String.t()
+  alias Height
 
-  @typedoc "An Order from Sales context"
+  @typedoc "A world wonder. Ancient or contemporary."
   typedstruct do
-    field :id, Id.t()
-    field :note, Note.t(), default: Note --- :none
+    field :id, integer
+    field :name, String.t(), default: ""
+    field :height, Height.t()
   end
 end
 ```
 
-Each field is defined through `field/3` macro. The generated structure has
-all fields enforced, default values specified by `default:` key,
-and type t() constructed with field types.
-See [TypedStruct library documentation](https://hexdocs.pm/typed_struct/)
-for implementation details.
-
-Use `new/1`, `merge/2`, and `put/3` function or their raising versions
-that are all automatically defined for the struct to create a new instance
-and update an existing one.
+The tag can be aliased or defined inline. Use autogenerated functions
+to build or modify struct having types verification.
 
 ```elixir
-alias Order
-alias Order.{Id, Note}
+import Domo
+alias Height.Meters
 
-%{id: Id --- "o123556"}
-|> Order.new!()
-|> Order.put!(:note, Note --- "Deliver on Tue")
+Wonder.new!(id: 145, name: "Eiffel tower", height: Height --- Meters --- 324.0)
+%Wonder{height: {Height, {Height.Meters, 324.0}}, id: 145, name: "Eiffel tower"}
 ```
 
-At the compile-time the dialyzer can check if properly tagged values are passed
-as parameters to these functions.
+### Overrides
 
-At the run-time, each function checks the values passed in against the types set
-in the `field/3` macro. In case of mismatch, the functions raise an error.
-
-That works with tags, and with any other user or system type, you may specify
-for the field. You can introduce tags in the project gracefully,
-taking them in appropriate proportion with the type safe-structs.
-
-The functions mentioned above can be overridden to make data validations.
-Please, be careful and modify struct with a super(...) call. This call should
-be the last call in the overridden function.
+To make custom validations of the data override the appropriate `new/1` `put/1`,
+`merge/1` function or their raising version. Please, be careful and modify
+struct with a super(...) call. This call should be the last in the overridden
+function.
 
 It's still possible to modify a struct with %{... | s } map syntax and other
-standard functions directly skipping the checks.
-Please, use the functions mentioned above for the type-safety.
+standard functions directly skipping the verification. Please, use
+the autogenerated structs functions mentioned above for the type-safety
+and data consistency.
 
-After the module compilation, the Domo library checks if all tags that
-are used with the `---/2` operator are defined and appropriately aliased.
+### Options
 
-The following options can be passed with `use Domo, ...`
+After the module compilation, the Domo library checks if all tags attached
+with `---/2` have proper aliases at the call sites. If it can't find a tag's
+module, it raises the `CompileError` exception.
 
-#### Options
+The following options can be passed with `use Domo, [...]`
 
-    * `undefined_tag_error_as_warning` - if set to true, prints warning
-      instead of raising an exception for undefined tags.
+  * `undefined_tag_error_as_warning` - if set to true, prints warning
+    instead of raising an exception for undefined tags. Default is false.
 
-    * `no_field` - if set to true, skips import of typedstruct/1
-      and field/3 macros, useful with the import of the Ecto.Schema
-      in the same module.
+  * `unexpected_type_error_as_warning` - if set to true, prints warning
+    instead of raising an exception for field type mismatch
+    in autogenerated functions `new!/1`, `put!/1`, and `merge!/1`.
+    Default is false.
+
+  * `no_field` - if set to true, skips import of `typedstruct/1`
+    and `field/3` macros, useful with the import of the `Ecto.Schema`
+    in the same module. Default is false.
+
+The default value for `*_as_warning` options can be changed globally,
+to do so add a line like the following into the config.exs file:
+
+```elixir
+config :domo, :unexpected_type_error_as_warning, true
+```
 
 ### Reflexion
 
@@ -339,10 +442,11 @@ iex.(1)> defmodule Order do
 {:module, Order,
 <<70, 79, 82, 49, 0, 0, 17, 156, 66, 69, 65, 77, 65, 116, 85, 56, 0, 0, 1, 131,
   0, 0, 0, 41, 12, 69, 108, 105, 120, 105, 114, 46, 79, 114, 100, 101, 114, 8,
-  95, 95, 105, 110, 102, 111, 95, 95, 7, ...>>,
-[put!: 3, put!: 3, put!: 3, put!: 3, put!: 3]}
+  95, 95, 105, 110, 102, 111, 95, 95, 7, ...>>, :ok}
+
 iex.(2)> Order.__tags__
 [Order.Id, Order.Quantity, Order.Note]
+
 iex.(3)> Order.Id.__tag__?
 true
 ```
@@ -373,8 +477,16 @@ will work properly only if the remote type's module is compiled into
 the .beam file on the disk, which means, that modules generated in memory
 are not supported. That's because of the way the Erlang functions load types.
 
-We may not know your business problem; at the same time, the Domo library can help you
-to model the problem and understand it better.
+We may not know your business problem; at the same time, the Domo library
+can help you to model the problem and understand it better.
+
+## Adoption strategies
+
+It's possible to start with typedstruct macro to define structs in
+a compact declarative way, use `new!/1`, `put!/1`, and `merge!/1` to modify
+structures to enable type-checking, and finally introduce tags
+with `deftag/2` and `---/2` for structure fields. These tools are for appropriate
+use according to the problem. Give them a try and see how far you can go.
 
 ## Contributing
 
@@ -398,23 +510,23 @@ to model the problem and understand it better.
 
 ## Roadmap
 
-* [x] Check if the field values passed as argument to the `new/1`, and `put/3`
-      matches the field types defined in `typedstruct/1`.
+* [x] Check if the field values passed as an argument to the `new/1`, 
+      and `put/3` matches the field types defined in `typedstruct/1`.
 
-* [x] Add keyword list as a possible argument for `new!/1`.
+* [x] Support the keyword list as a possible argument for `new!/1`.
 
-* [ ] Add documentation to the generated `new(!)/1`, `put(!)/3`, and `merge(!)/2` 
+* [x] Add module option to put a warning in the console instead of raising 
+      of the `ArgumentError` exception on value type mismatch.
+
+* [x] Make global environment configuration options to turn errors into 
+      warnings that are equivalent to module ones.
+
+* [ ] Add documentation to the generated `new(!)/1`, `put(!)/3`, and `merge(!)/2`
       functions in struct.
 
 * [ ] Make the `typedstruct/1` to raise an error on default value that mismatches 
-      the field's type at the end of compilation (At the moment it's checked 
-      during the construction of the struct with default values). 
-
-* [ ] Add module option to put warning in the counsole instead of raising 
-      of the ArgumentError on value type mismatch.
-
-* [ ] Make global environment configuration options to turn errors into warnings
-      that are equivalent to module ones.
+      the field's type at the end of compilation (At the moment it's checked
+      during the construction of the struct with default values).
 
 ## License
 

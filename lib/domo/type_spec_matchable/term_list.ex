@@ -1,5 +1,5 @@
 defmodule Domo.TypeSpecMatchable.TermList do
-  @moduledoc "A module to reduce a list's items matching a given type spec"
+  @moduledoc false
 
   alias Domo.TypeSpecMatchable
 

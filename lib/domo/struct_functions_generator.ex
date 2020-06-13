@@ -1,7 +1,5 @@
 defmodule Domo.StructFunctionsGenerator do
-  @moduledoc """
-  A module to generate public functions in a struct
-  """
+  @moduledoc false
 
   alias Domo.TypeCheckerGenerator
 
@@ -11,7 +9,7 @@ defmodule Domo.StructFunctionsGenerator do
       alias unquote(caller_module).TypeChecker
 
       @spec new!([unquote_splicing(fields_spec)] | %{unquote_splicing(fields_spec)}) :: t()
-      def new!(enumerable) do
+      def new!(enumerable \\ []) do
         TypeChecker.__raise_mistyped_fields_if_needed(
           struct!(__MODULE__, enumerable),
           fn ->
@@ -23,13 +21,13 @@ defmodule Domo.StructFunctionsGenerator do
 
       @spec new([unquote_splicing(fields_spec)] | %{unquote_splicing(fields_spec)}) ::
               {:ok, t()} | {:error, {:key_err | :value_err, String.t()}}
-      def new(enumerable) do
-        with {:ok, s} <-
+      def new(enumerable \\ []) do
+        with {:ok, structure} <-
                TypeChecker.__survive_argument_error(fn ->
                  struct!(unquote(caller_module), enumerable)
                end),
-             {:ok, s} = res <-
-               TypeChecker.__struct_or_mistyped_fields_err(s, fn ->
+             {:ok, structure} = res <-
+               TypeChecker.__struct_or_mistyped_fields_err(structure, fn ->
                  "new(#{inspect(enumerable)})"
                end) do
           res
@@ -51,10 +49,10 @@ defmodule Domo.StructFunctionsGenerator do
     quote location: :keep do
       @spec merge(t(), keyword() | map()) ::
               {:ok, t()} | {:error, {:unexpected_struct | :value_err, String.t()}}
-      def merge(%__MODULE__{} = s, enumerable) do
+      def merge(%__MODULE__{} = structure, enumerable) do
         case __filter_mistyped_fields(enumerable) do
           [] ->
-            {:ok, struct(s, enumerable)}
+            {:ok, struct(structure, enumerable)}
 
           list ->
             {:error, {:value_err, TypeChecker.__format_value_type_error(list, padding: false)}}
@@ -67,13 +65,24 @@ as the first argument and #{inspect(name)} was received."}}
       end
 
       @spec merge!(t(), keyword() | map()) :: t()
-      def merge!(%__MODULE__{} = s, enumerable) do
+      def merge!(%__MODULE__{} = structure, enumerable) do
+        structure = struct(structure, enumerable)
+
         case __filter_mistyped_fields(enumerable) do
           [] ->
-            struct(s, enumerable)
+            structure
 
           list ->
-            reraise(ArgumentError, TypeChecker.__format_value_type_error(list, padding: false), TypeCheckerGenerator.stacktrace())
+            TypeChecker.__cast_to_warning_if_configured(
+              fn ->
+                reraise(
+                  ArgumentError,
+                  TypeChecker.__format_value_type_error(list, padding: false),
+                  TypeCheckerGenerator.stacktrace()
+                )
+              end,
+              structure
+            )
         end
       end
 
@@ -109,26 +118,37 @@ as the first argument and #{inspect(name)} was received.", TypeCheckerGenerator.
   defp quoted_puts(key, type) do
     quote location: :keep do
       @spec put!(t(), unquote(key), unquote(type)) :: t()
-      def put!(%__MODULE__{} = s, unquote(key), value) do
+      def put!(%__MODULE__{} = structure, unquote(key), value) do
+        structure = Map.replace!(structure, unquote(key), value)
+
         case TypeChecker.__field_error({unquote(key), value}) do
           %{} = err ->
-            reraise(ArgumentError, TypeChecker.__format_value_type_error([err], padding: false), TypeCheckerGenerator.stacktrace())
+            TypeChecker.__cast_to_warning_if_configured(
+              fn ->
+                reraise(
+                  ArgumentError,
+                  TypeChecker.__format_value_type_error([err], padding: false),
+                  TypeCheckerGenerator.stacktrace()
+                )
+              end,
+              structure
+            )
 
           nil ->
-            Map.replace!(s, unquote(key), value)
+            structure
         end
       end
 
       @spec put(t(), unquote(key), unquote(type)) ::
               {:ok, t()}
               | {:error, {:unexpected_struct | :key_err | :value_err, String.t()}}
-      def put(%__MODULE__{} = s, unquote(key), value) do
+      def put(%__MODULE__{} = structure, unquote(key), value) do
         case TypeChecker.__field_error({unquote(key), value}) do
           %{} = err ->
             {:error, {:value_err, TypeChecker.__format_value_type_error([err], padding: false)}}
 
           nil ->
-            {:ok, Map.replace!(s, unquote(key), value)}
+            {:ok, Map.replace!(structure, unquote(key), value)}
         end
       end
     end
@@ -136,7 +156,7 @@ as the first argument and #{inspect(name)} was received.", TypeCheckerGenerator.
 
   defp quoted_put_bang_raise_nonpresent_key do
     quote do
-      def put!(%__MODULE__{} = s, key, val), do: Map.replace!(s, key, val)
+      def put!(%__MODULE__{} = structure, key, val), do: Map.replace!(structure, key, val)
     end
   end
 
@@ -150,7 +170,7 @@ as the first argument and #{inspect(name)} was received.", TypeCheckerGenerator.
 
   defp quoted_put_err_nonpresent_key do
     quote do
-      def put(%__MODULE__{} = s, key, val) do
+      def put(%__MODULE__{} = structure, key, val) do
         {:error, {:key_err, "no #{inspect(key)} key found in the struct."}}
       end
     end

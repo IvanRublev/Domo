@@ -1,5 +1,5 @@
 defmodule Domo.TypeSpecMatchable.RemoteType do
-  @moduledoc "Module to unwrap a quoted remote type to the quoted system type"
+  @moduledoc false
 
   alias Domo.TypeSpecMatchable
   alias Domo.TypeSpecMatchable.BeamType

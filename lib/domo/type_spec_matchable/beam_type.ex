@@ -1,5 +1,5 @@
 defmodule Domo.TypeSpecMatchable.BeamType do
-  @moduledoc "Module to handle beam type representation"
+  @moduledoc false
 
   @type module_types :: [typep: tuple, type: tuple, opaque: tuple]
 
