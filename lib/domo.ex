@@ -123,9 +123,8 @@ defmodule Domo do
           Unexpected value type for the field :id. The value {Order.Id, 153} doesn't match the {User.Id, integer} type.
 
   The additional tuples here and there seem cumbersome. One way to make
-  the tag definition elegant and to reduce the extra pair of brackets
-  is with `deftag/2` macro and `---/2` operator. We can rewrite the code to more
-  compact way like this:
+  the tag definition elegant is with `deftag/2` macro.
+  We can rewrite the code to more compact way like this:
 
       defmodule User do
         use Domo
@@ -151,15 +150,14 @@ defmodule Domo do
       end
 
       import Domo
-      User.new!(id: User.Id --- 152, name: "Bob")
+      User.new!(id: {User.Id, 152}, name: "Bob")
       %User{id: {User.Id, 152}, name: "Bob", post_address: :none}
 
-      Order.new!(id: Order.Id --- 153, name: "Fruits")
+      Order.new!(id: {Order.Id, 153}, name: "Fruits")
       %Order{id: {Order.Id, 153}, name: "Fruits"}
 
   In the example above the `deftag/2` macro defines the tag - Id module and
-  the type t :: {Id, integer} in it. And `---/2` operator quickly defines
-  a tuple of  two elements, a tag and a value.
+  the type t :: {Id, integer} in it.
 
   ### Third dimension for structures with tag chains 🍿
 
@@ -193,23 +191,19 @@ defmodule Domo do
       alias Order.{Id, Quantity}
       alias Order.Quantity.{Kilograms, Units}
 
-      Order.new!(id: Id --- 158, name: "Fruits", quantity: Quantity --- Kilograms --- 12.5)
+      Order.new!(id: {Id, 158}, name: "Fruits", quantity: {Quantity, {Kilograms, 12.5}})
       %Order{
         id: {Order.Id, 158},
         name: "Fruits",
         quantity: {Order.Quantity, {Order.Quantity.Kilograms, 12.5}}
       }
 
-      Order.new!(id: Id --- 159, name: "Bananas", quantity: Quantity --- "5 boxes")
+      Order.new!(id: {Id, 159}, name: "Bananas", quantity: {Quantity, "5 boxes"})
       ** (ArgumentError) Can't construct %Order{...} with new!([id: {Order.Id, 159}, name: "Bananas", quantity: {Order.Quantity, "5 boxes"}])
           Unexpected value type for the field :quantity. The value {Order.Quantity, "5 boxes"} doesn't match the Quantity.t() type.
 
-      def to_string(%Order{quantity: Quantity --- Kilograms --- kilos}), do: to_string(kilos) <> "kg"
-      def to_string(%Order{quantity: Quantity --- Units --- kilos}), do: to_string(kilos) <> " units"
-
-  The `---/2` operator is right-associative. It can attach a chain of tags
-  to a value that produces a series of nested tagged tuples with the value
-  in the core. Such kind of definition works in pattern-matching.
+      def to_string(%Order{quantity: {Quantity, {Kilograms, kilos}}}), do: to_string(kilos) <> "kg"
+      def to_string(%Order{quantity: {Quantity, {Units, kilos}}}), do: to_string(kilos) <> " units"
 
   In the example above the construction with invalid quantity raises
   the exception. And if there is no `to_string` function for one of the quantity
@@ -227,8 +221,8 @@ defmodule Domo do
 
       {:domo, "~> #{Mix.Project.config()[:version]}"}
 
-  To avoid `mix format` putting parentheses on tagged tuples definitions
-  made with `---/2` operator, you can add to your `.formatter.exs`:
+  To avoid `mix format` putting extra parentheses around macro calls,
+  you can add to your `.formatter.exs`:
 
       [
         ...,
@@ -287,21 +281,21 @@ defmodule Domo do
       end
 
   Any tag is a module by itself. Type t() of the tag is a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples).
-  To add a tag or a tag chain to a value use `---/2` macro.
+  It's possible to have a tag or a tag chain added to a value like the following:
 
       alias Height.{Meters, Foots}
-      m = Height --- Meters --- 324.0
-      f = Height --- Foots --- 1062.992
+      m = {Height, {Meters, 324.0}}
+      f = {Height, {Foots, 1062.992}}
 
-  Under the hood, the tag chain is a series of nested tagged tuples where
-  the value is in the core. Because of that, you can use the `---/2` macro
-  in pattern matching.
+  The tag chain attached to the value is a series of nested tagged tuples where
+  the value is in the core. It's possible to extract the value
+  with pattern matching.
 
       {Height, {Meters, 324.0}} == m
 
       @spec to_string(Height.t()) :: String.t()
-      def to_string(Height --- Meters --- val), do: to_string(val) <> " m"
-      def to_string(Height --- Foots --- val), do: to_string(val) <> " ft"
+      def to_string({Height, {Meters, val}}), do: to_string(val) <> " m"
+      def to_string({Height, {Foots, val}}), do: to_string(val) <> " ft"
 
   #### Combine struct and tags
 
@@ -326,7 +320,7 @@ defmodule Domo do
       import Domo
       alias Height.Meters
 
-      Wonder.new!(id: 145, name: "Eiffel tower", height: Height --- Meters --- 324.0)
+      Wonder.new!(id: 145, name: "Eiffel tower", height: {Height, {Meters, 324.0}})
       %Wonder{height: {Height, {Height.Meters, 324.0}}, id: 145, name: "Eiffel tower"}
 
   ### Overrides
@@ -344,7 +338,7 @@ defmodule Domo do
   ### Options
 
   After the module compilation, the Domo library checks if all tags attached
-  with `---/2` have proper aliases at the call sites. If it can't find a tag's
+  with `tag/2` have proper aliases at the call sites. If it can't find a tag's
   module, it raises the `CompileError` exception.
 
   The following options can be passed with `use Domo, [...]`
@@ -392,7 +386,7 @@ defmodule Domo do
       ....(1)>   typedstruct do
       ....(1)>     field :id, Id.t()
       ....(1)>     field :quantity, Quantity.t()
-      ....(1)>     field :note, Note.t(), default: Note --- :none
+      ....(1)>     field :note, Note.t(), default: {Note, :none}
       ....(1)>   end
       ....(1)> end
       {:module, Order,
@@ -446,7 +440,6 @@ defmodule Domo do
       imports = [
         deftag: 2,
         for_type: 1,
-        ---: 2,
         tag: 2,
         untag!: 2
       ]
@@ -521,7 +514,7 @@ defmodule Domo do
       ...> end
 
       ...> alias Email.Unverified
-      ...> Email --- Unverified --- "some@server.com"
+      ...> {Email, {Unverified, "some@server.com"}}
       {Email, {Email.Unverified, "some@server.com"}}
 
 
@@ -723,55 +716,6 @@ defmodule Domo do
   end
 
   @doc """
-  Defines a tagged tuple inline.
-
-  The operator is right-associative. It adds a tag or a chain of tags to a value.
-
-  ## Examples
-
-      iex> import Domo
-      ...> Tag --- 12
-      {Tag, 12}
-
-  """
-  defmacro tag --- value do
-    m = Macro.expand_once(tag, __CALLER__)
-
-    if not module_atom?(m) do
-      quote do
-        raise(
-          ArgumentError,
-          "First argument of ---\/2 operator is #{inspect(unquote(m))}. Expected a tag defined with deftag/2."
-        )
-      end
-    else
-      if not is_nil(__CALLER__.module) do
-        st_entry = List.first(Macro.Env.stacktrace(__CALLER__))
-
-        Module.put_attribute(__CALLER__.module, :domo_tags, {m, st_entry})
-
-        m = Macro.expand_once(value, __CALLER__)
-
-        if module_atom?(m) do
-          Module.put_attribute(__CALLER__.module, :domo_tags, {m, st_entry})
-        end
-      end
-
-      quote do
-        {unquote(tag), unquote(value)}
-      end
-    end
-  end
-
-  @doc false
-  defp module_atom?(a) when not is_atom(a), do: false
-
-  defp module_atom?(a) do
-    f = String.first(Atom.to_string(a))
-    f == String.upcase(f)
-  end
-
-  @doc """
   Returns a tagged tuple by joining the tag chain with the value.
 
   The macro supports up to 6 links in the tag chain.
@@ -783,7 +727,7 @@ defmodule Domo do
       {SomeTag, 2.5}
 
       iex> import Domo
-      ...> tag(7, A --- Tag --- Chain)
+      ...> tag(7, {A, {Tag, Chain}})
       {A, {Tag, {Chain, 7}}}
   """
   defmacro tag(value, tag_chain) do
@@ -817,6 +761,14 @@ defmodule Domo do
   end
 
   @doc false
+  defp module_atom?(a) when not is_atom(a), do: false
+
+  defp module_atom?(a) do
+    f = String.first(Atom.to_string(a))
+    f == String.upcase(f)
+  end
+
+  @doc false
   def do_tag(v, t1) when is_atom(t1), do: {t1, v}
   def do_tag(v, {t2, t1}) when is_atom(t2) and is_atom(t1), do: {t2, {t1, v}}
 
@@ -846,13 +798,13 @@ defmodule Domo do
   ## Examples
 
       iex> import Domo
-      ...> value = A --- Tag --- Chain --- 2
-      ...> untag!(value, A --- Tag --- Chain)
+      ...> value = {A, {Tag, {Chain, 2}}}
+      ...> untag!(value, {A, {Tag, Chain}})
       2
 
       iex> import Domo
-      ...> value = Other --- Stuff --- 2
-      ...> untag!(value, A --- Tag --- Chain)
+      ...> value = {Other, {Stuff, 2}}
+      ...> untag!(value, {A, {Tag, Chain}})
       ** (ArgumentError) Tag chain {A, {Tag, Chain}} doesn't match one in the tagged tuple {Other, {Stuff, 2}}.
 
   """

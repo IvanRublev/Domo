@@ -23,10 +23,10 @@ defmodule App.Core.Order do
     super(enumerable)
   end
 
-  defp validate!(%{id: Id --- id}) do
+  defp validate!(%{id: {Id, id}}) do
     assert!(is_binary(id) and id =~ ~r/ord[0-9]{8}/)
   end
 
   def new_id(id),
-    do: Id --- ("ord" <> String.pad_leading(to_string(id), 8, "0"))
+    do: {Id, ("ord" <> String.pad_leading(to_string(id), 8, "0"))}
 end

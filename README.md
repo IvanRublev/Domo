@@ -142,9 +142,8 @@ User.new!(id: {Order.Id, 153}, name: "Fruits")
 ```
 
 The additional tuples here and there seem cumbersome. One way to make
-the tag definition elegant and to reduce the extra pair of brackets
-is with `deftag/2` macro and `---/2` operator. We can rewrite the code to more
-compact way like this:
+the tag definition elegant is with `deftag/2` macro.
+We can rewrite the code to more compact way like this:
 
 ```elixir
 defmodule User do
@@ -171,16 +170,15 @@ defmodule Order do
 end
 
 import Domo
-User.new!(id: User.Id --- 152, name: "Bob")
+User.new!(id: {User.Id, 152}, name: "Bob")
 %User{id: {User.Id, 152}, name: "Bob", post_address: :none}
 
-Order.new!(id: Order.Id --- 153, name: "Fruits")
+Order.new!(id: {Order.Id, 153}, name: "Fruits")
 %Order{id: {Order.Id, 153}, name: "Fruits"}
 ```
 
 In the example above the `deftag/2` macro defines the tag - Id module and
-the type t :: {Id, integer} in it. And `---/2` operator quickly defines
-a tuple of  two elements, a tag and a value.
+the type t :: {Id, integer} in it.
 
 ### Third dimension for structures with tag chains 🍿
 
@@ -215,24 +213,20 @@ import Domo
 alias Order.{Id, Quantity}
 alias Order.Quantity.{Kilograms, Units}
 
-Order.new!(id: Id --- 158, name: "Fruits", quantity: Quantity --- Kilograms --- 12.5)
+Order.new!(id: {Id, 158}, name: "Fruits", quantity: {Quantity, {Kilograms, 12.5}})
 %Order{
   id: {Order.Id, 158},
   name: "Fruits",
   quantity: {Order.Quantity, {Order.Quantity.Kilograms, 12.5}}
 }
 
-Order.new!(id: Id --- 159, name: "Bananas", quantity: Quantity --- "5 boxes")
+Order.new!(id: {Id, 159}, name: "Bananas", quantity: {Quantity, "5 boxes"})
 ** (ArgumentError) Can't construct %Order{...} with new!([id: {Order.Id, 159}, name: "Bananas", quantity: {Order.Quantity, "5 boxes"}])
     Unexpected value type for the field :quantity. The value {Order.Quantity, "5 boxes"} doesn't match the Quantity.t() type.
 
-def to_string(%Order{quantity: Quantity --- Kilograms --- kilos}), do: to_string(kilos) <> "kg"
-def to_string(%Order{quantity: Quantity --- Units --- kilos}), do: to_string(kilos) <> " units"
+def to_string(%Order{quantity: {Quantity, {Kilograms, kilos}}}), do: to_string(kilos) <> "kg"
+def to_string(%Order{quantity: {Quantity, {Units, kilos}}}), do: to_string(kilos) <> " units"
 ```
-
-The `---/2` operator is right-associative. It can attach a chain of tags
-to a value that produces a series of nested tagged tuples with the value
-in the core. Such kind of definition works in pattern-matching.
 
 In the example above the construction with invalid quantity raises
 the exception. And if there is no `to_string` function for one of the quantity
@@ -252,8 +246,8 @@ To use Domo in your project, add this to your Mix dependencies:
 {:domo, "~> #{Mix.Project.config()[:version]}"}
 ```
 
-To avoid `mix format` putting parentheses on tagged tuples definitions
-made with `---/2` operator, you can add to your `.formatter.exs`:
+To avoid `mix format` putting extra parentheses around macro calls, 
+you can add to your `.formatter.exs`:
 
 ```elixir
 [
@@ -320,24 +314,24 @@ end
 ```
 
 Any tag is a module by itself. Type t() of the tag is a [tagged tuple](https://erlang.org/doc/getting_started/seq_prog.html#tuples).
-To add a tag or a tag chain to a value use `---/2` macro.
+It's possible to have a tag or a tag chain added to a value like the following:
 
 ```elixir
 alias Height.{Meters, Foots}
-m = Height --- Meters --- 324.0
-f = Height --- Foots --- 1062.992
+m = {Height, {Meters, 324.0}}
+f = {Height, {Foots, 1062.992}}
 ```
 
-Under the hood, the tag chain is a series of nested tagged tuples where
-the value is in the core. Because of that, you can use the `---/2` macro
-in pattern matching.
+The tag chain attached to the value is a series of nested tagged tuples where
+the value is in the core. It's possible to extract the value
+with pattern matching.
 
 ```elixir
 {Height, {Meters, 324.0}} == m
 
 @spec to_string(Height.t()) :: String.t()
-def to_string(Height --- Meters --- val), do: to_string(val) <> " m"
-def to_string(Height --- Foots --- val), do: to_string(val) <> " ft"
+def to_string({Height, {Meters, val}}), do: to_string(val) <> " m"
+def to_string({Height, {Foots, val}}), do: to_string(val) <> " ft"
 ```
 
 #### Combine struct and tags
@@ -366,7 +360,7 @@ to build or modify struct having types verification.
 import Domo
 alias Height.Meters
 
-Wonder.new!(id: 145, name: "Eiffel tower", height: Height --- Meters --- 324.0)
+Wonder.new!(id: 145, name: "Eiffel tower", height: {Height, {Meters, 324.0}})
 %Wonder{height: {Height, {Height.Meters, 324.0}}, id: 145, name: "Eiffel tower"}
 ```
 
@@ -385,7 +379,7 @@ and data consistency.
 ### Options
 
 After the module compilation, the Domo library checks if all tags attached
-with `---/2` have proper aliases at the call sites. If it can't find a tag's
+with `tag/2` have proper aliases at the call sites. If it can't find a tag's
 module, it raises the `CompileError` exception.
 
 The following options can be passed with `use Domo, [...]`
@@ -436,7 +430,7 @@ iex.(1)> defmodule Order do
 ....(1)>   typedstruct do
 ....(1)>     field :id, Id.t()
 ....(1)>     field :quantity, Quantity.t()
-....(1)>     field :note, Note.t(), default: Note --- :none
+....(1)>     field :note, Note.t(), default: {Note, :none}
 ....(1)>   end
 ....(1)> end
 {:module, Order,
@@ -485,7 +479,7 @@ can help you to model the problem and understand it better.
 It's possible to start with typedstruct macro to define structs in
 a compact declarative way, use `new!/1`, `put!/1`, and `merge!/1` to modify
 structures to enable type-checking, and finally introduce tags
-with `deftag/2` and `---/2` for structure fields. These tools are for appropriate
+with `deftag/2` for structure fields. These tools are for appropriate
 use according to the problem. Give them a try and see how far you can go.
 
 ## Contributing

@@ -8,7 +8,7 @@ defmodule Domo.MixProject do
     [
       app: :domo,
       version: @version,
-      elixir: ">= 1.11.0-dev",
+      elixir: ">= 1.10.0",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),

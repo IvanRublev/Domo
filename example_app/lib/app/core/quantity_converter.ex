@@ -31,11 +31,11 @@ defmodule App.Core.QuantityConverter do
   end
 
   @spec to_kilos_value(Order.t()) :: ConverterKilograms.value_t()
-  defp to_kilos_value(%Order{quantity: Quantity --- quantity}) do
+  defp to_kilos_value(%Order{quantity: {Quantity, quantity}}) do
     case quantity do
-      Units --- Packages --- p -> p * 0.75
-      Units --- Boxes --- b -> b * 2.0
-      OrderKilograms --- k -> k
+      {Units, {Packages, p}} -> p * 0.75
+      {Units, {Boxes, b}} -> b * 2.0
+      {OrderKilograms, k} -> k
     end
   end
 end

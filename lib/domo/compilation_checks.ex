@@ -49,7 +49,7 @@ defmodule Domo.CompilationChecks do
         IO.warn(msg)
 
       _ ->
-        raise(CompileError,
+        IO.inspect raise(CompileError,
           file: env.file,
           line: env.line,
           description: msg

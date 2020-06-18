@@ -44,7 +44,7 @@ defmodule Domo.OptionsTest do
             use Domo, undefined_tag_error_as_warning: true
 
             def somefunc do
-              Undefined --- 1
+              tag(1, Undefined)
             end
           end
         end)
@@ -59,7 +59,7 @@ defmodule Domo.OptionsTest do
             use Domo, undefined_tag_error_as_warning: false
 
             def somefunc do
-              Undefined --- 1
+              tag(2, Undefined)
             end
           end
         end)
@@ -193,7 +193,7 @@ defmodule Domo.OptionsTest do
             use Domo
 
             def run do
-              UndefinedTag --- 2
+              tag(2, UndefinedTag)
             end
           end
         end)
@@ -208,7 +208,7 @@ defmodule Domo.OptionsTest do
             use Domo, undefined_tag_error_as_warning: false
 
             def run do
-              UndefinedTag --- 2
+              tag(2, UndefinedTag)
             end
           end
         end)
