@@ -1,4 +1,5 @@
 defmodule TypedStructSamplePlugin do
+  @moduledoc false
   use TypedStruct.Plugin
 
   @impl true
@@ -11,6 +12,7 @@ defmodule TypedStructSamplePlugin do
 end
 
 defmodule NoDefaultOneFieldStruct do
+  @moduledoc false
   use Domo
 
   typedstruct do
@@ -22,6 +24,7 @@ defmodule NoDefaultOneFieldStruct do
 end
 
 defmodule AllDefaultsStruct do
+  @moduledoc false
   use Domo
 
   typedstruct do
@@ -33,6 +36,7 @@ defmodule AllDefaultsStruct do
 end
 
 defmodule TwoFieldStruct do
+  @moduledoc false
   use Domo
 
   typedstruct do
@@ -44,6 +48,7 @@ defmodule TwoFieldStruct do
 end
 
 defmodule OverridenNew do
+  @moduledoc false
   use Domo
 
   typedstruct do
@@ -62,6 +67,7 @@ defmodule OverridenNew do
 end
 
 defmodule Generator do
+  @moduledoc false
   @type an_atom :: atom
   @type a_str :: String.t()
 
@@ -69,6 +75,7 @@ defmodule Generator do
 end
 
 defmodule IncorrectDefault do
+  @moduledoc false
   use Domo
 
   typedstruct do
@@ -79,8 +86,12 @@ defmodule IncorrectDefault do
 end
 
 defmodule NoFieldsStruct do
+  @moduledoc false
   use Domo
 
+  # coveralls-ignore-start
   typedstruct do
   end
+
+  # coveralls-ignore-stop
 end

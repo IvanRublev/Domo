@@ -43,6 +43,7 @@ defmodule Domo.StructFunctionsGenerator do
   @doc false
   def quoted_merge_funs(fields_spec) when fields_spec == [], do: nil
 
+  # credo:disable-for-next-line
   def quoted_merge_funs(fields_spec) do
     struct_keys = Keyword.keys(fields_spec)
 

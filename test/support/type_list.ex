@@ -6,12 +6,15 @@ defmodule TypeList do
   Because of that we have file here.
   """
   defmodule Person do
+    @moduledoc false
     defstruct([:name])
     @type t :: %__MODULE__{name: String.t()}
   end
 
   defmodule StructAll do
+    @moduledoc false
     defmodule Submodule do
+      @moduledoc false
       @type t :: atom
     end
 

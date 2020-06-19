@@ -1,0 +1,13 @@
+language: elixir
+matrix:
+  include:
+    - elixir: 1.10
+      otp_release: 22.3
+    - elixir: 1.10
+      otp_release: 23.0
+before_script:
+  - mix deps.compile
+  - MIX_ENV=test mix deps.compile
+  - travis_wait mix dialyzer
+script:
+  - mix check

@@ -19,7 +19,7 @@ defmodule Domo.TypeSpecMatchable.QuotedType do
         err
 
       {n, a} ->
-        if not built_in_type?(n, a) do
+        if false == built_in_type?(n, a) do
           :ok
         else
           {:error, :beam_type}

@@ -12,6 +12,7 @@ defmodule Domo.TypeCheckerGenerator do
   end
 
   @doc false
+  # credo:disable-for-next-line
   def module(fields_kw_spec, caller_env) do
     quote do
       defmodule TypeChecker do

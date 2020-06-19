@@ -1,6 +1,6 @@
 defmodule Domo.TypeSpecMatchable.DefinedTypes do
   @moduledoc false
-  
+
   alias Domo.TypeSpecMatchable
   alias Domo.TypeSpecMatchable.BeamType
   alias Domo.TypeSpecMatchable.QuotedType

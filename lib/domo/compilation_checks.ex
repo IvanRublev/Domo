@@ -31,9 +31,10 @@ defmodule Domo.CompilationChecks do
 
   defp raise_on_undefined_tags_if_needed(count, env) do
     msg =
-      cond do
-        count > 1 -> "#{count} tags were not defined with deftag\/2. See warnings."
-        true -> "A tag was not defined with deftag\/2. See warning."
+      if count > 1 do
+        "#{count} tags were not defined with deftag\/2. See warnings."
+      else
+        "A tag was not defined with deftag\/2. See warning."
       end
 
     domo_options = Module.get_attribute(env.module, :domo_options)
@@ -49,7 +50,7 @@ defmodule Domo.CompilationChecks do
         IO.warn(msg)
 
       _ ->
-        IO.inspect raise(CompileError,
+        raise(CompileError,
           file: env.file,
           line: env.line,
           description: msg
