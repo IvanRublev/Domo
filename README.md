@@ -475,6 +475,90 @@ structures to enable type-checking, and finally introduce tags
 with `deftag/2` for structure fields. These tools are for appropriate
 use according to the problem. Give them a try and see how far you can go.
 
+## Performance 🐢
+
+It may seem that the current version of the library is plodding. And it may
+look like non-performant to run in production. And even more, it may seem
+that the library degrades users experience dramatically.
+Actually, it's good enough for "make it work", and it's applicable in various
+business contexts.
+There is an excellent room for speed improvements now.
+
+    Generate 10000 inputs, may take a while.
+    =========================================
+
+    Construction of a struct
+    =========================================
+    Operating System: macOS
+    CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
+    Number of Available Cores: 8
+    Available memory: 16 GB
+    Elixir 1.10.0
+    Erlang 22.2.3
+
+    Benchmark suite executing with the following configuration:
+    warmup: 2 s
+    time: 5 s
+    memory time: 0 ns
+    parallel: 1
+    inputs: none specified
+    Estimated total run time: 14 s
+
+    Benchmarking __MODULE__.new!(arg)...
+    Benchmarking struct!(__MODULE__, arg)...
+
+    Name                               ips        average  deviation         median         99th %
+    struct!(__MODULE__, arg)       10.93 K      0.0915 ms    ±56.64%      0.0930 ms        0.22 ms
+    __MODULE__.new!(arg)          0.0161 K       62.09 ms     ±5.32%       61.22 ms       79.17 ms
+
+    Comparison: 
+    struct!(__MODULE__, arg)       10.93 K
+    __MODULE__.new!(arg)          0.0161 K - 678.57x slower +62.00 ms
+
+    A struct's field modification
+    =========================================
+
+    Benchmark suite executing with the following configuration:
+    warmup: 2 s
+    time: 5 s
+    memory time: 0 ns
+    parallel: 1
+    inputs: none specified
+    Estimated total run time: 14 s
+
+    Benchmarking __MODULE__.put!(tweet, :user, arg)...
+    Benchmarking struct!(tweet, user: arg)...
+
+    Name                                         ips        average  deviation         median         99th %
+    struct!(tweet, user: arg)                12.64 K      0.0791 ms    ±67.17%      0.0810 ms        0.20 ms
+    __MODULE__.put!(tweet, :user, arg)      0.0440 K       22.75 ms     ±2.52%       22.70 ms       25.01 ms
+
+    Comparison: 
+    struct!(tweet, user: arg)                12.64 K
+    __MODULE__.put!(tweet, :user, arg)      0.0440 K - 287.64x slower +22.67 ms
+
+    Merge map into a struct
+    =========================================
+
+    Benchmark suite executing with the following configuration:
+    warmup: 2 s
+    time: 5 s
+    memory time: 0 ns
+    parallel: 1
+    inputs: none specified
+    Estimated total run time: 14 s
+
+    Benchmarking __MODULE__.merge!(tweet, map)...
+    Benchmarking struct(tweet, map)...
+
+    Name                                    ips        average  deviation         median         99th %
+    struct(tweet, map)                  12.60 K      0.0793 ms    ±66.60%      0.0810 ms       0.199 ms
+    __MODULE__.merge!(tweet, map)      0.0439 K       22.77 ms     ±2.15%       22.72 ms       24.25 ms
+
+    Comparison: 
+    struct(tweet, map)                  12.60 K
+    __MODULE__.merge!(tweet, map)      0.0439 K - 287.02x slower +22.69 ms
+
 ## Contributing
 
 1. Fork the repository and make a feature branch
@@ -500,13 +584,16 @@ use according to the problem. Give them a try and see how far you can go.
 * [x] Check if the field values passed as an argument to the `new/1`, 
       and `put/3` matches the field types defined in `typedstruct/1`.
 
-* [x] Support the keyword list as a possible argument for `new!/1`.
+* [x] Support the keyword list as a possible argument for the `new!/1`.
 
 * [x] Add module option to put a warning in the console instead of raising 
       of the `ArgumentError` exception on value type mismatch.
 
 * [x] Make global environment configuration options to turn errors into 
       warnings that are equivalent to module ones.
+
+* [ ] Make the `new(!)/1`, `put(!)/3`, and `merge(!)/2` speed to be 30% closer
+      to the speed of the `struct!/2`.
 
 * [ ] Add documentation to the generated `new(!)/1`, `put(!)/3`, and `merge(!)/2`
       functions in struct.

@@ -64,6 +64,7 @@ defimpl Domo.TypeSpecMatchable, for: Atom do
   def match_spec?(term, spec, metadata) do
     if match?({:__aliases__, _, _}, spec) do
       module_type = Macro.expand(spec, metadata.env)
+
       if false == Code.ensure_loaded?(module_type) do
         IO.warn("No loaded module for type #{inspect(module_type)}. Missing alias?")
       end

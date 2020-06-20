@@ -10,7 +10,6 @@ defmodule Domo.TypeContractTest do
 
   alias Domo.TypeContract
 
-
   describe "TypeContract for nonexisting module atom" do
     defmodule The.Nested.Mod, do: nil
 
