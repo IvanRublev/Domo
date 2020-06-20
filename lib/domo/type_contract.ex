@@ -11,6 +11,7 @@ defprotocol Domo.TypeSpecMatchable do
   @type t_spec :: Macro.t()
   @type metadata :: %{
           required(:env) => Macro.Env.t(),
+          optional(:stacktrace) => [any],
           optional(:types) => BeamType.module_types()
         }
 
@@ -52,15 +53,31 @@ defimpl Domo.TypeSpecMatchable, for: Atom do
 
   def match_spec?(:infinity, {:timeout, _, _}, _metadata), do: true
 
-  def match_spec?(term, expected, _metadata)
-      when is_atom(expected) and term == expected,
-      do: true
+  def match_spec?(term, expected, _metadata) when is_atom(expected) do
+    if module_atom?(term) and false == Code.ensure_loaded?(term) do
+      IO.warn("No loaded module for value #{inspect(term)}. Missing alias?")
+    end
+
+    term == expected
+  end
 
   def match_spec?(term, spec, metadata) do
+    if match?({:__aliases__, _, _}, spec) do
+      module_type = Macro.expand(spec, metadata.env)
+      if false == Code.ensure_loaded?(module_type) do
+        IO.warn("No loaded module for type #{inspect(module_type)}. Missing alias?")
+      end
+    end
+
     case TypeSpecMatchable.DefinedTypes.expand_usertype(spec, metadata) do
       {:ok, type, metadata} -> match_spec?(term, type, metadata)
       _ -> false
     end
+  end
+
+  defp module_atom?(term) do
+    first_letter = hd(Atom.to_charlist(term))
+    65 <= first_letter and first_letter <= 90
   end
 end
 
@@ -666,9 +683,10 @@ defmodule Domo.TypeContract do
   @doc """
   Validates if the value matches the @type contract.
 
-  The contract is a type spec in Elixir quoted form. The environment
-  is a module's environment to resolve aliases for remote types.
-  Usually, it should be a caller environment that the `Kernel.SpecialForms.__ENV__/0` macro returns.
+  * contract is a type spec in Elixir quoted form.
+  * environment is a module's environment to resolve aliases for remote types.
+    Usually, it should be a caller environment that
+    the `Kernel.SpecialForms.__ENV__/0` macro returns.
   """
   @spec valid?(any, Macro.t(), Macro.Env.t()) :: boolean
   def valid?(value, contract, env) do

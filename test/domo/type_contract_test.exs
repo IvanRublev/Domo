@@ -6,9 +6,32 @@ end
 defmodule Domo.TypeContractTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO
+
   alias Domo.TypeContract
 
-  def some_fun(_a, _b), do: nil
+
+  describe "TypeContract for nonexisting module atom" do
+    defmodule The.Nested.Mod, do: nil
+
+    test "value should emit warning" do
+      warns =
+        capture_io(:stderr, fn ->
+          _ = TypeContract.valid?(Mod, The.Nested.Mod, TypeList.env())
+        end)
+
+      assert warns =~ ~r/No loaded module for value Mod. Missing alias?/
+    end
+
+    test "in type should emit warning" do
+      warns =
+        capture_io(:stderr, fn ->
+          _ = TypeContract.valid?(The.Nested.Mod, quote(do: Atom | List | Mod), TypeList.env())
+        end)
+
+      assert warns =~ ~r/No loaded module for type Mod. Missing alias?/
+    end
+  end
 
   describe "TypeContract with remote type should be" do
     test "validatable for nested collections with ors and user defined types" do
@@ -226,6 +249,8 @@ defmodule Domo.TypeContractTest do
     end
   end
 
+  def some_fun(_a, _b), do: nil
+
   describe "TypeContract should be" do
     setup do
       %{
@@ -255,7 +280,7 @@ defmodule Domo.TypeContractTest do
       end
     end
 
-    test "automatically with pid, port, reference for any, none, and no_return", %{
+    test "validatable with pid, port, reference for any, none, and no_return", %{
       pid: pid,
       port: port,
       reference: reference

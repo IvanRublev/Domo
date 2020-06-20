@@ -11,6 +11,17 @@ defmodule TypedStructSamplePlugin do
   end
 end
 
+defmodule TaggedTupleFieldStruct do
+  @moduledoc false
+  use Domo
+
+  deftag ATag, for_type: :no_value
+
+  typedstruct do
+    field :field, ATag.t()
+  end
+end
+
 defmodule NoDefaultOneFieldStruct do
   @moduledoc false
   use Domo
