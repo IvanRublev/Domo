@@ -3,7 +3,7 @@ defmodule Domo.OptionsTest do
 
   import ExUnit.CaptureIO
 
-  describe "use Domo with no_filed option" do
+  describe "use Domo with no_field option" do
     test "when set to true should prevent import of typedstruct and field macros" do
       assert_raise CompileError, ~r/undefined function typedstruct/, fn ->
         defmodule ModuleNoTypedstruct do
@@ -33,6 +33,26 @@ defmodule Domo.OptionsTest do
       end
 
       assert is_struct(ModuleTypedstructAndField.new!(field: 1))
+    end
+  end
+
+  describe "use Domo with no_tag option" do
+    test "when set to true should not import the tag/2 macro" do
+      assert_raise CompileError, ~r/undefined function tag/, fn ->
+        defmodule ModuleWithoutTag do
+          use Domo, no_tag: true
+          deftag Id, for_type: integer
+          inspect(tag(123, Id))
+        end
+      end
+    end
+
+    test "when set to false should import the tag/2 macro" do
+      defmodule ModuleWithoutTag do
+        use Domo, no_tag: false
+        deftag Id, for_type: integer
+        inspect(tag(123, Id))
+      end
     end
   end
 

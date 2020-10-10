@@ -438,15 +438,20 @@ defmodule Domo do
       imports = [
         deftag: 2,
         for_type: 1,
-        tag: 2,
         untag!: 2
       ]
 
       imports =
         imports ++
-          case Keyword.fetch(opts, :no_field) do
-            {:ok, true} -> []
-            _ -> [typedstruct: 1, field: 2, field: 3]
+          if Keyword.get(opts, :no_field) do
+            []
+          else
+            [typedstruct: 1, field: 2, field: 3]
+          end ++
+          if Keyword.get(opts, :no_tag) do
+            []
+          else
+            [tag: 2]
           end
 
       quote do
