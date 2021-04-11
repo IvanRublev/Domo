@@ -4,6 +4,9 @@
 [![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)
 [![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)
 
+| :warning: :warning: :warning: The major versions 1.x.x of this library are experemental and Not ready for production use :warning: :warning: :warning: |
+|-----------------------------------------|
+
 Domo is a library to model a business domain with type-safe structs and
 composable tagged tuples.
 
@@ -591,6 +594,8 @@ There is an excellent room for speed improvements now.
 
 * [x] Make global environment configuration options to turn errors into 
       warnings that are equivalent to module ones.
+
+* [ ] Move type resolving to the compile time.
 
 * [ ] Make the `new(!)/1`, `put(!)/3`, and `merge(!)/2` speed to be 30% closer
       to the speed of the `struct!/2`.
