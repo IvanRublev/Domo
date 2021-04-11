@@ -1,6 +1,6 @@
 defmodule AppWeb.OrderController do
   use AppWeb, :controller
-  use Domo
+  use Domo.TaggedTuple
 
   alias App.Core.Order
   alias App.Core.Order.{Id, Note}
@@ -25,7 +25,7 @@ defmodule AppWeb.OrderController do
   # --- add order ---------------------------
   def add_order(conn, %{"id" => id, "units" => units} = params) do
     ord =
-      Order.new!(
+      Order.build!(
         id: Order.new_id(id),
         quantity: {Quantity, {Units, units_from_map(units)}},
         note: note(params["note"])
@@ -36,7 +36,7 @@ defmodule AppWeb.OrderController do
 
   def add_order(conn, %{"id" => id, "kilograms" => kilos} = params) when is_float(kilos) do
     ord =
-      Order.new!(
+      Order.build!(
         id: Order.new_id(id),
         quantity: {Quantity, {Kilograms, kilos}},
         note: note(params["note"])
@@ -85,7 +85,7 @@ defmodule AppWeb.OrderController do
     resp =
       %{"result" => "ok"}
       |> Map.merge(%{"order_kilograms" => map_from_ord_kilo(ord_kilo)})
-      |> Map.put("sum", untag!(sum, ConverterKilograms))
+      |> Map.put("sum", TaggedTuple.untag!(sum, ConverterKilograms))
 
     json(conn, resp)
   end

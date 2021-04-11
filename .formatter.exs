@@ -1,4 +1,4 @@
-locals_without_parens = [deftag: 2, field: :*, for_type: 1]
+locals_without_parens = [deftag: 2, field: :*, for_type: 1, allow: :*, assert_called: :*]
 
 [
   inputs: [

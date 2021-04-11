@@ -7,7 +7,7 @@ defmodule App.MixProject do
       version: "0.1.0",
       elixir: "~> 1.5",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:phoenix] ++ Mix.compilers(),
+      compilers: [:phoenix] ++ Mix.compilers() ++ [:domo],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -35,9 +35,10 @@ defmodule App.MixProject do
   defp deps do
     [
       {:domo, path: ".."},
+      {:typed_struct, "~> 0.2.1"},
       {:ecto_enum, "~> 1.4"},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:phoenix, "~> 1.4.15"},
+      {:phoenix, "~> 1.5"},
       {:phoenix_ecto, "~> 4.0"},
       {:ecto_sql, "~> 3.1"},
       {:postgrex, ">= 0.0.0"},

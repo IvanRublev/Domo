@@ -1,14 +1,12 @@
-import Domo
+defmodule App.Core.Order.Quantity do
+  @type t :: {__MODULE__, __MODULE__.Units.t() | __MODULE__.Kilograms.t()}
 
-deftag App.Core.Order.Quantity do
-  for_type __MODULE__.Units.t() | __MODULE__.Kilograms.t()
+  defmodule Units do
+    @type t :: {__MODULE__, __MODULE__.Packages.t() | __MODULE__.Boxes.t()}
 
-  deftag Units do
-    for_type __MODULE__.Packages.t() | __MODULE__.Boxes.t()
-
-    deftag Packages, for_type: integer
-    deftag Boxes, for_type: integer
+    defmodule Packages, do: @type(t :: {__MODULE__, integer()})
+    defmodule Boxes, do: @type(t :: {__MODULE__, integer()})
   end
 
-  deftag Kilograms, for_type: float
+  defmodule Kilograms, do: @type(t :: {__MODULE__, float()})
 end

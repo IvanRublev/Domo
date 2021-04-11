@@ -22,8 +22,7 @@ defmodule Benchmark do
 
     for {title, fun} <- [
           {"Construction of a struct", fn -> bench_construction(maps_pid) end},
-          {"A struct's field modification", fn -> bench_put(tweet_user_pid) end},
-          {"Merge map into a struct", fn -> bench_merge(tweet_user_pid) end}
+          {"A struct's field modification", fn -> bench_put(tweet_user_pid) end}
         ] do
       puts_title(title)
       fun.()
@@ -38,9 +37,9 @@ defmodule Benchmark do
 
   defp bench_construction(pid) do
     Benchee.run(%{
-      "__MODULE__.new!(arg)" => fn ->
+      "__MODULE__.new(arg)" => fn ->
         {tweet_map, user_map} = Inputs.next_input(pid)
-        Tweet.new!(Map.merge(tweet_map, %{user: Tweet.User.new!(user_map)}))
+        Tweet.new(Map.merge(tweet_map, %{user: Tweet.User.new(user_map)}))
       end,
       "struct!(__MODULE__, arg)" => fn ->
         {tweet_map, user_map} = Inputs.next_input(pid)
@@ -51,26 +50,13 @@ defmodule Benchmark do
 
   defp bench_put(pid) do
     Benchee.run(%{
-      "__MODULE__.put!(tweet, :user, arg)" => fn ->
+      "%{tweet | user: arg} |> __MODULE__.ensure_type!()" => fn ->
         {tweet, user} = Inputs.next_input(pid)
-        Tweet.put!(tweet, :user, user)
+        %{tweet | user: user} |> Tweet.ensure_type!()
       end,
       "struct!(tweet, user: arg)" => fn ->
         {tweet, user} = Inputs.next_input(pid)
         struct!(tweet, user: user)
-      end
-    })
-  end
-
-  defp bench_merge(pid) do
-    Benchee.run(%{
-      "__MODULE__.merge!(tweet, map)" => fn ->
-        {tweet, user} = Inputs.next_input(pid)
-        Tweet.merge!(tweet, %{user: user, nonexistent_key: nil})
-      end,
-      "struct(tweet, map)" => fn ->
-        {tweet, user} = Inputs.next_input(pid)
-        struct(tweet, %{user: user, nonexistent_key: nil})
       end
     })
   end

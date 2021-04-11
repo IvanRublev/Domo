@@ -7,27 +7,49 @@ defmodule Benchmark.Tweet do
 
   use Domo
 
-  typedstruct do
-    field :created_at, String.t()
-    field :favorite_count, non_neg_integer | nil
-    field :favorited, boolean | nil
-    field :id, pos_integer
-    field :id_str, String.t()
-    field :in_reply_to_screen_name, String.t() | nil
-    field :in_reply_to_status_id, pos_integer | nil
-    field :in_reply_to_status_id_str, String.t() | nil
-    field :in_reply_to_user_id, pos_integer | nil
-    field :in_reply_to_user_id_str, String.t() | nil
-    field :is_quote_status, boolean
-    field :lang, String.t() | nil
-    field :possibly_sensitive, boolean | nil
-    field :retweet_count, non_neg_integer
-    field :retweeted, boolean
-    field :source, String.t()
-    field :text, String.t()
-    field :truncated, boolean
-    field :user, Benchmark.Tweet.User.t() | nil
-  end
+  defstruct [
+    :created_at,
+    :favorite_count,
+    :favorited,
+    :id,
+    :id_str,
+    :in_reply_to_screen_name,
+    :in_reply_to_status_id,
+    :in_reply_to_status_id_str,
+    :in_reply_to_user_id,
+    :in_reply_to_user_id_str,
+    :is_quote_status,
+    :lang,
+    :possibly_sensitive,
+    :retweet_count,
+    :retweeted,
+    :source,
+    :text,
+    :truncated,
+    :user
+  ]
+
+  @type t :: %__MODULE__{
+          created_at: String.t(),
+          favorite_count: non_neg_integer | nil,
+          favorited: boolean | nil,
+          id: pos_integer,
+          id_str: String.t(),
+          in_reply_to_screen_name: String.t() | nil,
+          in_reply_to_status_id: pos_integer | nil,
+          in_reply_to_status_id_str: String.t() | nil,
+          in_reply_to_user_id: pos_integer | nil,
+          in_reply_to_user_id_str: String.t() | nil,
+          is_quote_status: boolean,
+          lang: String.t() | nil,
+          possibly_sensitive: boolean | nil,
+          retweet_count: non_neg_integer,
+          retweeted: boolean,
+          source: String.t(),
+          text: String.t(),
+          truncated: boolean,
+          user: Benchmark.Tweet.User.t() | nil
+        }
 end
 
 defmodule Benchmark.Tweet.User do
@@ -39,25 +61,47 @@ defmodule Benchmark.Tweet.User do
 
   use Domo
 
-  typedstruct do
-    field :created_at, String.t()
-    field :default_profile, boolean
-    field :default_profile_image, boolean
-    field :description, String.t() | nil
-    field :favourites_count, non_neg_integer
-    field :followers_count, non_neg_integer
-    field :friends_count, non_neg_integer
-    field :id, pos_integer
-    field :id_str, String.t()
-    field :listed_count, non_neg_integer
-    field :location, String.t() | nil
-    field :name, String.t()
-    field :profile_banner_url, String.t()
-    field :profile_image_url_https, String.t()
-    field :protected, boolean
-    field :screen_name, String.t()
-    field :statuses_count, non_neg_integer
-    field :url, String.t() | nil
-    field :verified, boolean
-  end
+  defstruct [
+    :created_at,
+    :default_profile,
+    :default_profile_image,
+    :description,
+    :favourites_count,
+    :followers_count,
+    :friends_count,
+    :id,
+    :id_str,
+    :listed_count,
+    :location,
+    :name,
+    :profile_banner_url,
+    :profile_image_url_https,
+    :protected,
+    :screen_name,
+    :statuses_count,
+    :url,
+    :verified
+  ]
+
+  @type t :: %__MODULE__{
+          created_at: String.t(),
+          default_profile: boolean,
+          default_profile_image: boolean,
+          description: String.t() | nil,
+          favourites_count: non_neg_integer,
+          followers_count: non_neg_integer,
+          friends_count: non_neg_integer,
+          id: pos_integer,
+          id_str: String.t(),
+          listed_count: non_neg_integer,
+          location: String.t() | nil,
+          name: String.t(),
+          profile_banner_url: String.t(),
+          profile_image_url_https: String.t(),
+          protected: boolean,
+          screen_name: String.t(),
+          statuses_count: non_neg_integer,
+          url: String.t() | nil,
+          verified: boolean
+        }
 end

@@ -1,18 +1,20 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.0.1"
+  @version "1.2.0"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
     [
       app: :domo,
       version: @version,
-      elixir: ">= 1.10.0",
+      elixir: ">= 1.11.0",
       elixirc_paths: elixirc_paths(Mix.env()),
+      compilers: compilers(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
+      mix_project_stub: mix_project_stub(Mix.env()),
 
       # Tools
       test_coverage: [tool: ExCoveralls],
@@ -36,7 +38,7 @@ defmodule Domo.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -45,17 +47,18 @@ defmodule Domo.MixProject do
   defp elixirc_paths(:benchmark), do: ["lib", "benchmark"]
   defp elixirc_paths(_), do: ["lib"]
 
+  defp compilers(:benchmark), do: Mix.compilers() ++ [:domo]
+  defp compilers(_), do: Mix.compilers()
+
   defp deps do
     [
       # Development and test dependencies
       {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
       {:credo, "~> 1.4", only: :dev, runtime: false},
-      {:excoveralls, "~> 0.13.0", only: :test, runtime: false},
+      {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
-
-      # Project dependencies
-      {:typed_struct, ">= 0.0.0"},
+      {:placebo, "~> 1.2", only: :test},
 
       # Documentation dependencies
       {:ex_doc, "~> 0.19", only: :docs, runtime: false},
@@ -73,6 +76,9 @@ defmodule Domo.MixProject do
       profile: "run -e 'Benchmark.Profile.run()'"
     ]
   end
+
+  defp mix_project_stub(:test), do: MixProjectStubCorrect
+  defp mix_project_stub(_), do: nil
 
   defp cli_env do
     [
