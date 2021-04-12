@@ -4,6 +4,8 @@
 [![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)
 [![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)
 
+⚠️ This library generates code for structures that can bring suboptimal compilation times increased to approx 25%. Please, evaluate before use ⚠️
+
 Domo is a library to model a business domain with type-safe structs and
 composable tagged tuples.
 
@@ -517,6 +519,8 @@ with correct states at every update that is valid in many business contexts.
 
 * [x] Make the `new/1` and `ensure_type!/1` speed to be less or equal 
       to 1.5 times of the `struct!/2` speed.
+
+* [ ] Evaluate full recompilation time with using Domo for 1000 structs.
 
 * [ ] Add use option to specify names of the generated functions.
 
