@@ -4,6 +4,8 @@
 [![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)
 [![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)
 
+⚠️ This library is experemental. It generates code for structures that can bring suboptimal compilation times increased to approx 25%. Please, evaluate before use ⚠️
+
 Domo is a library to model a business domain with type-safe structs and
 composable tagged tuples.
 
@@ -108,7 +110,7 @@ type of MyModule and is used by `new/1` constructor and other functions.
 If the field is of the struct type that uses Domo as well, then the ensurance
 of the field's value delegates to the `TypeEnsurer` of that struct.
 
-Domo library uses :domo compiler to generate `TypeEnsurer` modules code. See
+Domo library uses `:domo_compiler` to generate `TypeEnsurer` modules code. See
 the mix.exs in example_app for the compilers configuration.
 
 The generated code can always be found in the `_build/ENV/domo_generated_code`
@@ -181,7 +183,7 @@ defmodule Order do
 
   defmodule Id, do: @type t :: {__MODULE__, integer}
 
-  deftag Quantity do
+  defmodule Quantity do
     @type t :: {__MODULE__, __MODULE__.Units.t() | __MODULE__.Kilograms.t()}
 
     defmodule Kilograms, do: @type(t :: {__MODULE__, float()})
@@ -194,7 +196,11 @@ defmodule Order do
     field :quantity, Quantity.t()
   end
 end
+```
 
+And to construct the `Order` specifying quantity with a tag chain like that:
+
+```elixir
 alias Order.{Id, Quantity}
 alias Order.Quantity.{Kilograms, Units}
 
@@ -204,14 +210,7 @@ Order.new(id: {Id, 158}, name: "Fruits", quantity: {Quantity, {Kilograms, 12.5}}
   name: "Fruits",
   quantity: {Order.Quantity, {Order.Quantity.Kilograms, 12.5}}
 }
-
-Order.new(id: {Id, 159}, name: "Bananas", quantity: {Quantity, "5 boxes"})
-** (ArgumentError) Can't construct %Order{...} with new!([id: {Order.Id, 159}, name: "Bananas", quantity: {Order.Quantity, "5 boxes"}])
-    Unexpected value type for the field :quantity. The value {Order.Quantity, "5 boxes"} doesn't match the Quantity.t() type.
 ```
-
-In the example above the construction with invalid quantity raises
-the exception.
 
 To remove extra brackets from the tag chain definition, one can use the `---/2`
 operator from the `Domo.TaggedTuple` module. Then one can rewrite the above
@@ -250,7 +249,7 @@ To use Domo in your project, add this to your `mix.exs` dependencies:
 And the folowing line to the compilers:
 
 ```elixir
-compilers: Mix.compilers() ++ [:domo],
+compilers: Mix.compilers() ++ [:domo_compiler],
 ```
 
 To avoid `mix format` putting extra parentheses around macro calls,
@@ -262,6 +261,17 @@ you can add to your `.formatter.exs`:
   import_deps: [:domo]
 ]
 ```
+
+### Setup for Phoenix hot reload
+
+If you intend to call generated functions of structs using Domo from a Phoenix controller, add the following line to the endpoint's configuration in `config.exs` file:
+
+```elixir
+config :my_app, MyApp.Endpoint,
+  reloadable_compilers: [:phoenix] ++ Mix.compilers() ++ [:domo_compiler],
+```
+
+Otherwise type changes wouldn't be hot-reloaded by Phoenix.
 
 ### General usage
 
@@ -403,10 +413,16 @@ identifier
 
 ## Limitations
 
+Call to domo generated `new/1` function from macros is not supported. 
+F.e. it's not possible to define a default value in an Ecto schema like that. 
+Same time it's possible to ensure that struct value matches the type with a call to `ensure_type/1` from `changeset/2` function of the schema.
+
 The recursive types like `@type t :: :end | {integer, t}` are not supported.
 
-We may not know your business problem; at the same time, the Domo library
-can help you to model the problem and understand it better.
+## Migration
+
+To complete the migration to a new version of Domo, please, clean and recompile 
+the project with `mix clean --deps && mix compile` command.
 
 ## Performance 🐢
 
@@ -442,12 +458,12 @@ with correct states at every update that is valid in many business contexts.
     Benchmarking struct!(__MODULE__, arg)...
 
     Name                               ips        average  deviation         median         99th %
-    struct!(__MODULE__, arg)       11.94 K       83.75 μs    ±58.63%          83 μs         192 μs
-    __MODULE__.new(arg)             9.87 K      101.33 μs    ±49.87%         101 μs         220 μs
+    struct!(__MODULE__, arg)       12.37 K       80.83 μs    ±58.35%          81 μs         170 μs
+    __MODULE__.new(arg)             9.97 K      100.34 μs    ±48.40%         101 μs         191 μs
 
     Comparison: 
-    struct!(__MODULE__, arg)       11.94 K
-    __MODULE__.new(arg)             9.87 K - 1.21x slower +17.58 μs
+    struct!(__MODULE__, arg)       12.37 K
+    __MODULE__.new(arg)             9.97 K - 1.24x slower +19.51 μs
 
     A struct's field modification
     =========================================
@@ -470,12 +486,12 @@ with correct states at every update that is valid in many business contexts.
     Benchmarking struct!(tweet, user: arg)...
 
     Name                                                        ips        average  deviation         median         99th %
-    struct!(tweet, user: arg)                               12.73 K       78.56 μs    ±62.15%       79.98 μs      179.98 μs
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       11.00 K       90.93 μs    ±52.64%       91.98 μs      195.98 μs
+    struct!(tweet, user: arg)                               13.71 K       72.95 μs    ±63.63%          70 μs         164 μs
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       11.69 K       85.51 μs    ±53.74%          88 μs         170 μs
 
     Comparison: 
-    struct!(tweet, user: arg)                               12.73 K
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       11.00 K - 1.16x slower +12.36 μs
+    struct!(tweet, user: arg)                               13.71 K
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       11.69 K - 1.17x slower +12.55 μs
 
 ## Contributing
 
@@ -496,6 +512,21 @@ with correct states at every update that is valid in many business contexts.
        mix coveralls.html
 
 4. Make a PR to this repository
+
+## Changelog 
+
+### 1.2.1
+* Domo compiler is renamed to `:domo_compiler`
+* Compile `TypeEnsurer` modules only if struct changes or dependency type changes 
+* Phoenix hot-reload with `:reloadable_compilers` option is fully supported
+
+### 1.2.0 
+* Resolve all types at compile time and build `TypeEnsurer` modules for all structs
+* Make Domo library work with Elixir 1.11.x and take it as the required minimum version
+* Introduce `---/2` operator to make tag chains with `Domo.TaggedTuple` module
+
+### 0.0.x - 1.0.x 
+* MVP like releases, resolving types at runtime. Adds `new` constructor to a struct
 
 ## Roadmap
 
@@ -518,17 +549,20 @@ with correct states at every update that is valid in many business contexts.
 * [x] Make the `new/1` and `ensure_type!/1` speed to be less or equal 
       to 1.5 times of the `struct!/2` speed.
 
+* [ ] Support `new/1` calls in macros to specify default values f.e. in other 
+      structures. That is to check if default value matches type at compile time.
+
+* [ ] Evaluate full recompilation time with using Domo for 1000 structs.
+
 * [ ] Add use option to specify names of the generated functions.
 
-* [ ] Add documentation to the generated `new(_ok)/1`, and `ensure_type!(_ok)/1`
+* [ ] Add documentation to the generated for `new(_ok)/1`, and `ensure_type!(_ok)/1`
       functions in a struct.
 
-* [ ] Make the `typedstruct/1` to raise an error on default value that mismatches 
-      the field's type at the end of compilation (At the moment it's checked
-      during the construction of the struct with default values).
 
 ## License
 
 Copyright © 2021 Ivan Rublev
 
 This project is licensed under the [MIT license](LICENSE).
+()

@@ -1,5 +1,6 @@
 defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
   use Domo.FileCase, async: false
+  use Placebo
 
   alias Domo.TypeEnsurerFactory.Generator
 
@@ -61,9 +62,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
         ]
       })
 
-      assert_raise RuntimeError, ~r/CustomStructUsingDomo.TypeEnsurer/, fn ->
-        call_ensure_type({:first, %CustomStructUsingDomo{title: :one}})
-      end
+      allow CustomStructUsingDomo.ensure_type_ok(any()), return: :ok
+
+      instance = %CustomStructUsingDomo{title: :one}
+      call_ensure_type({:first, instance})
+
+      assert_called CustomStructUsingDomo.ensure_type_ok(instance)
     end
 
     test "should have only universal match_spec function for the struct" do

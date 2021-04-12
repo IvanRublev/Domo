@@ -12,7 +12,7 @@ defmodule Domo.MixTasksCompileDomoTest do
   alias Domo.TypeEnsurerFactory.Generator
   alias Domo.MixProjectHelper
   alias Mix.Task.Compiler.Diagnostic
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   def env, do: __ENV__
 
@@ -75,12 +75,12 @@ defmodule Domo.MixTasksCompileDomoTest do
     test "ensures that planner server flushed the plan and stopped", %{
       plan_file: plan_file
     } do
-      allow ResolvePlanner.ensure_flushed_and_stopped(any()), return: :ok
+      allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
 
       _ = DomoMixTask.run([])
 
-      assert_called ResolvePlanner.ensure_flushed_and_stopped(plan_file)
+      assert_called ResolvePlanner.ensure_flushed_and_stopped(plan_file, any())
     end
 
     test "resolve planned struct fields for the project", %{
@@ -295,19 +295,6 @@ defmodule Domo.MixTasksCompileDomoTest do
              } = diagnostic
     end
 
-    test "print error if modules generation fails" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any()),
-        return: {:error, [{"/some_path", 1, "some syntax error"}], []}
-
-      msg =
-        capture_io(fn ->
-          DomoMixTask.run([])
-        end)
-
-      assert msg =~ "== Type ensurer compilation error in file /some_path =="
-      assert msg =~ "some syntax error"
-    end
-
     test "returns {:ok, []} on successfull compilation" do
       module_two_fields()
 
@@ -397,6 +384,76 @@ defmodule Domo.MixTasksCompileDomoTest do
                message: "Elixir compiler launched by DependencyResolver failed due to" <> _,
                severity: :error
              } = diagnostic
+    end
+  end
+
+  test "Domo compiler task for verbose option should output debug info to console" do
+    allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), meck_options: [:passthrough]
+
+    module_two_fields()
+
+    msg = capture_io(fn -> DomoMixTask.run(["--verbose"]) end)
+
+    assert_called ResolvePlanner.ensure_flushed_and_stopped(any(), true)
+
+    assert msg =~
+             ~r/Compile generated type ensurers:\n  .+\/domo_mix_tasks_compile_domo_test_module_type_ensurer.ex/
+  end
+
+  describe "Domo compiler task for compilation errors should" do
+    test "print error giving dependencies recompilation failure" do
+      allow DependencyResolver.maybe_recompile_depending_structs(any()),
+        return: {:error, [{"/some_path", 1, "some syntax error"}], []}
+
+      msg = capture_io(fn -> DomoMixTask.run([]) end)
+
+      assert msg =~ "== Type ensurer compilation error in file /some_path =="
+      assert msg =~ "some syntax error"
+    end
+
+    test "print error giving a types resolve failure" do
+      allow DependencyResolver.maybe_recompile_depending_structs(any()), return: {:ok, [], []}
+
+      allow Resolver.resolve(any(), any(), any()),
+        return: {:error, %Error{compiler_module: Resolver, file: "/plan_path", message: :no_plan}}
+
+      msg = capture_io(fn -> DomoMixTask.run([]) end)
+
+      assert msg =~ "== Type ensurer compilation error in file /plan_path =="
+      assert msg =~ ":no_plan"
+    end
+
+    test "print error giving a type ensurer generator failure" do
+      allow DependencyResolver.maybe_recompile_depending_structs(any()), return: {:ok, [], []}
+      allow Resolver.resolve(any(), any(), any()), return: :ok
+
+      allow Generator.generate(any(), any()),
+        return:
+          {:error,
+           %Error{
+             compiler_module: Generator,
+             file: "/types_path",
+             message: {:some_error, :failure}
+           }}
+
+      msg = capture_io(fn -> DomoMixTask.run([]) end)
+
+      assert msg =~ "== Type ensurer compilation error in file /types_path =="
+      assert msg =~ "{:some_error, :failure}"
+    end
+
+    test "print error giving a type ensurer compiltion failure" do
+      allow DependencyResolver.maybe_recompile_depending_structs(any()), return: {:ok, [], []}
+      allow Resolver.resolve(any(), any(), any()), return: :ok
+      allow Generator.generate(any(), any()), return: {:ok, []}
+
+      allow Generator.compile(any()),
+        return: {:error, [{"/ensurer_path", 1, "some syntax error"}], []}
+
+      msg = capture_io(fn -> DomoMixTask.run([]) end)
+
+      assert msg =~ "== Type ensurer compilation error in file /ensurer_path =="
+      assert msg =~ "some syntax error"
     end
   end
 

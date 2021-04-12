@@ -6,6 +6,14 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     not is_nil(env.module) and is_nil(env.function)
   end
 
+  @spec beam_types(module()) :: binary() | nil
+  def beam_types_hash(module) do
+    case beam_types(module) do
+      {:ok, type_list} -> type_list |> :erlang.term_to_binary() |> :erlang.md5()
+      _error -> nil
+    end
+  end
+
   @spec beam_types(module(), fun(), fun()) ::
           {:ok, [tuple()]} | {:error, {:no_beam_file, module()}}
   def beam_types(

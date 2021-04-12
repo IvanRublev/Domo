@@ -7,7 +7,7 @@ defmodule App.MixProject do
       version: "0.1.0",
       elixir: "~> 1.5",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:phoenix] ++ Mix.compilers() ++ [:domo],
+      compilers: [:phoenix] ++ Mix.compilers() ++ [:domo_compiler],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),

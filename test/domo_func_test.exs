@@ -3,7 +3,7 @@ defmodule DomoFuncTest do
 
   import ExUnit.CaptureIO
 
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do
     Code.compiler_options(ignore_module_conflict: true)

@@ -5,7 +5,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator
   alias Domo.MixProjectHelper
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   @moduletag types_content: %{}
 
@@ -53,9 +53,10 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
 
     @tag types_content: %{
            Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]}
+           Some.Nested.Module1 => %{former: [quote(do: integer())]},
+           EmptyStruct => %{}
          }
-    test "writes Verififactor source code to code_path for each module from types file", %{
+    test "writes TypeEnsurer source code to code_path for each module from types file", %{
       types_file: types_file,
       code_path: code_path
     } do
@@ -68,11 +69,16 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       type_ensurer1_path = Path.join(code_path, "/some_nested_module1_type_ensurer.ex")
       %File.Stat{size: size1} = File.stat!(type_ensurer1_path)
       assert size1 > 0
+
+      type_ensurer2_path = Path.join(code_path, "/empty_struct_type_ensurer.ex")
+      %File.Stat{size: size2} = File.stat!(type_ensurer2_path)
+      assert size2 > 0
     end
 
     @tag types_content: %{
            Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]}
+           Some.Nested.Module1 => %{former: [quote(do: integer())]},
+           EmptyStruct => %{}
          }
     test "returns list of TypeEnsurer modules source code file paths", %{
       types_file: types_file,
@@ -80,9 +86,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     } do
       type_ensurer_path = Path.join(code_path, "/module_type_ensurer.ex")
       type_ensurer1_path = Path.join(code_path, "/some_nested_module1_type_ensurer.ex")
+      type_ensurer2_path = Path.join(code_path, "/empty_struct_type_ensurer.ex")
 
       assert {:ok,
               [
+                type_ensurer2_path,
                 type_ensurer_path,
                 type_ensurer1_path
               ]} == Generator.generate(types_file, code_path)

@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
   use Domo.FileCase
 
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   describe "ResolvePlanner for sake of start should" do
@@ -61,6 +61,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                )
     end
 
+    test "accept empty struct for the resolve plan", %{plan_file: plan_file} do
+      assert :ok == ResolvePlanner.plan_empty_struct(plan_file, TwoFieldStruct)
+    end
+
     test "accept struct module's environment for further remote types resolve", %{
       plan_file: plan_file
     } do
@@ -89,6 +93,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         quote(do: Generator.a_str())
       )
 
+      ResolvePlanner.plan_empty_struct(
+        plan_file,
+        EmptyStruct
+      )
+
       env = __ENV__
       ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, env)
 
@@ -101,7 +110,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       assert {%{
                 TwoFieldStruct => %{first: quote(do: integer), second: quote(do: float)},
-                IncorrectDefault => %{second: quote(do: Generator.a_str())}
+                IncorrectDefault => %{second: quote(do: Generator.a_str())},
+                EmptyStruct => %{}
               }, %{TwoFieldStruct => env}} == plan
     end
 

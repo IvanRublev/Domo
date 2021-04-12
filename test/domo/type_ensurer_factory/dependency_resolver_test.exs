@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   use Domo.FileCase
   use Placebo
 
+  alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.DependencyResolver
   alias Domo.TypeEnsurerFactory.Error
   alias Kernel.ParallelCompiler
@@ -9,14 +10,10 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   @source_dir tmp_path("/#{__MODULE__}")
   @compile_path Mix.Project.compile_path()
 
-  @dependant1_beam_path Path.join([@compile_path, "Elixir.DependantItem1.beam"])
-  @dependant2_beam_path Path.join([@compile_path, "Elixir.DependantItem2.beam"])
-
-  @depending1_path Path.join(@source_dir, "/depending_module1.ex")
-  @depending1_beam_path Path.join([@compile_path, "Elixir.DependingModule1.beam"])
-
-  @depending2_path Path.join(@source_dir, "/depending_module2.ex")
-  @depending2_beam_path Path.join([@compile_path, "Elixir.DependingModule2.beam"])
+  @module_path1 Path.join(@source_dir, "/module_path1.ex")
+  @module_path2 Path.join(@source_dir, "/module_path2.ex")
+  @module_path3 Path.join(@source_dir, "/module_path3.ex")
+  @reference_path Path.join(@source_dir, "/reference_path.ex")
 
   @deps_path Path.join(@source_dir, "/deps.dat")
 
@@ -27,15 +24,15 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
     File.mkdir_p!(@source_dir)
     File.write!(@deps_path, :erlang.term_to_binary(tags.deps))
 
-    file_times =
-      for {path, idx} <- Enum.with_index(tags.touch_paths) do
-        time_seconds = 1_544_519_753 + idx
-        File.touch!(path, time_seconds)
+    # December 11, 2018
+    base_time = 1_544_519_753
 
-        time_seconds
-      end
+    for {path, idx} <- Enum.with_index(tags.touch_paths) do
+      time_seconds = base_time + idx
+      File.touch!(path, time_seconds)
 
-    last_file_time = List.last(file_times)
+      time_seconds
+    end
 
     on_exit(fn ->
       Enum.each(tags.touch_paths, &File.rm/1)
@@ -46,11 +43,11 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
       ResolverTestHelper.stop_project_palnner()
     end)
 
-    {:ok, last_file_time: last_file_time}
+    :ok
   end
 
   describe "Dependency Resolver should" do
-    test "return :ok if the deps file is not found, that is Domo is not used" do
+    test "return ok giving no deps file, that is Domo is not used" do
       deps_path = tmp_path("nonexistent.dat")
       refute File.exists?(deps_path)
 
@@ -73,138 +70,135 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
     end
 
     @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]},
-           DependingModule2 => {@depending2_path, [DependantItem2]}
+           Location =>
+             {@module_path1,
+              [
+                {CustomStruct, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}
+              ]},
+           Recipient =>
+             {@module_path2,
+              [
+                {EmptyStruct, ModuleInspector.beam_types_hash(EmptyStruct)}
+              ]}
          }
     @tag touch_paths: [
-           @dependant2_beam_path,
-           @depending1_path,
-           @depending1_beam_path,
-           @depending2_path,
-           @depending2_beam_path,
-           @dependant1_beam_path,
-           @deps_path
+           @module_path1,
+           @module_path2,
+           @reference_path
          ]
-    test """
-    touch and recompile the depending modules that have beam files modified \
-    earlier then dependant beam files
-    """ do
-      allow ParallelCompiler.compile(any()), return: {:ok, [], []}
-      depending1_mtime = mtime(@depending1_path)
-      depending2_mtime = mtime(@depending2_path)
+    test "touch and recompile depending module giving md5 hash of dependant module types mismatching one from deps file" do
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      assert mtime(@module_path1) < mtime(@module_path2)
+      assert mtime(@module_path2) < mtime(@reference_path)
 
       DependencyResolver.maybe_recompile_depending_structs(@deps_path)
 
-      assert mtime(@depending2_path) == depending2_mtime
-      assert mtime(@depending1_path) > depending1_mtime
-      assert_called ParallelCompiler.compile([@depending1_path])
+      assert mtime(@module_path1) > mtime(@reference_path)
+      assert mtime(@module_path2) < mtime(@reference_path)
+      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
     end
 
     @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]},
-           DependingModule2 => {@depending2_path, [DependantItem2]}
+           EmptyStruct =>
+             {@module_path1,
+              [
+                {CustomStruct, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}
+              ]},
+           Location =>
+             {@module_path2,
+              [
+                {EmptyStruct, ModuleInspector.beam_types_hash(EmptyStruct)}
+              ]},
+           Recipient =>
+             {@module_path3,
+              [
+                {Location, ModuleInspector.beam_types_hash(Location)}
+              ]}
          }
     @tag touch_paths: [
-           @dependant1_beam_path,
-           @depending1_path,
-           @depending1_beam_path,
-           @depending2_path,
-           @depending2_beam_path,
-           @deps_path
+           @module_path1,
+           @module_path2,
+           @module_path3,
+           @reference_path
          ]
-    test "touch and recompile depending module if any dependant module's beam file is not found" do
-      allow ParallelCompiler.compile(any()), return: {:ok, [], []}
-      depending1_mtime = mtime(@depending1_path)
-      depending2_mtime = mtime(@depending2_path)
+    test "touch and recompile depending module if dependant modules have been recompiled" do
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      assert mtime(@module_path1) < mtime(@reference_path)
+      assert mtime(@module_path2) < mtime(@reference_path)
+      assert mtime(@module_path3) < mtime(@reference_path)
 
       DependencyResolver.maybe_recompile_depending_structs(@deps_path)
 
-      assert mtime(@depending1_path) > depending1_mtime
-      assert mtime(@depending2_path) > depending2_mtime
+      assert mtime(@module_path1) > mtime(@reference_path)
+      assert mtime(@module_path2) > mtime(@reference_path)
+      assert mtime(@module_path3) > mtime(@reference_path)
 
-      assert_called ParallelCompiler.compile([@depending2_path, @depending1_path])
+      assert_called ParallelCompiler.compile_to_path(
+                      [@module_path1, @module_path2, @module_path3],
+                      @compile_path
+                    )
     end
 
     @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem2]},
-           DependingModule2 => {@depending1_path, [DependantItem2]}
+           Location =>
+             {@module_path1,
+              [
+                {NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}
+              ]},
+           NonexistingModule2 =>
+             {@module_path2,
+              [
+                {EmptyStruct, ModuleInspector.beam_types_hash(EmptyStruct)}
+              ]}
          }
     @tag touch_paths: [
-           @depending1_path,
-           @depending1_beam_path,
-           @depending2_beam_path,
-           @dependant2_beam_path,
-           @deps_path
+           @module_path1,
+           @module_path2,
+           @reference_path
          ]
-    test "compile file only once even if multiple modules there to be recompiled" do
-      allow ParallelCompiler.compile(any()), return: {:ok, [], []}
+    test "remove unloadable modules and recompile modules that being depending" do
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      assert mtime(@module_path1) < mtime(@reference_path)
+      assert mtime(@module_path2) < mtime(@reference_path)
 
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
-
-      assert_called ParallelCompiler.compile([@depending1_path])
-    end
-
-    @tag deps: %{DependingModule1 => {@depending1_path, [DependantItem1]}}
-    @tag touch_paths: [@depending1_path, @dependant1_beam_path, @deps_path]
-    test "raise an file error if depending module's beam file is not found" do
-      beam_file_regex = Regex.compile!(".*#{@depending1_beam_path}.*")
-
-      assert_raise File.Error, beam_file_regex, fn ->
-        DependencyResolver.maybe_recompile_depending_structs(@deps_path)
-      end
-    end
-
-    @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]},
-           DependingModule2 => {@depending2_path, [DependantItem2]}
-         }
-    @tag touch_paths: [
-           @dependant1_beam_path,
-           @dependant2_beam_path,
-           @depending2_path,
-           @depending2_beam_path,
-           @deps_path
-         ]
-    test "remove depending module from deps list if it's source file is not found" do
       DependencyResolver.maybe_recompile_depending_structs(@deps_path)
 
       assert @deps_path
              |> File.read!()
              |> :erlang.binary_to_term() == %{
-               DependingModule2 => {@depending2_path, [DependantItem2]}
+               Location => {@module_path1, []}
              }
+
+      assert mtime(@module_path1) > mtime(@reference_path)
+      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
     end
 
     @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]},
-           DependingModule2 => {@depending2_path, [DependantItem2]}
+           Location =>
+             {@module_path1,
+              [
+                {EmptyStruct, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}
+              ]},
+           Recipient =>
+             {@module_path1,
+              [
+                {Location, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}
+              ]}
          }
-    @tag touch_paths: [
-           @dependant1_beam_path,
-           @dependant2_beam_path,
-           @depending2_path,
-           @depending2_beam_path,
-           @deps_path
-         ]
-    test "keep the mtime of deps file after update" do
-      deps_mtime = mtime(@deps_path)
+    @tag touch_paths: [@module_path1]
+    test "compile file only once even if multiple modules there to be recompiled" do
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
 
       DependencyResolver.maybe_recompile_depending_structs(@deps_path)
 
-      assert mtime(@deps_path) == deps_mtime
+      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
     end
 
     @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]},
-           DependingModule2 => {@depending2_path, [DependantItem2]}
+           Location =>
+             {@module_path1,
+              [{NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}]}
          }
-    @tag touch_paths: [
-           @dependant1_beam_path,
-           @dependant2_beam_path,
-           @depending2_path,
-           @depending2_beam_path,
-           @deps_path
-         ]
     test "return error if can't write deps file" do
       defmodule WriteFailingFile do
         def read(path), do: File.read(path)
@@ -217,39 +211,34 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
                compiler_module: DependencyResolver,
                file: ^deps_path,
                struct_module: nil,
-               message: {:upd_deps, :enoent}
+               message: {:update_deps, :enoent}
              } = DependencyResolver.maybe_recompile_depending_structs(deps_path, WriteFailingFile)
     end
 
-    @tag deps: %{
-           DependingModule1 => {@depending1_path, [DependantItem1, DependantItem2]}
-         }
-    @tag touch_paths: [
-           @dependant2_beam_path,
-           @depending1_path,
-           @deps_path,
-           @depending1_beam_path,
-           @dependant1_beam_path
-         ]
-    test "does Not touch or recompile the modules having beam files modified later then the deps file" do
-      allow ParallelCompiler.compile(any()), return: {:ok, [], []}
-      depending1_mtime = mtime(@depending1_path)
-
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
-
-      assert mtime(@depending1_path) == depending1_mtime
-      refute_called(ParallelCompiler.compile([@depending1_path]))
+    test "return ok giving no modules eligible for recompilation" do
+      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
+               {:ok, [], []}
     end
 
+    @tag deps: %{
+           Location =>
+             {@module_path1,
+              [{NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}]}
+         }
     test "bypass compilation error" do
-      allow ParallelCompiler.compile(any()), return: {:error, [:err], []}
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:error, [:err], []}
 
       assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
                {:error, [:err], []}
     end
 
+    @tag deps: %{
+           Location =>
+             {@module_path1,
+              [{NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}]}
+         }
     test "bypass compilation success" do
-      allow ParallelCompiler.compile(any()), return: {:ok, [:module], [:warn]}
+      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [:module], [:warn]}
 
       assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
                {:ok, [:module], [:warn]}
