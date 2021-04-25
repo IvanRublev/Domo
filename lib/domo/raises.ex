@@ -5,6 +5,15 @@ defmodule Domo.Raises do
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.MixProjectHelper
 
+  @add_domo_compiler_message """
+  Domo compiler is expected to do a second-pass of the compilation \
+  to resolve remote types that are in the project's BEAM files \
+  and generate TypeEnsurer modules.
+  Please, ensure that :domo_compiler is included after the :elixir \
+  in the compilers list in the project/0 function in mix.exs file. \
+  Like [compilers: Mix.compilers() ++ [:domo_compiler], ...]\
+  """
+
   def raise_use_domo_out_of_module!(caller_env) do
     unless ModuleInspector.module_context?(caller_env) do
       raise(CompileError,
@@ -25,22 +34,18 @@ defmodule Domo.Raises do
 
     compilers = Keyword.get(configuration, :compilers, [])
     elixir_idx = Enum.find_index(compilers, &(:elixir == &1))
-    domo_idx = Enum.find_index(compilers, &(:domo == &1))
+    domo_idx = Enum.find_index(compilers, &(:domo_compiler == &1))
 
     unless not is_nil(elixir_idx) and not is_nil(domo_idx) and domo_idx > elixir_idx do
       raise CompileError,
         file: caller_env.file,
         line: caller_env.line,
-        description: """
-        Domo should be included after the :elixir in the compilers list \
-        in the project's configuration mix.exs file because it launches \
-        the second-pass of the compilation to resolve remote types \
-        that are in project BEAM files.
-        The mix.exs should have project/0 function returning a list \
-        with the following key compilers: Mix.compilers() ++ [:domo] \
-        where the :domo location is after the :elixir compiler.\
-        """
+        description: @add_domo_compiler_message
     end
+  end
+
+  def raise_add_domo_compiler do
+    raise @add_domo_compiler_message
   end
 
   def raise_not_in_a_struct_module!(caller_env) do

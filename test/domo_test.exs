@@ -3,7 +3,7 @@ defmodule DomoTest do
 
   doctest Domo
 
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   Code.compiler_options(no_warn_undefined: [Receiver, Game, Customer, Airplane, Airplane.Seat])
 

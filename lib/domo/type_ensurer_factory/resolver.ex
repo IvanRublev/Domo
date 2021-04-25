@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   @moduledoc false
 
   alias Domo.TypeEnsurerFactory.Error
+  alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver.Fields
 
   @spec resolve(String.t(), String.t(), String.t(), module) :: :ok | {:error, [Error.t()]}
@@ -42,7 +43,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
 
         case resolve_plan_envs(plan_envs) do
           {module_filed_types, [], module_deps} ->
-            {:ok, module_filed_types, module_deps}
+            updated_module_deps = add_type_hashes_to_dependant_modules(module_deps)
+            {:ok, module_filed_types, updated_module_deps}
 
           {_module_filed_types, module_errors, _module_deps} ->
             {:error, wrap_module_errors(module_errors, envs)}
@@ -100,18 +102,34 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end)
   end
 
-  defp reject_self_and_duplicates(module, deps) do
-    deps
-    |> Enum.reject(&(&1 == module))
-    |> Enum.uniq()
-  end
-
   defp join_module_if_nonempty(field_errors, module) do
     if Enum.empty?(field_errors) do
       field_errors
     else
       Enum.map(field_errors, &{module, &1})
     end
+  end
+
+  defp reject_self_and_duplicates(module, deps) do
+    deps
+    |> Enum.reject(&(&1 == module))
+    |> Enum.uniq()
+  end
+
+  defp add_type_hashes_to_dependant_modules(module_deps) do
+    type_hash_by_module =
+      module_deps
+      |> Enum.reduce([], fn {module, {_path, dependant_modules}}, acc ->
+        [module | dependant_modules] ++ acc
+      end)
+      |> Enum.uniq()
+      |> Enum.map(&{&1, ModuleInspector.beam_types_hash(&1)})
+      |> Enum.into(%{})
+
+    Enum.reduce(module_deps, %{}, fn {module, {path, dependants}}, map ->
+      updated_dependants = Enum.map(dependants, &{&1, type_hash_by_module[&1]})
+      Map.put(map, module, {path, updated_dependants})
+    end)
   end
 
   @spec wrap_module_errors(map, map) :: [Error.t()] | []

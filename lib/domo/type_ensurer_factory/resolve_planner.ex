@@ -50,6 +50,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     GenServer.call(via(plan_path), {:plan, module, field, type_quoted})
   end
 
+  @spec plan_empty_struct(module, module) :: :ok | any()
+  def plan_empty_struct(plan_path, module) do
+    GenServer.call(via(plan_path), {:plan_empty_struct, module})
+  end
+
+  @spec keep_module_environment(module, module, Macro.Env.t()) :: :ok | any()
   def keep_module_environment(plan_path, module, env) do
     GenServer.call(via(plan_path), {:keep_env, module, env})
   end
@@ -69,44 +75,74 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   end
 
   @spec ensure_flushed_and_stopped(module) :: :ok | {:error, File.posix()}
-  def ensure_flushed_and_stopped(plan_path) do
+  def ensure_flushed_and_stopped(plan_path, verbose? \\ false) do
     try do
-      GenServer.call(via(plan_path), :flush_and_stop)
+      GenServer.call(via(plan_path), {:flush_and_stop, verbose?})
     catch
       :exit, {:noproc, _} -> :ok
     end
   end
 
   @impl true
-  def init(state), do: {:ok, state}
+  def init(state), do: {:ok, %{plan: state, verbose?: false}}
 
   @impl true
   def handle_call({:plan, module, field, type_quoted}, _from, state) do
-    {plan_path, map, envs} = state
+    {plan_path, map, envs} = state.plan
 
     case Map.get_and_update(map, module, &add_key(&1, field, type_quoted)) do
-      {:ok, map} -> {:reply, :ok, {plan_path, map, envs}}
+      {:ok, map} -> {:reply, :ok, %{state | plan: {plan_path, map, envs}}}
       {error, _map} -> {:reply, error, state}
     end
   end
 
-  def handle_call({:keep_env, module, env}, _from, state) do
-    {plan_path, map, envs} = state
+  def handle_call({:plan_empty_struct, module}, _from, state) do
+    {plan_path, map, envs} = state.plan
 
-    {:reply, :ok, {plan_path, map, Map.put(envs, module, env)}}
+    updated_map = Map.put(map, module, %{})
+    updated_plan = {plan_path, updated_map, envs}
+    {:reply, :ok, %{state | plan: updated_plan}}
+  end
+
+  def handle_call({:keep_env, module, env}, _from, state) do
+    {plan_path, map, envs} = state.plan
+
+    updated_envs = Map.put(envs, module, env)
+    updated_plan = {plan_path, map, updated_envs}
+    {:reply, :ok, %{state | plan: updated_plan}}
   end
 
   def handle_call(:flush, _from, state) do
     {:reply, do_flush(state), state}
   end
 
-  def handle_call(:flush_and_stop, _from, state) do
-    {:stop, :normal, do_flush(state), state}
+  def handle_call({:flush_and_stop, verbose?}, _from, state) do
+    updated_state = %{state | verbose?: verbose?}
+    {:stop, :normal, do_flush(updated_state), updated_state}
   end
 
   defp do_flush(state) do
-    {plan_path, map, envs} = state
-    File.write(plan_path, :erlang.term_to_binary({map, envs}))
+    {plan_path, map, envs} = state.plan
+    result = File.write(plan_path, :erlang.term_to_binary({map, envs}))
+
+    if state.verbose? do
+      IO.write("""
+      Domo resolve planner (#{inspect(self())}) flushed plan file \
+      at #{plan_path} with #{inspect(result)}.
+      """)
+    end
+
+    result
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    if state.verbose? do
+      IO.write("""
+      Domo resolve planner (#{inspect(self())}) stopped \
+      with reason #{inspect(reason)}.\n
+      """)
+    end
   end
 
   @spec add_key(nil | map, atom, Macro.t()) :: {:ok, map} | {:error, :field_exists}

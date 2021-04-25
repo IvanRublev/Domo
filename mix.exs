@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.2.0"
+  @version "1.2.1"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -47,7 +47,7 @@ defmodule Domo.MixProject do
   defp elixirc_paths(:benchmark), do: ["lib", "benchmark"]
   defp elixirc_paths(_), do: ["lib"]
 
-  defp compilers(:benchmark), do: Mix.compilers() ++ [:domo]
+  defp compilers(:benchmark), do: Mix.compilers() ++ [:domo_compiler]
   defp compilers(_), do: Mix.compilers()
 
   defp deps do
@@ -55,13 +55,13 @@ defmodule Domo.MixProject do
       # Development and test dependencies
       {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:credo, "~> 1.4", only: :dev, runtime: false},
+      {:credo, "~> 1.5", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
       {:placebo, "~> 1.2", only: :test},
 
       # Documentation dependencies
-      {:ex_doc, "~> 0.19", only: :docs, runtime: false},
+      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
 
       # Benchmark dependencies
       {:benchee, "~> 1.0", only: :benchmark, runtime: false},

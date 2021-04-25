@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Compile.Domo do
+defmodule Mix.Tasks.Compile.DomoCompiler do
   @moduledoc false
 
   use Mix.Task.Compiler
@@ -20,19 +20,19 @@ defmodule Mix.Tasks.Compile.Domo do
   @generated_code_directory "/domo_generated_code"
 
   @impl true
-  def run(_args) do
+  def run(args) do
     project = MixProjectHelper.global_stub() || Mix.Project
     plan_path = manifest_path(project, :plan)
     types_path = manifest_path(project, :types)
     deps_path = manifest_path(project, :deps)
     code_path = generated_code_path(project)
 
-    ResolvePlanner.ensure_flushed_and_stopped(plan_path)
-
     prev_ignore_module_conflict = Map.get(Code.compiler_options(), :ignore_module_conflict, false)
     Code.compiler_options(ignore_module_conflict: true)
 
-    result = build_ensurer_modules({plan_path, types_path, deps_path, code_path})
+    paths = {plan_path, types_path, deps_path, code_path}
+    verbose? = Enum.member?(args, "--verbose")
+    result = build_ensurer_modules(paths, verbose?)
 
     Code.compiler_options(ignore_module_conflict: prev_ignore_module_conflict)
 
@@ -41,27 +41,74 @@ defmodule Mix.Tasks.Compile.Domo do
     result
   end
 
-  defp build_ensurer_modules(paths) do
+  def generated_code_path(mix_project) do
+    Path.join(mix_project.build_path(), @generated_code_directory)
+  end
+
+  defp build_ensurer_modules(paths, verbose?) do
     {plan_path, types_path, deps_path, code_path} = paths
 
     Cleaner.rmdir_if_exists!(code_path)
 
-    with {:deps, {:ok, _modules, deps_warns}} <-
-           {:deps, DependencyResolver.maybe_recompile_depending_structs(deps_path)},
-         :ok <-
-           Resolver.resolve(plan_path, types_path, deps_path),
-         {:ok, type_ensurer_paths} <-
-           Generator.generate(types_path, code_path),
-         {:ens, {:ok, modules, ens_warns}} <-
-           {:ens, Generator.compile(type_ensurer_paths)} do
+    stop_and_flush_planner(plan_path, verbose?)
+
+    with {:ok, {_modules, deps_warns}} <- recompile_depending_structs(deps_path),
+         stop_and_flush_planner(plan_path, verbose?),
+         :ok <- resolve_types(plan_path, types_path, deps_path),
+         {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
+         {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?) do
       Cleaner.rm!([plan_path, types_path])
+
+      result = if(Enum.empty?(modules), do: :noop, else: :ok)
       warnings = format_warnings([deps_warns, ens_warns])
-      {if(Enum.empty?(modules), do: :noop, else: :ok), warnings}
+      {result, warnings}
     else
-      {:error, [%Error{compiler_module: Resolver, message: :no_plan}]} -> {:noop, []}
-      {source, {:error, errors, _warns}} -> {:error, Enum.map(errors, &diagnostic(source, &1))}
-      {:error, errors} when is_list(errors) -> {:error, Enum.map(errors, &diagnostic(&1))}
-      {:error, error} -> {:error, [diagnostic(error)]}
+      {:error, {source, message}} ->
+        case message do
+          [%Error{compiler_module: Resolver, message: :no_plan}] -> {:noop, []}
+          {ex_errors, _ex_warns} -> {:error, Enum.map(ex_errors, &diagnostic(source, &1))}
+          errors when is_list(errors) -> {:error, Enum.map(errors, &diagnostic(&1))}
+          error -> {:error, [diagnostic(error)]}
+        end
+    end
+  end
+
+  defp stop_and_flush_planner(plan_path, verbose?) do
+    ResolvePlanner.ensure_flushed_and_stopped(plan_path, verbose?)
+  end
+
+  defp recompile_depending_structs(deps_path) do
+    case DependencyResolver.maybe_recompile_depending_structs(deps_path) do
+      {:ok, modules, warnings} -> {:ok, {modules, warnings}}
+      {:error, ex_errors, ex_warnings} -> {:error, {:deps, {ex_errors, ex_warnings}}}
+      {:error, message} -> {:error, {:deps, message}}
+    end
+  end
+
+  defp resolve_types(plan_path, types_path, deps_path) do
+    case Resolver.resolve(plan_path, types_path, deps_path) do
+      :ok -> :ok
+      {:error, message} -> {:error, {:resolve, message}}
+    end
+  end
+
+  defp generate_type_ensurers(types_path, code_path) do
+    case Generator.generate(types_path, code_path) do
+      {:ok, _type_ensurer_paths} = ok -> ok
+      {:error, message} -> {:error, {:generate, message}}
+    end
+  end
+
+  defp compile_type_ensurers(type_ensurer_paths, verbose?) do
+    if verbose? do
+      IO.write("Compile generated type ensurers:\n")
+      Enum.each(type_ensurer_paths, &IO.write("  #{&1}\n"))
+    end
+
+    case Generator.compile(type_ensurer_paths) do
+      {:ok, modules, te_warns} -> {:ok, {modules, te_warns}}
+      {:error, ex_errors, ex_warnings} -> {:error, {:compile, {ex_errors, ex_warnings}}}
+      {:error, message} -> {:error, {:compile, message}}
     end
   end
 
@@ -105,18 +152,18 @@ defmodule Mix.Tasks.Compile.Domo do
     diagnostic(error.file, message)
   end
 
-  defp diagnostic(:ens, {path, _line, error}) do
+  defp diagnostic(:deps, {path, _line, error}) do
     message = """
-    Elixir compiler failed to compile a TypeEnsurer module code due to \
+    Elixir compiler launched by DependencyResolver failed due to \
     #{error}\
     """
 
     diagnostic(path, message)
   end
 
-  defp diagnostic(:deps, {path, _line, error}) do
+  defp diagnostic(:compile, {path, _line, error}) do
     message = """
-    Elixir compiler launched by DependencyResolver failed due to \
+    Elixir compiler failed to compile a TypeEnsurer module code due to \
     #{error}\
     """
 
@@ -139,10 +186,6 @@ defmodule Mix.Tasks.Compile.Domo do
     module_parts
     |> Enum.map(&Atom.to_string(&1))
     |> Enum.join(".")
-  end
-
-  def generated_code_path(mix_project) do
-    Path.join(mix_project.build_path(), @generated_code_directory)
   end
 
   defp maybe_print_errors({:error, diagnostics}) do

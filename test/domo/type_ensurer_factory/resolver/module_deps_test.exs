@@ -2,8 +2,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
   use Domo.FileCase
 
   alias Domo.TypeEnsurerFactory.Error
+  alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias ModuleNested.Module.Submodule
 
   import ResolverTestHelper
@@ -56,7 +57,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
               ]} = Resolver.resolve(plan_file, types_file, deps_file, FailingDepsFile)
     end
 
-    test "write resolved module => {its path, dependency modules list} as value to a deps file",
+    test "write resolved module => {its path, dependency modules with their type hashes} as value to a deps file",
          %{
            planner: planner,
            plan_file: plan_file,
@@ -75,7 +76,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
 
       :ok = Resolver.resolve(plan_file, types_file, deps_file)
 
-      assert %{LocalUserType => {path, [ModuleNested]}} = read_deps(deps_file)
+      expected_dependants = [{ModuleNested, ModuleInspector.beam_types_hash(ModuleNested)}]
+      assert %{LocalUserType => {path, ^expected_dependants}} = read_deps(deps_file)
       assert path =~ "/user_types.ex"
     end
 
@@ -104,7 +106,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
 
       :ok = Resolver.resolve(plan_file, types_file, deps_file)
 
-      assert %{LocalUserType => {_path, [ModuleNested]}} = read_deps(deps_file)
+      expected_dependants = [{ModuleNested, ModuleInspector.beam_types_hash(ModuleNested)}]
+      assert %{LocalUserType => {_path, ^expected_dependants}} = read_deps(deps_file)
     end
 
     test "Not write module itself as a dependency", %{
@@ -161,9 +164,18 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
 
       :ok = Resolver.resolve(plan_file, types_file, deps_file)
 
+      expected_local_dependants = [
+        {ModuleNested, ModuleInspector.beam_types_hash(ModuleNested)},
+        {Submodule, ModuleInspector.beam_types_hash(Submodule)}
+      ]
+
+      expected_remote_dependants = [
+        {Submodule, ModuleInspector.beam_types_hash(Submodule)}
+      ]
+
       assert %{
-               LocalUserType => {local_source_path, [ModuleNested, Submodule]},
-               RemoteUserType => {remote_source_path, [Submodule]}
+               LocalUserType => {local_source_path, ^expected_local_dependants},
+               RemoteUserType => {remote_source_path, ^expected_remote_dependants}
              } = read_deps(deps_file)
 
       assert local_source_path == remote_source_path
@@ -177,12 +189,20 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
            types_file: types_file,
            deps_file: deps_file
          } do
+      nested_dependant = [{ModuleNested, ModuleInspector.beam_types_hash(ModuleNested)}]
+      some_module_dependant = [{SomeModule, ModuleInspector.beam_types_hash(SomeModule)}]
+
+      previous_deps = [
+        {Submodule, ModuleInspector.beam_types_hash(Submodule)},
+        {SomeModule, ModuleInspector.beam_types_hash(SomeModule)}
+      ]
+
       File.write!(
         deps_file,
         :erlang.term_to_binary(%{
-          ModuleStoredBefore => {".../module_stored_before.ex", [ModuleNested]},
-          AffectedModule => {".../affected_module.ex", [SomeModule]},
-          LocalUserType => {".../previous_local_user.ex", [PreviousDep1, PreviousDep2]}
+          ModuleStoredBefore => {".../module_stored_before.ex", nested_dependant},
+          AffectedModule => {".../affected_module.ex", some_module_dependant},
+          LocalUserType => {".../previous_local_user.ex", previous_deps}
         })
       )
 
@@ -199,9 +219,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       :ok = Resolver.resolve(plan_file, types_file, deps_file)
 
       assert %{
-               ModuleStoredBefore => {".../module_stored_before.ex", [ModuleNested]},
-               AffectedModule => {".../affected_module.ex", [SomeModule]},
-               LocalUserType => {local_source_path, [ModuleNested]}
+               ModuleStoredBefore => {".../module_stored_before.ex", ^nested_dependant},
+               AffectedModule => {".../affected_module.ex", ^some_module_dependant},
+               LocalUserType => {local_source_path, ^nested_dependant}
              } = read_deps(deps_file)
 
       assert local_source_path =~ "/user_types.ex"
@@ -225,17 +245,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
 
       :ok = Resolver.resolve(plan_file, types_file, deps_file)
 
-      assert %{
-               LocalUserType =>
-                 {path,
-                  [
-                    ModuleNested,
-                    ModuleNested.Module,
-                    ModuleNested.Module.Submodule,
-                    RemoteUserType
-                  ]}
-             } = read_deps(deps_file)
+      expected_dependants = [
+        {ModuleNested, ModuleInspector.beam_types_hash(ModuleNested)},
+        {ModuleNested.Module, ModuleInspector.beam_types_hash(ModuleNested.Module)},
+        {ModuleNested.Module.Submodule,
+         ModuleInspector.beam_types_hash(ModuleNested.Module.Submodule)},
+        {RemoteUserType, ModuleInspector.beam_types_hash(RemoteUserType)}
+      ]
 
+      assert %{LocalUserType => {path, ^expected_dependants}} = read_deps(deps_file)
       assert path =~ "/user_types.ex"
     end
   end

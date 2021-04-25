@@ -46,6 +46,15 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       assert {:error, {:type_not_found, :t}} == ModuleInspector.find_type_quoted(:t, [])
     end
 
+    test "return hash of module types giving loadable module" do
+      assert <<165, 63, 215, 58, 173, 14, 220, 157, 192, 81, 20, 19, 68, 90, 147, 171>> ==
+               ModuleInspector.beam_types_hash(EmptyStruct)
+    end
+
+    test "return nil as hash of module types giving unloadable module" do
+      assert nil == ModuleInspector.beam_types_hash(NonexistingModule)
+    end
+
     test "find type by name and return it in quoted form" do
       type_list = [type: {:t, {:type, 1, :atom, []}, []}]
 

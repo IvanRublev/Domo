@@ -1,7 +1,7 @@
 defmodule ResolverTestHelper do
   @moduledoc false
 
-  alias Mix.Tasks.Compile.Domo, as: DomoMixTask
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   @project_stub MixProjectStubCorrect

@@ -2,6 +2,22 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   use Domo.FileCase, async: false
 
   alias Domo.TypeEnsurerFactory.Generator
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+
+  setup_all do
+    Code.compiler_options(ignore_module_conflict: true)
+    File.mkdir_p!(tmp_path())
+
+    on_exit(fn ->
+      File.rm_rf(tmp_path())
+      Code.compiler_options(ignore_module_conflict: false)
+    end)
+
+    # Evaluate modules to prepare plan file for domo mix task
+    Code.eval_file("test/support/empty_struct.ex")
+
+    {:ok, []} = DomoMixTask.run([])
+  end
 
   setup do
     on_exit(fn ->
