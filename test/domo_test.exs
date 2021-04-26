@@ -1,15 +1,20 @@
 defmodule DomoTest do
   use Domo.FileCase, async: false
+  use Placebo
 
   doctest Domo
 
+  import ExUnit.CaptureIO
+
+  alias Domo.MixProjectHelper
+  alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   Code.compiler_options(no_warn_undefined: [Receiver, Game, Customer, Airplane, Airplane.Seat])
 
-  setup_all do
+  setup do
     Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(tmp_path())
+    File.mkdir_p!(src_path())
 
     on_exit(fn ->
       File.rm_rf(tmp_path())
@@ -19,14 +24,19 @@ defmodule DomoTest do
     on_exit(fn ->
       ResolverTestHelper.stop_project_palnner()
     end)
+
+    config = Mix.Project.config()
+    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
+    allow Mix.Project.config(), meck_options: [:passthrough], return: config
+
+    :ok
   end
 
   describe "Domo library" do
     test "adds the constructor and verification functions to a struct" do
-      [path] = compile_receiver_struct!()
-      on_exit(fn -> File.rm!(path) end)
+      compile_receiver_struct()
 
-      {:ok, []} = DomoMixTask.run([])
+      _ = DomoMixTask.run([])
 
       assert Kernel.function_exported?(Receiver, :new, 1)
       assert Kernel.function_exported?(Receiver, :new_ok, 1)
@@ -35,10 +45,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of a struct by matching to it's type" do
-      [path] = compile_receiver_struct!()
-      on_exit(fn -> File.rm!(path) end)
+      compile_receiver_struct()
 
-      {:ok, []} = DomoMixTask.run([])
+      _ = DomoMixTask.run([])
 
       bob = Receiver.new(title: :mr, name: "Bob", age: 27)
       assert %{__struct__: Receiver, title: :mr, name: "Bob", age: 27} = bob
@@ -64,10 +73,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of a struct with a sum type field" do
-      [path] = compile_game_struct!()
-      on_exit(fn -> File.rm!(path) end)
+      compile_game_struct()
 
-      {:ok, []} = DomoMixTask.run([])
+      _ = DomoMixTask.run([])
 
       assert_raise ArgumentError, ~r/Invalid value nil for field :status/s, fn ->
         _ = Game.new(status: nil)
@@ -94,11 +102,7 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of composed structs" do
-      paths = compile_customer_structs!()
-
-      on_exit(fn ->
-        Enum.map(paths, &File.rm!/1)
-      end)
+      compile_customer_structs()
 
       {:ok, []} = DomoMixTask.run([])
 
@@ -128,26 +132,18 @@ defmodule DomoTest do
                    end
     end
 
-    test """
-    ensures data integrity of the depending struct when the type of dependant struct \
-    Not using Domo changes alongside with adding of a struct using Domo
-    """ do
-      paths = compile_airplane_and_seat_structs!()
-
-      on_exit(fn ->
-        Enum.each(paths, &File.rm!(&1))
-      end)
+    test "recompiles type ensurer of depending struct when the type of dependant struct Not using Domo changes" do
+      compile_airplane_and_seat_structs()
 
       {:ok, []} = DomoMixTask.run([])
 
       seat = struct!(Airplane.Seat, id: "A2")
       assert _ = apply(Airplane, :new, [[seats: [seat]]])
 
-      :code.delete(Airplane.Seat)
       :code.purge(Airplane.Seat)
+      :code.delete(Airplane.Seat)
 
-      compile_seat_with_atom_id!()
-      compile_side_module_using_domo!()
+      compile_seat_with_atom_id()
 
       {:ok, []} = DomoMixTask.run([])
 
@@ -157,6 +153,87 @@ defmodule DomoTest do
                      seat = struct!(Airplane.Seat, id: "A2")
                      _ = apply(Airplane, :new, [[seats: [seat]]])
                    end
+    end
+
+    test "ensures data integrity of a struct built at the compile time for being a default value" do
+      compile_module_with_valid_default_struct()
+
+      assert {:ok, []} = DomoMixTask.run([])
+
+      assert foo_holder = struct!(FooHolder)
+      assert %{__struct__: Foo} = foo_holder.foo
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      [path] = compile_module_with_invalid_default_struct()
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: ^path,
+        position: 9,
+        message: "Failed to build Bar struct." <> _,
+        severity: :error
+      }
+
+      assert msg =~ "== Compilation error in file #{path}:9 ==\n** Failed to build Bar struct."
+
+      plan_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :plan)
+      refute File.exists?(plan_file)
+
+      types_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :types)
+      refute File.exists?(types_file)
+    end
+
+    test "recompile module that builds struct using Domo at compile time when the struct changes" do
+      :code.purge(Elixir.Game.TypeEnsurer)
+      :code.delete(Elixir.Game.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Game.TypeEnsurer.beam"))
+
+      compile_game_struct()
+      arena_paths = compile_arena_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert %{__struct__: Arena, game: %{__struct__: Game, status: :not_started}} =
+               struct!(Arena)
+
+      :code.purge(Game)
+      :code.delete(Game)
+
+      compile_game_with_string_status()
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      expected_output =
+        "Failed to build Game struct.\nInvalid value :not_started for field :status."
+
+      assert msg =~ "/arena.ex:2 ==\n** #{expected_output}"
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: path,
+        message: message,
+        severity: :error
+      }
+
+      assert [path] == arena_paths
+      assert message =~ expected_output
     end
 
     test "provides tagged tuple --- operator and helper functions" do
@@ -181,8 +258,8 @@ defmodule DomoTest do
     end
   end
 
-  defp compile_receiver_struct! do
-    path = tmp_path("/receiver.ex")
+  defp compile_receiver_struct do
+    path = src_path("/receiver.ex")
 
     File.write!(path, """
     defmodule Receiver do
@@ -198,11 +275,12 @@ defmodule DomoTest do
     end
     """)
 
-    compile_path_to_beam!([path])
+    compile_with_elixir()
+    [path]
   end
 
-  defp compile_game_struct! do
-    path = tmp_path("/game.ex")
+  defp compile_game_struct do
+    path = src_path("/game.ex")
 
     File.write!(path, """
     defmodule Game do
@@ -218,11 +296,45 @@ defmodule DomoTest do
     end
     """)
 
-    compile_path_to_beam!([path])
+    compile_with_elixir()
+    [path]
   end
 
-  defp compile_customer_structs! do
-    address_path = tmp_path("/address.ex")
+  defp compile_game_with_string_status do
+    path = src_path("/game.ex")
+
+    File.write!(path, """
+    defmodule Game do
+      use Domo
+
+      @enforce_keys [:status]
+      defstruct [:status]
+
+      @type t :: %__MODULE__{status: String.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_arena_struct do
+    path = src_path("/arena.ex")
+
+    File.write!(path, """
+    defmodule Arena do
+      defstruct [game: Game.new(status: :not_started)]
+
+      @type t :: %__MODULE__{game: Game.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_customer_structs do
+    address_path = src_path("/address.ex")
 
     File.write!(address_path, """
     defmodule Customer.Address do
@@ -240,7 +352,7 @@ defmodule DomoTest do
     end
     """)
 
-    delivery_path = tmp_path("/delivery.ex")
+    delivery_path = src_path("/delivery.ex")
 
     File.write!(delivery_path, """
     defmodule Customer.DeliveryInfo do
@@ -255,7 +367,7 @@ defmodule DomoTest do
     end
     """)
 
-    customer_path = tmp_path("/customer.ex")
+    customer_path = src_path("/customer.ex")
 
     File.write!(customer_path, """
     defmodule Customer do
@@ -270,11 +382,12 @@ defmodule DomoTest do
     end
     """)
 
-    compile_path_to_beam!([address_path, delivery_path, customer_path])
+    compile_with_elixir()
+    [address_path, delivery_path, customer_path]
   end
 
-  defp compile_airplane_and_seat_structs! do
-    airplane_path = tmp_path("/airplane.ex")
+  defp compile_airplane_and_seat_structs do
+    airplane_path = src_path("/airplane.ex")
 
     File.write!(airplane_path, """
     defmodule Airplane do
@@ -287,7 +400,7 @@ defmodule DomoTest do
     end
     """)
 
-    seat_path = tmp_path("/seat.ex")
+    seat_path = src_path("/seat.ex")
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
@@ -298,11 +411,13 @@ defmodule DomoTest do
     end
     """)
 
-    compile_path_to_beam!([seat_path, airplane_path])
+    compile_with_elixir()
+
+    [airplane_path, seat_path]
   end
 
-  defp compile_seat_with_atom_id! do
-    seat_path = tmp_path("/seat.ex")
+  defp compile_seat_with_atom_id do
+    seat_path = src_path("/seat.ex")
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
@@ -313,26 +428,63 @@ defmodule DomoTest do
     end
     """)
 
-    compile_path_to_beam!([seat_path])
+    compile_with_elixir()
+
+    [seat_path]
   end
 
-  defp compile_side_module_using_domo! do
-    side_module_path = tmp_path("/side_module.ex")
+  defp compile_module_with_valid_default_struct do
+    path = src_path("/valid_foo_default.ex")
 
-    File.write!(side_module_path, """
-    defmodule SideModule do
+    File.write!(path, """
+    defmodule Foo do
       use Domo
 
-      defstruct [:first]
-      @type t :: %__MODULE__{first: atom}
+      defstruct [:title]
+      @type t :: %__MODULE__{title: String.t()}
+    end
+
+    defmodule FooHolder do
+      defstruct [foo: Foo.new(title: "hello")]
+      @type t :: %__MODULE__{foo: Foo.t()}
     end
     """)
 
-    compile_path_to_beam!([side_module_path])
+    compile_with_elixir()
+    [path]
   end
 
-  defp compile_path_to_beam!(path_list) do
-    Kernel.ParallelCompiler.compile_to_path(path_list, Mix.Project.compile_path())
-    path_list
+  defp compile_module_with_invalid_default_struct do
+    path = src_path("/invalid_bar_default.ex")
+
+    File.write!(path, """
+    defmodule Bar do
+      use Domo
+
+      defstruct [:title]
+      @type t :: %__MODULE__{title: String.t()}
+    end
+
+    defmodule BarHolder do
+      defstruct [bar: Bar.new(title: :hello)]
+      @type t :: %__MODULE__{bar: Bar.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp src_path do
+    tmp_path("/src")
+  end
+
+  defp src_path(path) do
+    Path.join([src_path(), path])
+  end
+
+  defp compile_with_elixir do
+    command = Mix.Utils.module_name_to_command("Mix.Tasks.Compile.Elixir", 2)
+    Mix.Task.rerun(command, [])
   end
 end

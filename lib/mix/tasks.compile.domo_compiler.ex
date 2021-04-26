@@ -4,6 +4,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   use Mix.Task.Compiler
 
   alias Domo.TypeEnsurerFactory.Alias
+  alias Domo.TypeEnsurerFactory.BatchEnsurer
   alias Domo.TypeEnsurerFactory.Cleaner
   alias Domo.TypeEnsurerFactory.DependencyResolver
   alias Domo.TypeEnsurerFactory.Generator
@@ -52,11 +53,12 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
     stop_and_flush_planner(plan_path, verbose?)
 
-    with {:ok, {_modules, deps_warns}} <- recompile_depending_structs(deps_path),
+    with {:ok, deps_warns} <- recompile_depending_structs(deps_path, verbose?),
          stop_and_flush_planner(plan_path, verbose?),
          :ok <- resolve_types(plan_path, types_path, deps_path),
          {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
-         {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?) do
+         {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?),
+         :ok <- ensure_structs_integrity(plan_path) do
       Cleaner.rm!([plan_path, types_path])
 
       result = if(Enum.empty?(modules), do: :noop, else: :ok)
@@ -64,6 +66,10 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
       {result, warnings}
     else
       {:error, {source, message}} ->
+        if source == :batch_ensurer do
+          Cleaner.rm!([plan_path, types_path])
+        end
+
         case message do
           [%Error{compiler_module: Resolver, message: :no_plan}] -> {:noop, []}
           {ex_errors, _ex_warns} -> {:error, Enum.map(ex_errors, &diagnostic(source, &1))}
@@ -77,9 +83,9 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     ResolvePlanner.ensure_flushed_and_stopped(plan_path, verbose?)
   end
 
-  defp recompile_depending_structs(deps_path) do
-    case DependencyResolver.maybe_recompile_depending_structs(deps_path) do
-      {:ok, modules, warnings} -> {:ok, {modules, warnings}}
+  defp recompile_depending_structs(deps_path, verbose?) do
+    case DependencyResolver.maybe_recompile_depending_structs(deps_path, verbose?: verbose?) do
+      {:ok, _warnings} = ok -> ok
       {:error, ex_errors, ex_warnings} -> {:error, {:deps, {ex_errors, ex_warnings}}}
       {:error, message} -> {:error, {:deps, message}}
     end
@@ -100,30 +106,38 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   end
 
   defp compile_type_ensurers(type_ensurer_paths, verbose?) do
-    if verbose? do
-      IO.write("Compile generated type ensurers:\n")
-      Enum.each(type_ensurer_paths, &IO.write("  #{&1}\n"))
-    end
-
-    case Generator.compile(type_ensurer_paths) do
+    case Generator.compile(type_ensurer_paths, verbose?) do
       {:ok, modules, te_warns} -> {:ok, {modules, te_warns}}
       {:error, ex_errors, ex_warnings} -> {:error, {:compile, {ex_errors, ex_warnings}}}
       {:error, message} -> {:error, {:compile, message}}
     end
   end
 
+  defp ensure_structs_integrity(plan_path) do
+    case BatchEnsurer.ensure_struct_integrity(plan_path) do
+      :ok -> :ok
+      {:error, message} -> {:error, {:batch_ensurer, {[message], []}}}
+    end
+  end
+
   defp format_warnings(warns) do
     warns
     |> List.flatten()
-    |> Enum.map(fn {path, position, message} ->
-      %Diagnostic{
-        compiler_name: "elixir",
-        file: path,
-        position: position,
-        message: message,
-        severity: :warning
-      }
-    end)
+    |> Enum.map(&wrap_diagnostic/1)
+  end
+
+  defp wrap_diagnostic(%Diagnostic{} = diagnostic) do
+    diagnostic
+  end
+
+  defp wrap_diagnostic({path, position, message}) do
+    %Diagnostic{
+      compiler_name: "Elixir",
+      file: path,
+      position: position,
+      message: message,
+      severity: :warning
+    }
   end
 
   defp diagnostic(%Error{compiler_module: Resolver, struct_module: nil} = error) do
@@ -152,13 +166,8 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic(error.file, message)
   end
 
-  defp diagnostic(:deps, {path, _line, error}) do
-    message = """
-    Elixir compiler launched by DependencyResolver failed due to \
-    #{error}\
-    """
-
-    diagnostic(path, message)
+  defp diagnostic(%Diagnostic{} = diagnostic) do
+    diagnostic
   end
 
   defp diagnostic(:compile, {path, _line, error}) do
@@ -170,9 +179,19 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic(path, message)
   end
 
+  defp diagnostic(:batch_ensurer, {path, line, error}) do
+    %Diagnostic{
+      compiler_name: "Elixir",
+      file: path,
+      message: error,
+      position: line,
+      severity: :error
+    }
+  end
+
   defp diagnostic(file, message) do
     %Diagnostic{
-      compiler_name: "domo",
+      compiler_name: "Domo",
       file: file,
       message: message,
       position: 1,
@@ -191,15 +210,24 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp maybe_print_errors({:error, diagnostics}) do
     diagnostics
     |> List.wrap()
-    |> Enum.each(&print_error(&1.file, &1.message))
+    |> Enum.each(&print_error(&1))
   end
 
   defp maybe_print_errors(_), do: nil
 
-  defp print_error(file, reason) do
+  defp print_error(%Diagnostic{compiler_name: "Domo"} = diagnostic) do
     IO.write([
-      "\n== Type ensurer compilation error in file #{Path.relative_to_cwd(file)} ==\n",
-      ["** ", reason, ?\n]
+      "\n== Type ensurer compilation error in file #{Path.relative_to_cwd(diagnostic.file)} ==\n",
+      ["** ", diagnostic.message, ?\n]
+    ])
+  end
+
+  defp print_error(%Diagnostic{compiler_name: "Elixir"} = diagnostic) do
+    IO.write([
+      "\n== Compilation error in file #{Path.relative_to_cwd(diagnostic.file)}:#{
+        inspect(diagnostic.position)
+      } ==\n",
+      ["** ", diagnostic.message, ?\n]
     ])
   end
 

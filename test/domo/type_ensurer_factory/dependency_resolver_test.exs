@@ -2,13 +2,12 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   use Domo.FileCase
   use Placebo
 
+  alias Domo.TypeEnsurerFactory.DependencyResolver.ElixirTask
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.DependencyResolver
   alias Domo.TypeEnsurerFactory.Error
-  alias Kernel.ParallelCompiler
 
   @source_dir tmp_path("/#{__MODULE__}")
-  @compile_path Mix.Project.compile_path()
 
   @module_path1 Path.join(@source_dir, "/module_path1.ex")
   @module_path2 Path.join(@source_dir, "/module_path2.ex")
@@ -51,7 +50,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
       deps_path = tmp_path("nonexistent.dat")
       refute File.exists?(deps_path)
 
-      assert {:ok, [], []} = DependencyResolver.maybe_recompile_depending_structs(deps_path)
+      assert {:ok, []} = DependencyResolver.maybe_recompile_depending_structs(deps_path, [])
     end
 
     test "return error if the content of the deps file is corrupted" do
@@ -66,7 +65,10 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
                file: ^deps_path,
                struct_module: nil,
                message: {:decode_deps, :malformed_binary}
-             } = DependencyResolver.maybe_recompile_depending_structs(deps_path, FailingTypesFile)
+             } =
+               DependencyResolver.maybe_recompile_depending_structs(deps_path,
+                 file_module: FailingTypesFile
+               )
     end
 
     @tag deps: %{
@@ -87,15 +89,16 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @reference_path
          ]
     test "touch and recompile depending module giving md5 hash of dependant module types mismatching one from deps file" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
+
       assert mtime(@module_path1) < mtime(@module_path2)
       assert mtime(@module_path2) < mtime(@reference_path)
 
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
+      DependencyResolver.maybe_recompile_depending_structs(@deps_path, [])
 
       assert mtime(@module_path1) > mtime(@reference_path)
       assert mtime(@module_path2) < mtime(@reference_path)
-      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
+      assert_called ElixirTask.recompile_with_elixir(any())
     end
 
     @tag deps: %{
@@ -122,21 +125,18 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @reference_path
          ]
     test "touch and recompile depending module if dependant modules have been recompiled" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
       assert mtime(@module_path1) < mtime(@reference_path)
       assert mtime(@module_path2) < mtime(@reference_path)
       assert mtime(@module_path3) < mtime(@reference_path)
 
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
+      DependencyResolver.maybe_recompile_depending_structs(@deps_path, [])
 
       assert mtime(@module_path1) > mtime(@reference_path)
       assert mtime(@module_path2) > mtime(@reference_path)
       assert mtime(@module_path3) > mtime(@reference_path)
 
-      assert_called ParallelCompiler.compile_to_path(
-                      [@module_path1, @module_path2, @module_path3],
-                      @compile_path
-                    )
+      assert_called ElixirTask.recompile_with_elixir(any())
     end
 
     @tag deps: %{
@@ -157,11 +157,11 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @reference_path
          ]
     test "remove unloadable modules and recompile modules that being depending" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
       assert mtime(@module_path1) < mtime(@reference_path)
       assert mtime(@module_path2) < mtime(@reference_path)
 
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
+      DependencyResolver.maybe_recompile_depending_structs(@deps_path, [])
 
       assert @deps_path
              |> File.read!()
@@ -170,7 +170,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
              }
 
       assert mtime(@module_path1) > mtime(@reference_path)
-      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
+      assert_called ElixirTask.recompile_with_elixir(any())
     end
 
     @tag deps: %{
@@ -187,11 +187,11 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
          }
     @tag touch_paths: [@module_path1]
     test "compile file only once even if multiple modules there to be recompiled" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [], []}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
 
-      DependencyResolver.maybe_recompile_depending_structs(@deps_path)
+      DependencyResolver.maybe_recompile_depending_structs(@deps_path, [])
 
-      assert_called ParallelCompiler.compile_to_path([@module_path1], @compile_path)
+      assert_called ElixirTask.recompile_with_elixir(any())
     end
 
     @tag deps: %{
@@ -212,12 +212,15 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
                file: ^deps_path,
                struct_module: nil,
                message: {:update_deps, :enoent}
-             } = DependencyResolver.maybe_recompile_depending_structs(deps_path, WriteFailingFile)
+             } =
+               DependencyResolver.maybe_recompile_depending_structs(deps_path,
+                 file_module: WriteFailingFile
+               )
     end
 
     test "return ok giving no modules eligible for recompilation" do
-      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
-               {:ok, [], []}
+      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path, []) ==
+               {:ok, []}
     end
 
     @tag deps: %{
@@ -226,9 +229,9 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
               [{NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}]}
          }
     test "bypass compilation error" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:error, [:err], []}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:error, [:err], []}
 
-      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
+      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path, []) ==
                {:error, [:err], []}
     end
 
@@ -238,9 +241,9 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
               [{NonexistingModule1, <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0>>}]}
          }
     test "bypass compilation success" do
-      allow ParallelCompiler.compile_to_path(any(), any()), return: {:ok, [:module], [:warn]}
+      allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [:module], [:warn]}
 
-      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path) ==
+      assert DependencyResolver.maybe_recompile_depending_structs(@deps_path, []) ==
                {:ok, [:module], [:warn]}
     end
   end

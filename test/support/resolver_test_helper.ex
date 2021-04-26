@@ -172,6 +172,17 @@ defmodule ResolverTestHelper do
     )
   end
 
+  @spec plan_struct_integrity_ensurance(pid, module, list, String.t(), integer) :: :ok
+  def plan_struct_integrity_ensurance(planner, module, fields, file, line) do
+    ResolvePlanner.plan_struct_integrity_ensurance(
+      planner,
+      module,
+      fields,
+      file,
+      line
+    )
+  end
+
   @spec keep_env(pid, module, Macro.env()) :: :ok
   def keep_env(planner, module \\ TwoFieldStruct, env) do
     ResolvePlanner.keep_module_environment(planner, module, env)

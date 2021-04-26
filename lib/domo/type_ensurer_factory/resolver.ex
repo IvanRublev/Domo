@@ -22,8 +22,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->
-        map_list = :erlang.binary_to_term(binary)
-        {:ok, map_list}
+        map = :erlang.binary_to_term(binary)
+        {:ok, {map.filed_types_to_resolve, map.environments}}
 
       _err ->
         {:error, %Error{file: plan_path, message: :no_plan}}

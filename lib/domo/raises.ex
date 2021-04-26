@@ -14,6 +14,17 @@ defmodule Domo.Raises do
   Like [compilers: Mix.compilers() ++ [:domo_compiler], ...]\
   """
 
+  def raise_or_warn(opts, error, message) do
+    global_as_warning? = Application.get_env(:domo, :unexpected_type_error_as_warning, false)
+    warn? = Keyword.get(opts, :unexpected_type_error_as_warning, global_as_warning?)
+
+    if warn? do
+      IO.warn(message)
+    else
+      raise error, message
+    end
+  end
+
   def raise_use_domo_out_of_module!(caller_env) do
     unless ModuleInspector.module_context?(caller_env) do
       raise(CompileError,

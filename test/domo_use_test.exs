@@ -48,6 +48,20 @@ defmodule DomoUseTest do
       end
   end
 
+  defp module_custom_struct_as_default_value do
+    {:module, _, _bytecode, _} =
+      defmodule Module do
+        defmodule Submodule do
+          use Domo
+          defstruct [:title]
+          @type t :: %__MODULE__{title: String.t()}
+        end
+
+        defstruct field: Submodule.new(title: "string")
+        @type t :: %__MODULE__{field: Submodule.t()}
+      end
+  end
+
   setup do
     Code.compiler_options(ignore_module_conflict: true)
 
@@ -57,15 +71,12 @@ defmodule DomoUseTest do
 
     project = MixProjectHelper.global_stub()
     plan_file = DomoMixTask.manifest_path(project, :plan)
-    types_file = DomoMixTask.manifest_path(project, :types)
-    deps_file = DomoMixTask.manifest_path(project, :deps)
-    code_path = DomoMixTask.generated_code_path(project)
 
     on_exit(fn ->
       ResolvePlanner.stop(plan_file)
     end)
 
-    %{plan_file: plan_file, types_file: types_file, deps_file: deps_file, code_path: code_path}
+    :ok
   end
 
   describe "use Domo should" do
@@ -197,11 +208,24 @@ defmodule DomoUseTest do
   end
 
   describe "Domo after compile of the module should" do
-    setup do
+    @describetag compile_time?: false
+
+    setup tags do
       allow ResolvePlanner.ensure_started(any()), return: {:ok, self()}
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_types_resolving(any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_empty_struct(any(), any()), return: :ok
+      allow ResolvePlanner.compile_time?(), return: tags.compile_time?
+
+      allow ResolvePlanner.plan_struct_integrity_ensurance(
+              any(),
+              any(),
+              any(),
+              any(),
+              any()
+            ),
+            return: :ok
+
       allow ResolvePlanner.flush(any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
 
@@ -312,6 +336,24 @@ defmodule DomoUseTest do
                       :second,
                       is(fn {:float, _, _} -> true end)
                     )
+    end
+
+    @tag compile_time?: true
+    test "plan struct integrity ensurance" do
+      module_custom_struct_as_default_value()
+
+      assert_called ResolvePlanner.plan_struct_integrity_ensurance(
+                      any(),
+                      __MODULE__.Module.Submodule,
+                      [title: "string"],
+                      is(fn file -> String.ends_with?(file, "/domo_use_test.exs") end),
+                      60
+                    )
+
+      expected_module = __MODULE__.Module
+
+      assert %^expected_module{field: %{__struct__: __MODULE__.Module.Submodule, title: "string"}} =
+               struct!(expected_module)
     end
 
     test "keep running after parent process dies" do

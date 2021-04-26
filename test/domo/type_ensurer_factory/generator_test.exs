@@ -2,9 +2,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   use Domo.FileCase, async: false
   use Placebo
 
+  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator
-  alias Domo.MixProjectHelper
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   @moduletag types_content: %{}

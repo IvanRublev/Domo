@@ -3,9 +3,11 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
 
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Error
-  alias Kernel.ParallelCompiler
+  alias Domo.TypeEnsurerFactory.DependencyResolver.ElixirTask
 
-  def maybe_recompile_depending_structs(deps_path, file_module \\ File) do
+  def maybe_recompile_depending_structs(deps_path, opts) do
+    file_module = opts[:file_module] || File
+
     with {:ok, content} <- read_deps(deps_path, file_module),
          {:ok, deps} <- decode_deps(content),
          type_hash_by_dependant_module = get_dependant_module_hashes(deps),
@@ -16,10 +18,10 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
              type_hash_by_dependant_module,
              file_module
            ) do
-      maybe_recompile(updated_deps, deps, type_hash_by_dependant_module)
+      maybe_recompile(updated_deps, deps, type_hash_by_dependant_module, opts[:verbose?] || false)
     else
       {:error, {:read_deps, :enoent}} ->
-        {:ok, [], []}
+        {:ok, []}
 
       {:error, {_operation, _message} = error} ->
         %Error{
@@ -28,6 +30,9 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
           struct_module: nil,
           message: error
         }
+
+      {:error, [_ | _]} = error ->
+        error
     end
   end
 
@@ -98,7 +103,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     |> Enum.reverse()
   end
 
-  defp maybe_recompile(updated_deps, deps, type_hash_by_dependant_module) do
+  defp maybe_recompile(updated_deps, deps, type_hash_by_dependant_module, verbose?) do
     sources_to_recompile =
       updated_deps
       |> sources_with_changed_dependants_type_hash(type_hash_by_dependant_module)
@@ -108,9 +113,9 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
       |> Enum.uniq()
 
     if Enum.empty?(sources_to_recompile) do
-      {:ok, [], []}
+      {:ok, []}
     else
-      touch_and_recompile(sources_to_recompile)
+      touch_and_recompile(sources_to_recompile, verbose?)
     end
   end
 
@@ -173,19 +178,13 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     end
   end
 
-  defp touch_and_recompile(sources_to_recompile) do
-    touch_files(sources_to_recompile)
+  defp touch_and_recompile(sources_to_recompile, verbose?) do
+    # Have to wait 1 second to touch files with later epoch time
+    # and make elixir compiler to percept them as stale files.
+    Process.sleep(1000)
 
-    project = Mix.Project.config()
-    dest = Mix.Project.compile_path(project)
+    Enum.each(sources_to_recompile, &File.touch!/1)
 
-    ParallelCompiler.compile_to_path(sources_to_recompile, dest)
-  end
-
-  defp touch_files(paths_list) do
-    Enum.map(paths_list, fn path ->
-      File.touch!(path)
-      path
-    end)
+    ElixirTask.recompile_with_elixir(verbose?)
   end
 end

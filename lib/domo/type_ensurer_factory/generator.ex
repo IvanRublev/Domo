@@ -206,19 +206,43 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   defp any_spec?(type_spec),
     do: Enum.any?(type_spec, &(&1 in [quote(do: any()), quote(do: term())]))
 
-  def compile(paths) do
-    threshold_sec = 10
-
+  def compile(paths, verbose? \\ false) do
     project = Mix.Project.config()
     dest = Mix.Project.compile_path(project)
+    opts = opts(verbose?)
 
     ParallelCompiler.compile_to_path(
       paths,
       dest,
-      long_compilation_threshold: threshold_sec,
-      each_long_compilation: fn file_path ->
-        IO.warn("Compilation of #{file_path} takes longer then #{threshold_sec}sec.", [])
-      end
+      opts
     )
+  end
+
+  defp opts(false = _verbose?) do
+    cwd = File.cwd!()
+    threshold_sec = 10
+
+    [
+      long_compilation_threshold: threshold_sec,
+      each_long_compilation: &each_long_compilation(&1, cwd, threshold_sec)
+    ]
+  end
+
+  defp opts(true = _verbose?) do
+    cwd = File.cwd!()
+
+    false
+    |> opts()
+    |> Keyword.merge(each_file: &each_file(&1, cwd))
+  end
+
+  defp each_long_compilation(file, cwd, threshold_sec) do
+    file = Path.relative_to(file, cwd)
+    IO.warn("Compilation of #{file} takes longer then #{threshold_sec}sec.", [])
+  end
+
+  defp each_file(file, cwd) do
+    file = Path.relative_to(file, cwd)
+    IO.write("Compiled #{file}\n")
   end
 end

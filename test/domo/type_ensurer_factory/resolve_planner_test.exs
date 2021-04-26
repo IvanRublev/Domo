@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
   use Domo.FileCase
 
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   describe "ResolvePlanner for sake of start should" do
@@ -32,6 +33,24 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       assert {:ok, pid} == ResolvePlanner.ensure_started(plan_path)
     end
+  end
+
+  test "ResolvePlanner should return that its compile when it is running" do
+    # stop global server that may run due to compilation of structs
+    project = MixProjectHelper.global_stub()
+    plan_path = DomoMixTask.manifest_path(project, :plan)
+    ResolvePlanner.stop(plan_path)
+
+    assert ResolvePlanner.compile_time?() == false
+
+    plan_path = "some_path_1"
+    {:ok, _pid} = ResolvePlanner.start(plan_path)
+
+    assert ResolvePlanner.compile_time?() == true
+
+    ResolvePlanner.stop(plan_path)
+
+    assert ResolvePlanner.compile_time?() == false
   end
 
   describe "ResolvePlanner for sake of planning should" do
@@ -71,6 +90,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       assert :ok == ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, __ENV__)
     end
 
+    test "accept struct fields for postponed integrity ensurance", %{plan_file: plan_file} do
+      assert :ok ==
+               ResolvePlanner.plan_struct_integrity_ensurance(
+                 plan_file,
+                 TwoFieldStruct,
+                 [title: "Hello", duration: 15],
+                 "/module_path.ex",
+                 9
+               )
+    end
+
     test "be able to flush all planned types to disk", %{plan_file: plan_file} do
       ResolvePlanner.plan_types_resolving(
         plan_file,
@@ -101,6 +131,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       env = __ENV__
       ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, env)
 
+      ResolvePlanner.plan_struct_integrity_ensurance(
+        plan_file,
+        TwoFieldStruct,
+        [title: "Hello", duration: 15],
+        "/module_path.ex",
+        9
+      )
+
       assert :ok == ResolvePlanner.flush(plan_file)
 
       plan =
@@ -108,11 +146,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         |> File.read!()
         |> :erlang.binary_to_term()
 
-      assert {%{
-                TwoFieldStruct => %{first: quote(do: integer), second: quote(do: float)},
-                IncorrectDefault => %{second: quote(do: Generator.a_str())},
-                EmptyStruct => %{}
-              }, %{TwoFieldStruct => env}} == plan
+      assert %{
+               filed_types_to_resolve: %{
+                 TwoFieldStruct => %{first: quote(do: integer), second: quote(do: float)},
+                 IncorrectDefault => %{second: quote(do: Generator.a_str())},
+                 EmptyStruct => %{}
+               },
+               environments: %{TwoFieldStruct => env},
+               structs_to_ensure: [
+                 {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
+               ]
+             } == plan
     end
 
     test "refute to add a struct field's type to plan twice", %{plan_file: plan_file} do
@@ -135,13 +179,16 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     end
 
     @tag start_server: false
-    test "be able to merge planned types with the plan from disk", %{plan_file: plan_file} do
+    test "be able to merge made plan with the plan from disk", %{plan_file: plan_file} do
       incorrect_default_env = %{__ENV__ | module: IncorrectDefault}
 
       plan_binary =
-        :erlang.term_to_binary({
-          %{IncorrectDefault => %{second: quote(do: Generator.a_str())}},
-          %{IncorrectDefault => incorrect_default_env}
+        :erlang.term_to_binary(%{
+          filed_types_to_resolve: %{IncorrectDefault => %{second: quote(do: Generator.a_str())}},
+          environments: %{IncorrectDefault => incorrect_default_env},
+          structs_to_ensure: [
+            {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
+          ]
         })
 
       File.write!(plan_file, plan_binary)
@@ -162,6 +209,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       env = __ENV__
       ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, env)
 
+      ResolvePlanner.plan_struct_integrity_ensurance(
+        plan_file,
+        TwoFieldStruct,
+        [title: "World", duration: 20],
+        "/other_module_path.ex",
+        12
+      )
+
       assert :ok == ResolvePlanner.flush(plan_file)
 
       plan =
@@ -169,15 +224,19 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         |> File.read!()
         |> :erlang.binary_to_term()
 
-      assert {
-               %{
+      assert %{
+               filed_types_to_resolve: %{
                  TwoFieldStruct => %{first: quote(do: integer)},
                  IncorrectDefault => %{second: quote(do: Generator.a_str())}
                },
-               %{
+               environments: %{
                  TwoFieldStruct => env,
                  IncorrectDefault => incorrect_default_env
-               }
+               },
+               structs_to_ensure: [
+                 {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9},
+                 {TwoFieldStruct, [title: "World", duration: 20], "/other_module_path.ex", 12}
+               ]
              } == plan
     end
   end

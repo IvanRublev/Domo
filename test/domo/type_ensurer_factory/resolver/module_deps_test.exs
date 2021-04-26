@@ -23,7 +23,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
     def read(_path), do: {:error, :noent}
   end
 
-  describe "TypeEnsurerFactory.Resolver should" do
+  describe "Resolver should" do
     test "write deps file and return :ok",
          %{
            planner: planner,
@@ -87,6 +87,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       types_file: types_file,
       deps_file: deps_file
     } do
+      ### add modules that builds structs using Domo at compile time
+
       plan(
         planner,
         LocalUserType,
