@@ -22,7 +22,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorCleanupTest do
         :meck.passthrough([pid])
       end
 
-    Generator.do_type_ensurer_module(Elixir, %{first: [quote(do: integer())]})
+    Generator.do_type_ensurer_module(Elixir, {%{first: [quote(do: integer())]}, nil})
 
     assert_received {:registry_start, {:ok, registry_pid}}
     assert_called MatchFunRegistry.stop(registry_pid)

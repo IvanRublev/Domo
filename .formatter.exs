@@ -1,4 +1,4 @@
-locals_without_parens = [deftag: 2, field: :*, for_type: 1, allow: :*, assert_called: :*]
+locals_without_parens = [precond: 1, allow: :*, assert_called: :*]
 
 [
   inputs: [
@@ -8,5 +8,6 @@ locals_without_parens = [deftag: 2, field: :*, for_type: 1, allow: :*, assert_ca
   locals_without_parens: locals_without_parens,
   export: [
     locals_without_parens: locals_without_parens
-  ]
+  ],
+  line_length: 150
 ]

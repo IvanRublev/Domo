@@ -4,8 +4,7 @@ defmodule Benchmark.Samples do
   def tweet_map do
     StreamData.fixed_map(%{
       created_at: StreamData.string(:alphanumeric, max_length: 20),
-      favorite_count:
-        StreamData.one_of([StreamData.integer(1..100), StreamData.member_of([nil])]),
+      favorite_count: StreamData.one_of([StreamData.integer(1..100), StreamData.member_of([nil])]),
       favorited: StreamData.one_of([StreamData.boolean(), StreamData.member_of([nil])]),
       id: StreamData.integer(36_183_115_464_704..1_274_036_183_115_464_704),
       id_str: StreamData.string(:alphanumeric, max_length: 20),
@@ -14,15 +13,13 @@ defmodule Benchmark.Samples do
           StreamData.string(:alphanumeric, max_length: 20),
           StreamData.member_of([nil])
         ]),
-      in_reply_to_status_id:
-        StreamData.one_of([StreamData.integer(1..7000), StreamData.member_of([nil])]),
+      in_reply_to_status_id: StreamData.one_of([StreamData.integer(1..7000), StreamData.member_of([nil])]),
       in_reply_to_status_id_str:
         StreamData.one_of([
           StreamData.string(:alphanumeric, max_length: 20),
           StreamData.member_of([nil])
         ]),
-      in_reply_to_user_id:
-        StreamData.one_of([StreamData.integer(1..7000), StreamData.member_of([nil])]),
+      in_reply_to_user_id: StreamData.one_of([StreamData.integer(1..7000), StreamData.member_of([nil])]),
       in_reply_to_user_id_str:
         StreamData.one_of([
           StreamData.string(:alphanumeric, max_length: 20),

@@ -17,6 +17,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   @recursive true
   @plan_manifest "type_resolving_plan.domo"
   @types_manifest "resolved_types.domo"
+  @preconds_manifest "preconds.domo"
   @deps_manifest "modules_deps.domo"
   @generated_code_directory "/domo_generated_code"
 
@@ -24,6 +25,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   def run(args) do
     project = MixProjectHelper.global_stub() || Mix.Project
     plan_path = manifest_path(project, :plan)
+    preconds_path = manifest_path(project, :preconds)
     types_path = manifest_path(project, :types)
     deps_path = manifest_path(project, :deps)
     code_path = generated_code_path(project)
@@ -31,7 +33,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     prev_ignore_module_conflict = Map.get(Code.compiler_options(), :ignore_module_conflict, false)
     Code.compiler_options(ignore_module_conflict: true)
 
-    paths = {plan_path, types_path, deps_path, code_path}
+    paths = {plan_path, preconds_path, types_path, deps_path, code_path}
     verbose? = Enum.member?(args, "--verbose")
     result = build_ensurer_modules(paths, verbose?)
 
@@ -47,15 +49,15 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   end
 
   defp build_ensurer_modules(paths, verbose?) do
-    {plan_path, types_path, deps_path, code_path} = paths
+    {plan_path, preconds_path, types_path, deps_path, code_path} = paths
 
     Cleaner.rmdir_if_exists!(code_path)
 
     stop_and_flush_planner(plan_path, verbose?)
 
-    with {:ok, deps_warns} <- recompile_depending_structs(deps_path, verbose?),
+    with {:ok, deps_warns} <- recompile_depending_structs(deps_path, preconds_path, verbose?),
          stop_and_flush_planner(plan_path, verbose?),
-         :ok <- resolve_types(plan_path, types_path, deps_path),
+         :ok <- resolve_types(plan_path, preconds_path, types_path, deps_path),
          {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
          {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?),
          :ok <- ensure_structs_integrity(plan_path) do
@@ -83,16 +85,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     ResolvePlanner.ensure_flushed_and_stopped(plan_path, verbose?)
   end
 
-  defp recompile_depending_structs(deps_path, verbose?) do
-    case DependencyResolver.maybe_recompile_depending_structs(deps_path, verbose?: verbose?) do
+  defp recompile_depending_structs(deps_path, preconds_path, verbose?) do
+    case DependencyResolver.maybe_recompile_depending_structs(deps_path, preconds_path, verbose?: verbose?) do
       {:ok, _warnings} = ok -> ok
       {:error, ex_errors, ex_warnings} -> {:error, {:deps, {ex_errors, ex_warnings}}}
       {:error, message} -> {:error, {:deps, message}}
     end
   end
 
-  defp resolve_types(plan_path, types_path, deps_path) do
-    case Resolver.resolve(plan_path, types_path, deps_path) do
+  defp resolve_types(plan_path, preconds_path, types_path, deps_path) do
+    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path) do
       :ok -> :ok
       {:error, message} -> {:error, {:resolve, message}}
     end
@@ -224,9 +226,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   defp print_error(%Diagnostic{compiler_name: "Elixir"} = diagnostic) do
     IO.write([
-      "\n== Compilation error in file #{Path.relative_to_cwd(diagnostic.file)}:#{
-        inspect(diagnostic.position)
-      } ==\n",
+      "\n== Compilation error in file #{Path.relative_to_cwd(diagnostic.file)}:#{inspect(diagnostic.position)} ==\n",
       ["** ", diagnostic.message, ?\n]
     ])
   end
@@ -234,6 +234,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   @impl true
   def manifests, do: [@plan_manifest, @types_manifest]
   def deps_manifest, do: @deps_manifest
+  def preconds_manifest, do: @preconds_manifest
 
   def manifest_path(mix_project, manifest_kind) do
     Path.join(mix_project.build_path(), manifest(manifest_kind))
@@ -242,6 +243,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp manifest(kind) do
     case kind do
       :plan -> @plan_manifest
+      :preconds -> @preconds_manifest
       :types -> @types_manifest
       :deps -> @deps_manifest
     end

@@ -4,6 +4,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
 
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.BatchEnsurer
+  alias Domo.TypeEnsurerFactory.ResolvePlanner
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   import ResolverTestHelper
@@ -47,6 +48,8 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       Enum.each(tags.touch_paths, &File.rm/1)
       File.rm_rf(@source_dir)
     end)
+
+    allow ResolvePlanner.compile_time?(), meck_options: [:passthrough], return: false
 
     :ok
   end
@@ -108,14 +111,14 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       assert {:error, {^file, 9, message}} = BatchEnsurer.ensure_struct_integrity(plan_file)
 
       assert message =~ "CustomStructUsingDomo"
-      assert message =~ "Invalid value :hello for field :title."
+      assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
     end
 
     @first_path Path.join(@source_dir, "/some_caller_module.ex")
     @second_path Path.join(@source_dir, "/other_caller_module.ex")
     @third_path Path.join(@source_dir, "/third_caller_module.ex")
     @tag touch_paths: [@first_path, @second_path, @third_path]
-    test "touch file of struct not matching its type and rest files to be checked", %{
+    test "touch files using struct not matching its type at compile time", %{
       planner: planner,
       plan_file: plan_file
     } do

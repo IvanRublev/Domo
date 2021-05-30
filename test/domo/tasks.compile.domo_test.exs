@@ -46,6 +46,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     project = MixProjectHelper.global_stub()
     plan_file = DomoMixTask.manifest_path(project, :plan)
+    preconds_file = DomoMixTask.manifest_path(project, :preconds)
     types_file = DomoMixTask.manifest_path(project, :types)
     deps_file = DomoMixTask.manifest_path(project, :deps)
     code_path = DomoMixTask.generated_code_path(project)
@@ -56,6 +57,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     %{
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
       code_path: code_path
@@ -86,11 +88,12 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     test "resolve planned struct fields and struct dependencies for the project", %{
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
-      allow Resolver.resolve(any(), any(), any()),
-        exec: fn _, _, _ ->
+      allow Resolver.resolve(any(), any(), any(), any()),
+        exec: fn _, _, _, _ ->
           File.write!(types_file, :erlang.term_to_binary(%{}))
         end
 
@@ -103,13 +106,13 @@ defmodule Domo.MixTasksCompileDomoTest do
 
       DomoMixTask.run([])
 
-      assert_called Resolver.resolve(plan_file, types_file, deps_file)
+      assert_called Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
     end
 
     test "return :error if resolve failed" do
       module_file = __ENV__.file
 
-      allow Resolver.resolve(any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any()),
         seq: [
           {:error,
            [
@@ -143,8 +146,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       assert %Diagnostic{
                compiler_name: "Domo",
                file: ^module_file,
-               message:
-                 "Domo.TypeEnsurerFactory.Resolver failed to resolve fields type of the Module struct due to :no_env_in_plan.",
+               message: "Domo.TypeEnsurerFactory.Resolver failed to resolve fields type of the Module struct due to :no_env_in_plan.",
                position: 1,
                severity: :error
              } = diagnostic
@@ -221,8 +223,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       assert %Diagnostic{
                compiler_name: "Domo",
                file: ^code_path,
-               message:
-                 "Domo.TypeEnsurerFactory.Generator failed to generate TypeEnsurer module code due to :enomem.",
+               message: "Domo.TypeEnsurerFactory.Generator failed to generate TypeEnsurer module code due to :enomem.",
                position: 1,
                severity: :error
              } = diagnostic
@@ -238,7 +239,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
           File.write!(file_path, """
           defmodule Module.TypeEnsurer do
-            def ensure_type!, do: "Ok"
+            def ensure_field_type, do: "Ok"
           end
           """)
 
@@ -246,7 +247,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
           File.write!(file_path1, """
           defmodule Module1.TypeEnsurer do
-            def ensure_type!, do: "Ok 1"
+            def ensure_field_type, do: "Ok 1"
           end
           """)
 
@@ -259,8 +260,8 @@ defmodule Domo.MixTasksCompileDomoTest do
 
       assert true == Code.ensure_loaded?(Module.TypeEnsurer)
       assert true == Code.ensure_loaded?(Module1.TypeEnsurer)
-      assert "Ok" == apply(Module.TypeEnsurer, :ensure_type!, [])
-      assert "Ok 1" == apply(Module1.TypeEnsurer, :ensure_type!, [])
+      assert "Ok" == apply(Module.TypeEnsurer, :ensure_field_type, [])
+      assert "Ok 1" == apply(Module1.TypeEnsurer, :ensure_field_type, [])
     end
 
     test "return error if modules compilation fails", %{code_path: code_path} do
@@ -362,17 +363,18 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task for next run should" do
     test "recompile structs depending on structs with chanded types with elixir", %{
-      deps_file: deps_file
+      deps_file: deps_file,
+      preconds_file: preconds_file
     } do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()), return: {:ok, []}
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
 
       DomoMixTask.run([])
 
-      assert_called DependencyResolver.maybe_recompile_depending_structs(deps_file, any())
+      assert_called DependencyResolver.maybe_recompile_depending_structs(deps_file, preconds_file, any())
     end
 
     test "bypass underlying compilation error from DependencyResolver" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()),
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()),
         return:
           {:error,
            [
@@ -413,7 +415,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task for compilation errors should" do
     test "print error giving dependencies recompilation failure" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()),
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()),
         return:
           {:error,
            [
@@ -432,9 +434,9 @@ defmodule Domo.MixTasksCompileDomoTest do
     end
 
     test "print error giving a types resolve failure" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()), return: {:ok, []}
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
 
-      allow Resolver.resolve(any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any()),
         return: {:error, %Error{compiler_module: Resolver, file: "/plan_path", message: :no_plan}}
 
       msg = capture_io(fn -> DomoMixTask.run([]) end)
@@ -444,8 +446,8 @@ defmodule Domo.MixTasksCompileDomoTest do
     end
 
     test "print error giving a type ensurer generator failure" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()), return: {:ok, []}
-      allow Resolver.resolve(any(), any(), any()), return: :ok
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
+      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
 
       allow Generator.generate(any(), any()),
         return:
@@ -463,8 +465,8 @@ defmodule Domo.MixTasksCompileDomoTest do
     end
 
     test "print error giving a type ensurer compiltion failure" do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()), return: {:ok, []}
-      allow Resolver.resolve(any(), any(), any()), return: :ok
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
+      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
       allow Generator.generate(any(), any()), return: {:ok, []}
 
       allow Generator.compile(any(), any()),
@@ -479,7 +481,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task for compilation warnings should" do
     setup do
-      allow DependencyResolver.maybe_recompile_depending_structs(any(), any()),
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()),
         return:
           {:ok,
            [
@@ -492,7 +494,7 @@ defmodule Domo.MixTasksCompileDomoTest do
              }
            ]}
 
-      allow Resolver.resolve(any(), any(), any()), return: :ok
+      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
       allow Generator.generate(any(), any()), return: {:ok, []}
 
       allow Generator.compile(any(), any()),

@@ -14,6 +14,36 @@ defmodule Domo.Raises do
   Like [compilers: Mix.compilers() ++ [:domo_compiler], ...]\
   """
 
+  @precond_arguments """
+  precond/1 expects [key: value] argument where the key is a type name \
+  atom and the value is an anonymous boolean function with one argument \
+  returning wheither the precondition is fullfiled \
+  for a value of the given type.\
+  """
+
+  def raise_struct_should_be_passed(module_should, instead_of: module_instead) do
+    raise ArgumentError, """
+    the #{inspect(module_should)} structure should be passed as \
+    the first argument value instead of #{inspect(module_instead)}.\
+    """
+  end
+
+  def raise_or_warn_values_should_have_expected_types(opts, module, errors) do
+    error_points =
+      errors
+      |> Enum.map(&(" * " <> &1))
+      |> Enum.join("\n")
+
+    raise_or_warn(opts, ArgumentError, """
+    the following values should have types defined for fields of the #{inspect(module)} struct:
+    #{error_points}\
+    """)
+  end
+
+  def raise_or_warn_struct_precondition_should_be_true(opts, t_error) do
+    raise_or_warn(opts, ArgumentError, t_error)
+  end
+
   def raise_or_warn(opts, error, message) do
     global_as_warning? = Application.get_env(:domo, :unexpected_type_error_as_warning, false)
     warn? = Keyword.get(opts, :unexpected_type_error_as_warning, global_as_warning?)
@@ -30,8 +60,7 @@ defmodule Domo.Raises do
       raise(CompileError,
         file: caller_env.file,
         line: caller_env.line,
-        description:
-          "use Domo should be called in a module scope only. To have tagged tuple functions try use Domo.TaggedTuple instead."
+        description: "use Domo should be called in a module scope only. To have tagged tuple functions try use Domo.TaggedTuple instead."
       )
     end
   end
@@ -55,12 +84,26 @@ defmodule Domo.Raises do
     end
   end
 
-  def raise_add_domo_compiler do
-    raise @add_domo_compiler_message
+  def maybe_raise_add_domo_compiler(module) do
+    unless Code.ensure_loaded?(Module.concat(module, TypeEnsurer)) do
+      raise @add_domo_compiler_message
+    end
+  end
+
+  def raise_precond_arguments do
+    raise ArgumentError, @precond_arguments
+  end
+
+  def raise_nonexistent_type_for_precond(type_name) do
+    raise ArgumentError, """
+    precond/1 is called with undefined #{inspect(type_name)} type name. \
+    The name of a type defined with @type attribute is expected.\
+    """
   end
 
   def raise_not_in_a_struct_module!(caller_env) do
-    unless Module.has_attribute?(caller_env.module, :struct) do
+    # In elixir v1.12.0 :struct is renamed to :__struct__ https://github.com/elixir-lang/elixir/pull/10354
+    unless Module.has_attribute?(caller_env.module, :__struct__) or Module.has_attribute?(caller_env.module, :struct) do
       raise CompileError,
         file: caller_env.file,
         line: caller_env.line,

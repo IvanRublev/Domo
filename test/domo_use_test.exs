@@ -62,6 +62,31 @@ defmodule DomoUseTest do
       end
   end
 
+  defp module_with_precond do
+    {:module, _, _bytecode, _} =
+      defmodule Module do
+        defmodule Ext do
+          def value_valid?(_value), do: true
+        end
+
+        use Domo
+
+        defstruct field: 1.0
+
+        @type counter :: integer
+        precond counter: &(&1 != 0)
+
+        @type value :: atom
+        precond value: &Ext.value_valid?/1
+
+        @type t :: %__MODULE__{field: float}
+        precond t: fn
+                  %{field: field} when field > 0.5 -> true
+                  _ -> false
+                end
+      end
+  end
+
   setup do
     Code.compiler_options(ignore_module_conflict: true)
 
@@ -190,7 +215,7 @@ defmodule DomoUseTest do
       end
     end
 
-    test "Not raise when t is defined alongside with other types" do
+    test "Not raise when t() is defined alongside with other types" do
       module =
         defmodule Module do
           use Domo
@@ -211,10 +236,11 @@ defmodule DomoUseTest do
     @describetag compile_time?: false
 
     setup tags do
-      allow ResolvePlanner.ensure_started(any()), return: {:ok, self()}
+      allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_types_resolving(any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_empty_struct(any(), any()), return: :ok
+      allow ResolvePlanner.plan_precond_checks(any(), any(), any()), return: :ok
       allow ResolvePlanner.compile_time?(), return: tags.compile_time?
 
       allow ResolvePlanner.plan_struct_integrity_ensurance(
@@ -232,30 +258,6 @@ defmodule DomoUseTest do
       :ok
     end
 
-    test "generate specs for structure functions" do
-      module =
-        defmodule Module do
-          use Domo
-
-          @enforce_keys []
-          defstruct []
-
-          @type t :: %__MODULE__{}
-        end
-
-      {:module, _, bytecode, _} = module
-
-      assert """
-             [ensure_type!(t()) :: t(), \
-             ensure_type_ok(t()) :: {:ok, t()} | {:error, term()}, \
-             new(Enum.t()) :: t(), \
-             new_ok(Enum.t()) :: t()]\
-             """ ==
-               bytecode
-               |> ModuleTypes.specs()
-               |> ModuleTypes.specs_to_string()
-    end
-
     test "raise abscense of Domo compiler calling structure functions with no TypeEnsurer generated yet" do
       defmodule Module do
         use Domo
@@ -269,8 +271,8 @@ defmodule DomoUseTest do
       err_regex = @no_domo_compiler_error_regex
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :new, [%{}]) end
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :new_ok, [%{}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type!, [%{}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type_ok, [%{}]) end
+      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type!, [%{__struct__: Module}]) end
+      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type_ok, [%{__struct__: Module}]) end
     end
 
     test "Not generate specs if no_specs option is given" do
@@ -295,7 +297,7 @@ defmodule DomoUseTest do
     test "start the ResolvePlanner" do
       module_empty()
 
-      assert_called ResolvePlanner.ensure_started(any())
+      assert_called ResolvePlanner.ensure_started(any(), any())
     end
 
     test "keep the module environment for further type resolvance" do
@@ -342,26 +344,104 @@ defmodule DomoUseTest do
     test "plan struct integrity ensurance" do
       module_custom_struct_as_default_value()
 
+      call_line = 60
+
       assert_called ResolvePlanner.plan_struct_integrity_ensurance(
                       any(),
                       __MODULE__.Module.Submodule,
                       [title: "string"],
                       is(fn file -> String.ends_with?(file, "/domo_use_test.exs") end),
-                      60
+                      call_line
                     )
 
       expected_module = __MODULE__.Module
 
-      assert %^expected_module{field: %{__struct__: __MODULE__.Module.Submodule, title: "string"}} =
-               struct!(expected_module)
+      assert %^expected_module{field: %{__struct__: __MODULE__.Module.Submodule, title: "string"}} = struct!(expected_module)
+    end
+
+    test "turn precond call into __precond__/1 function definition" do
+      module_with_precond()
+
+      map_10 = %{field: 1.0}
+      assert true == apply(__MODULE__.Module, :__precond__, [:t, map_10])
+
+      map_2 = %{field: 0.2}
+      assert false == apply(__MODULE__.Module, :__precond__, [:t, map_2])
+
+      assert true == apply(__MODULE__.Module, :__precond__, [:counter, 1])
+      assert false == apply(__MODULE__.Module, :__precond__, [:counter, 0])
+    end
+
+    test "raise precond argument error if its not atom: function keyword" do
+      message = """
+      precond/1 expects [key: value] argument where the key is a type name \
+      atom and the value is an anonymous boolean function with one argument \
+      returning wheither the precondition is fullfiled \
+      for a value of the given type.\
+      """
+
+      assert_raise ArgumentError, message, fn ->
+        defmodule Module do
+          import Domo
+          precond [{"field", "fun"}]
+        end
+      end
+
+      assert_raise ArgumentError, message, fn ->
+        defmodule Module do
+          import Domo
+          precond field: "fun"
+        end
+      end
+    end
+
+    test "raise error for precond call with undefined type" do
+      message = """
+      precond/1 is called with undefined :a_type type name. \
+      The name of a type defined with @type attribute is expected.\
+      """
+
+      assert_raise ArgumentError, message, fn ->
+        defmodule Module do
+          import Domo
+          precond a_type: fn _ -> true end
+        end
+      end
+
+      assert_raise ArgumentError, message, fn ->
+        defmodule Module do
+          import Domo
+
+          @type existing_type :: atom
+          precond existing_type: fn _ -> true end
+          precond a_type: fn _ -> true end
+        end
+      end
+    end
+
+    test "plan precond check for specified types in current module" do
+      module_with_precond()
+
+      expected_module = __MODULE__.Module
+
+      assert_called ResolvePlanner.ensure_started(any(), any())
+
+      expected_preconds = [
+        t: "fn\n  %{field: field} when field > 0.5 ->\n    true\n  _ ->\n    false\nend",
+        value: "&Ext.value_valid?/1",
+        counter: "&(&1 != 0)"
+      ]
+
+      assert_called ResolvePlanner.plan_precond_checks(any(), expected_module, expected_preconds)
     end
 
     test "keep running after parent process dies" do
       path = "/some/path"
+      preconds_path = "/some/preconds_path"
 
       parent_pid =
         spawn(fn ->
-          ResolvePlanner.ensure_started(path)
+          ResolvePlanner.ensure_started(path, preconds_path)
         end)
 
       Process.monitor(parent_pid)

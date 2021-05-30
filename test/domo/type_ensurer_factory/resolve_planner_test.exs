@@ -8,14 +8,15 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
   describe "ResolvePlanner for sake of start should" do
     test "be started once for a plan file" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
 
-      {:ok, pid} = ResolvePlanner.start(plan_path)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
 
       on_exit(fn ->
         GenServer.stop(pid)
       end)
 
-      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path)
+      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path)
 
       name = ResolvePlanner.via(plan_path)
       assert pid == GenServer.whereis(name)
@@ -23,15 +24,16 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
     test "return same {:ok, pid} answer if already started" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
-      {:ok, pid} = ResolvePlanner.ensure_started(plan_path)
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
+      {:ok, pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
 
       on_exit(fn ->
         GenServer.stop(pid)
       end)
 
-      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path)
+      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path)
 
-      assert {:ok, pid} == ResolvePlanner.ensure_started(plan_path)
+      assert {:ok, pid} == ResolvePlanner.ensure_started(plan_path, preconds_path)
     end
   end
 
@@ -39,12 +41,13 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     # stop global server that may run due to compilation of structs
     project = MixProjectHelper.global_stub()
     plan_path = DomoMixTask.manifest_path(project, :plan)
+    preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
     ResolvePlanner.stop(plan_path)
 
     assert ResolvePlanner.compile_time?() == false
 
     plan_path = "some_path_1"
-    {:ok, _pid} = ResolvePlanner.start(plan_path)
+    {:ok, _pid} = ResolvePlanner.start(plan_path, preconds_path)
 
     assert ResolvePlanner.compile_time?() == true
 
@@ -57,43 +60,56 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     @describetag start_server: true
 
     setup tags do
-      plan_file = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
 
       if tags.start_server do
-        {:ok, pid} = ResolvePlanner.start(plan_file)
+        {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
 
         on_exit(fn ->
           GenServer.stop(pid)
         end)
       end
 
-      %{plan_file: plan_file}
+      %{plan_path: plan_path, preconds_path: preconds_path}
     end
 
-    test "accept struct field's type for the resolve plan", %{plan_file: plan_file} do
+    test "accept struct field's type for the resolve plan", %{plan_path: plan_path} do
       assert :ok ==
                ResolvePlanner.plan_types_resolving(
-                 plan_file,
+                 plan_path,
                  TwoFieldStruct,
                  :first,
                  quote(do: integer)
                )
     end
 
-    test "accept empty struct for the resolve plan", %{plan_file: plan_file} do
-      assert :ok == ResolvePlanner.plan_empty_struct(plan_file, TwoFieldStruct)
+    test "accept empty struct for the resolve plan", %{plan_path: plan_path} do
+      assert :ok == ResolvePlanner.plan_empty_struct(plan_path, TwoFieldStruct)
     end
 
     test "accept struct module's environment for further remote types resolve", %{
-      plan_file: plan_file
+      plan_path: plan_path
     } do
-      assert :ok == ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, __ENV__)
+      assert :ok == ResolvePlanner.keep_module_environment(plan_path, TwoFieldStruct, __ENV__)
     end
 
-    test "accept struct fields for postponed integrity ensurance", %{plan_file: plan_file} do
+    test "accept type names and module having precond functions handling the names", %{
+      plan_path: plan_path
+    } do
+      assert :ok ==
+               ResolvePlanner.plan_precond_checks(
+                 plan_path,
+                 TwoFieldStruct,
+                 title: "func_body",
+                 duration: "func_body"
+               )
+    end
+
+    test "accept struct fields for postponed integrity ensurance", %{plan_path: plan_path} do
       assert :ok ==
                ResolvePlanner.plan_struct_integrity_ensurance(
-                 plan_file,
+                 plan_path,
                  TwoFieldStruct,
                  [title: "Hello", duration: 15],
                  "/module_path.ex",
@@ -101,48 +117,48 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                )
     end
 
-    test "be able to flush all planned types to disk", %{plan_file: plan_file} do
+    test "be able to flush all planned types to disk", %{plan_path: plan_path} do
       ResolvePlanner.plan_types_resolving(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         :first,
         quote(do: integer)
       )
 
       ResolvePlanner.plan_types_resolving(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         :second,
         quote(do: float)
       )
 
       ResolvePlanner.plan_types_resolving(
-        plan_file,
+        plan_path,
         IncorrectDefault,
         :second,
         quote(do: Generator.a_str())
       )
 
       ResolvePlanner.plan_empty_struct(
-        plan_file,
+        plan_path,
         EmptyStruct
       )
 
       env = __ENV__
-      ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, env)
+      ResolvePlanner.keep_module_environment(plan_path, TwoFieldStruct, env)
 
       ResolvePlanner.plan_struct_integrity_ensurance(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         [title: "Hello", duration: 15],
         "/module_path.ex",
         9
       )
 
-      assert :ok == ResolvePlanner.flush(plan_file)
+      assert :ok == ResolvePlanner.flush(plan_path)
 
       plan =
-        plan_file
+        plan_path
         |> File.read!()
         |> :erlang.binary_to_term()
 
@@ -159,9 +175,32 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
              } == plan
     end
 
-    test "refute to add a struct field's type to plan twice", %{plan_file: plan_file} do
+    test "be able to flush all planned precond checks to disk", %{plan_path: plan_path, preconds_path: preconds_path} do
+      ResolvePlanner.plan_precond_checks(
+        plan_path,
+        TwoFieldStruct,
+        title: "&String.length(&1) < 256",
+        duration: "fn val -> 5 < val and val < 15 end"
+      )
+
+      assert :ok == ResolvePlanner.flush(plan_path)
+
+      preconds =
+        preconds_path
+        |> File.read!()
+        |> :erlang.binary_to_term()
+
+      assert %{
+               TwoFieldStruct => [
+                 title: "&String.length(&1) < 256",
+                 duration: "fn val -> 5 < val and val < 15 end"
+               ]
+             } == preconds
+    end
+
+    test "refute to add a struct field's type to plan twice", %{plan_path: plan_path} do
       ResolvePlanner.plan_types_resolving(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         :first,
         quote(do: integer)
@@ -169,7 +208,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       res =
         ResolvePlanner.plan_types_resolving(
-          plan_file,
+          plan_path,
           TwoFieldStruct,
           :first,
           quote(do: atom)
@@ -179,7 +218,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     end
 
     @tag start_server: false
-    test "be able to merge made plan with the plan from disk", %{plan_file: plan_file} do
+    test "be able to merge made plan with the plan from disk", %{plan_path: plan_path, preconds_path: preconds_path} do
       incorrect_default_env = %{__ENV__ | module: IncorrectDefault}
 
       plan_binary =
@@ -191,36 +230,36 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
           ]
         })
 
-      File.write!(plan_file, plan_binary)
+      File.write!(plan_path, plan_binary)
 
-      {:ok, pid} = ResolvePlanner.start(plan_file)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
 
       on_exit(fn ->
         if Process.alive?(pid), do: GenServer.stop(pid)
       end)
 
       ResolvePlanner.plan_types_resolving(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         :first,
         quote(do: integer)
       )
 
       env = __ENV__
-      ResolvePlanner.keep_module_environment(plan_file, TwoFieldStruct, env)
+      ResolvePlanner.keep_module_environment(plan_path, TwoFieldStruct, env)
 
       ResolvePlanner.plan_struct_integrity_ensurance(
-        plan_file,
+        plan_path,
         TwoFieldStruct,
         [title: "World", duration: 20],
         "/other_module_path.ex",
         12
       )
 
-      assert :ok == ResolvePlanner.flush(plan_file)
+      assert :ok == ResolvePlanner.flush(plan_path)
 
       plan =
-        plan_file
+        plan_path
         |> File.read!()
         |> :erlang.binary_to_term()
 
@@ -239,16 +278,52 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                ]
              } == plan
     end
+
+    @tag start_server: false
+    test "be able to merge preconds with the preconds from disk", %{plan_path: plan_path, preconds_path: preconds_path} do
+      preconds_binary = :erlang.term_to_binary(%{IncorrectDefault => [field: "&byze_site(&1) == 150"]})
+
+      File.write!(preconds_path, preconds_binary)
+
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+
+      on_exit(fn ->
+        if Process.alive?(pid), do: GenServer.stop(pid)
+      end)
+
+      ResolvePlanner.plan_precond_checks(
+        plan_path,
+        TwoFieldStruct,
+        title: "&String.length(&1) < 256",
+        duration: "fn val -> 5 < val and val < 15 end"
+      )
+
+      assert :ok == ResolvePlanner.flush(plan_path)
+
+      preconds =
+        preconds_path
+        |> File.read!()
+        |> :erlang.binary_to_term()
+
+      assert %{
+               IncorrectDefault => [field: "&byze_site(&1) == 150"],
+               TwoFieldStruct => [
+                 title: "&String.length(&1) < 256",
+                 duration: "fn val -> 5 < val and val < 15 end"
+               ]
+             } == preconds
+    end
   end
 
   describe "ResolvePlanner for sake of stop should" do
     setup do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
-      {:ok, plan_path: plan_path}
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
+      {:ok, plan_path: plan_path, preconds_path: preconds_path}
     end
 
-    test "flush the plan and stop", %{plan_path: plan_path} do
-      {:ok, pid} = ResolvePlanner.start(plan_path)
+    test "flush the plan and stop", %{plan_path: plan_path, preconds_path: preconds_path} do
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
 
       on_exit(fn ->
         if Process.alive?(pid), do: GenServer.stop(pid)
@@ -264,8 +339,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       assert :ok == ResolvePlanner.ensure_flushed_and_stopped(plan_path)
     end
 
-    test "stop without flush", %{plan_path: plan_path} do
-      {:ok, pid} = ResolvePlanner.start(plan_path)
+    test "stop without flush", %{plan_path: plan_path, preconds_path: preconds_path} do
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
 
       on_exit(fn ->
         if Process.alive?(pid), do: GenServer.stop(pid)

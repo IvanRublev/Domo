@@ -87,11 +87,7 @@ defmodule TypeList do
           {an_atom(),
            {cust_person(),
             {opaque_str(),
-             {an_integer(),
-              {a_float(),
-               {a_bitstring(),
-                {a_fun(),
-                 {a_pid(), {a_port(), {a_reference(), {a_tuple(), {a_list(), a_map()}}}}}}}}}}}}
+             {an_integer(), {a_float(), {a_bitstring(), {a_fun(), {a_pid(), {a_port(), {a_reference(), {a_tuple(), {a_list(), a_map()}}}}}}}}}}}}
 
   @type list_cust_person :: [cust_person()]
 
@@ -112,9 +108,7 @@ defmodule TypeList do
         ]
 
   @type person_or_map ::
-          {atom | integer,
-           {:foo | :bar, [an_atom()],
-            {:nested | an_integer() | a_float(), cust_person() | %{p_name: opaque_str()}}}}
+          {atom | integer, {:foo | :bar, [an_atom()], {:nested | an_integer() | a_float(), cust_person() | %{p_name: opaque_str()}}}}
 
   def env, do: __ENV__
 end

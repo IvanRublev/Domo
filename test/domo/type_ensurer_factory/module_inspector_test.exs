@@ -19,10 +19,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       assert {:ok,
               [
                 opaque: {:op, {:type, _, :integer, []}, []},
-                type:
-                  {:sub_float,
-                   {:remote_type, _,
-                    [{:atom, _, ModuleNested.Module}, {:atom, _, :mod_float}, []]}, _},
+                type: {:sub_float, {:remote_type, _, [{:atom, _, ModuleNested.Module}, {:atom, _, :mod_float}, []]}, _},
                 type: {:t, {:type, _, :atom, []}, []}
               ]} = ModuleInspector.beam_types(ModuleNested.Module.Submodule)
     end
@@ -58,7 +55,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     test "find type by name and return it in quoted form" do
       type_list = [type: {:t, {:type, 1, :atom, []}, []}]
 
-      assert {:ok, quote(do: atom())} == ModuleInspector.find_type_quoted(:t, type_list)
+      assert {:ok, quote(do: atom()), []} == ModuleInspector.find_type_quoted(:t, type_list)
     end
 
     test "find remote Elixir type by name and return it in the quoted form" do
@@ -66,29 +63,36 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
         type: {:rem_str, {:remote_type, 16, [{:atom, 0, String}, {:atom, 0, :t}, []]}, []}
       ]
 
-      assert {:ok, {{:., [], [String, :t]}, [], []}} ==
+      assert {:ok, {{:., [], [String, :t]}, [], []}, []} ==
                ModuleInspector.find_type_quoted(:rem_str, type_list)
     end
 
     test "find remote user type by name and return it in the quoted form" do
       type_list = [
-        type:
-          {:rem_int,
-           {:remote_type, 39, [{:atom, 0, ModuleNested.Module.Submodule}, {:atom, 0, :op}, []]},
-           []}
+        type: {:rem_int, {:remote_type, 39, [{:atom, 0, ModuleNested.Module.Submodule}, {:atom, 0, :op}, []]}, []}
       ]
 
-      assert {:ok, {{:., [], [ModuleNested.Module.Submodule, :op]}, [], []}} ==
+      assert {:ok, {{:., [], [ModuleNested.Module.Submodule, :op]}, [], []}, []} ==
                ModuleInspector.find_type_quoted(:rem_int, type_list)
     end
 
-    test "find user type in the list recursively and return it in quoted form" do
+    test "find local user type in the list recursively and return it in quoted form" do
       type_list = [
         {:typep, {:priv_atom, {:type, 16, :atom, []}, []}},
         {:type, {:ut, {:user_type, 17, :priv_atom, []}, ''}}
       ]
 
-      assert {:ok, quote(do: atom())} == ModuleInspector.find_type_quoted(:ut, type_list)
+      assert {:ok, quote(do: atom()), [:priv_atom]} == ModuleInspector.find_type_quoted(:ut, type_list)
+    end
+
+    test "find local user type for integer or atom and return it in quoted form" do
+      type_list = [
+        {:type, {:atom_hello, {:atom, 0, :hello}, []}},
+        {:type, {:number_one, {:integer, 0, 1}, []}}
+      ]
+
+      assert {:ok, :hello, []} == ModuleInspector.find_type_quoted(:atom_hello, type_list)
+      assert {:ok, 1, []} == ModuleInspector.find_type_quoted(:number_one, type_list)
     end
   end
 end

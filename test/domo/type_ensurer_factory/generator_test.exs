@@ -52,9 +52,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     end
 
     @tag types_content: %{
-           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]},
-           EmptyStruct => %{}
+           Module => {%{first: [quote(do: integer())], second: [quote(do: float())]}, nil},
+           Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil},
+           EmptyStruct => {%{}, nil}
          }
     test "writes TypeEnsurer source code to code_path for each module from types file", %{
       types_file: types_file,
@@ -76,9 +76,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     end
 
     @tag types_content: %{
-           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]},
-           EmptyStruct => %{}
+           Module => {%{first: [quote(do: integer())], second: [quote(do: float())]}, nil},
+           Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil},
+           EmptyStruct => {%{}, nil}
          }
     test "returns list of TypeEnsurer modules source code file paths", %{
       types_file: types_file,
@@ -141,7 +141,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
         def read(_path) do
           {:ok,
            :erlang.term_to_binary(%{
-             Some.Nested.Module1 => %{former: [quote(do: integer())]}
+             Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil}
            })}
         end
 
@@ -160,9 +160,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   end
 
   test "do_type_ensurer_module/2 generates TypeEnsurer module in the form of quoted code" do
-    assert {:defmodule, _context,
-            [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} =
-             Generator.do_type_ensurer_module(ParentModule, %{first: [quote(do: integer())]})
+    assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} =
+             Generator.do_type_ensurer_module(
+               ParentModule,
+               {%{first: [quote(do: integer())]}, nil}
+             )
   end
 
   test "compile/1 bypasses paths to Elixir.ParallelCompiler" do

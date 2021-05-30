@@ -1,9 +1,12 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
   @moduledoc false
 
+  alias Domo.Precondition
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
-  def list_spec?(type_spec) do
+  def list_spec?(type_spec_precond) do
+    {type_spec, _precond} = TypeSpec.split_spec_precond(type_spec_precond)
+
     case type_spec do
       [{:->, _, [_, _]}] -> false
       {:nonempty_list, _, [_]} -> true
@@ -16,8 +19,9 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     end
   end
 
-  def map_value_type(type_spec, fun) do
-    map_value_type(list_kind(type_spec), type_spec, fun)
+  def map_value_type(type_spec_precond, fun) do
+    {type_spec, precond} = TypeSpec.split_spec_precond(type_spec_precond)
+    map_value_type(list_kind(type_spec), type_spec, precond, fun)
   end
 
   defp list_kind(type_spec) do
@@ -29,51 +33,62 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     end
   end
 
-  defp map_value_type(:proper_list, type_spec, fun) do
-    case type_spec do
-      [element_spec] -> [fun.(element_spec)]
-      {:nonempty_list, context, [element_spec]} -> {:nonempty_list, context, [fun.(element_spec)]}
-    end
+  defp map_value_type(:proper_list, type_spec, precond, fun) do
+    {case type_spec do
+       [element_spec] -> [fun.(element_spec)]
+       {:nonempty_list, context, [element_spec]} -> {:nonempty_list, context, [fun.(element_spec)]}
+     end, precond}
   end
 
-  defp map_value_type(:keyword_list, type_spec, fun) do
-    Enum.map(type_spec, fn {key, value} -> {key, fun.(value)} end)
+  defp map_value_type(:keyword_list, type_spec, precond, fun) do
+    {Enum.map(type_spec, fn {key, value} -> {key, fun.(value)} end), precond}
   end
 
-  defp map_value_type(_improper_kind, type_spec, fun) do
+  defp map_value_type(_improper_kind, type_spec, precond, fun) do
     {improper_kind, [], [head_element_spec, tail_element_spec]} = type_spec
-    {improper_kind, [], [fun.(head_element_spec), fun.(tail_element_spec)]}
+    {{improper_kind, [], [fun.(head_element_spec), fun.(tail_element_spec)]}, precond}
   end
 
-  def match_spec_function_quoted(type_spec) do
-    match_list_function_quoted(list_kind(type_spec), type_spec)
+  def match_spec_function_quoted(type_spec_precond) do
+    {type_spec, precond} = TypeSpec.split_spec_precond(type_spec_precond)
+    match_list_function_quoted(list_kind(type_spec), type_spec, precond)
   end
 
-  defp match_list_function_quoted(:keyword_list, type_spec) do
-    type_spec_str = TypeSpec.to_atom(type_spec)
-    {_keys, value_specs} = Enum.unzip(type_spec)
+  # credo:disable-for-lines:63
+  defp match_list_function_quoted(:keyword_list, type_spec, precond) do
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
 
-    kv_spec_strings =
-      type_spec
-      |> Enum.map(fn {key, value_spec} ->
-        {key, TypeSpec.to_atom(value_spec)}
+    {_keys, value_spec_preconds} = Enum.unzip(type_spec)
+
+    kv_match_spec_attributes =
+      Enum.map(type_spec, fn {key, value_spec_precond} ->
+        {key, TypeSpec.match_spec_attributes(value_spec_precond)}
       end)
+      |> Macro.escape()
+
+    {value_var, spec_string_var} =
+      if precond do
+        {quote(do: value), quote(do: spec_string)}
+      else
+        {quote(do: _value), quote(do: _spec_string)}
+      end
 
     match_spec_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), []), do: :ok
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [] = unquote(value_var), unquote(spec_string_var)),
+          do: unquote(ok_or_precond_call_quoted(precond))
 
-        def do_match_spec(unquote(type_spec_str), [{_key, _value} | _] = list) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [{_key, _value} | _] = value, spec_string) do
           reduced_list =
-            Enum.reduce_while(unquote(kv_spec_strings), list, fn {expected_key, value_spec_atom},
-                                                                 list ->
-              {list_by_matching_key, filtered_list} =
-                Enum.split_with(list, fn {key, _value} -> key == expected_key end)
+            Enum.reduce_while(unquote(kv_match_spec_attributes), value, fn {expected_key, value_attributes}, list ->
+              {value_spec_atom, value_precond_atom, value_spec_string} = value_attributes
+              {list_by_matching_key, filtered_list} = Enum.split_with(list, fn {key, _value} -> key == expected_key end)
 
               value_error =
                 Enum.reduce_while(list_by_matching_key, :ok, fn {_key, value}, _acc ->
                   # credo:disable-for-lines:4
-                  case do_match_spec(value_spec_atom, value) do
+                  case do_match_spec({value_spec_atom, value_precond_atom}, value, value_spec_string) do
                     :ok -> {:cont, :ok}
                     {:error, _value, _messages} = error -> {:halt, error}
                   end
@@ -84,87 +99,112 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
                   {:cont, filtered_list}
 
                 {:error, value, messages} ->
-                  {:halt,
-                   {:error, list,
-                    [
-                      {"The element for the key %{key} has value %{value} that is invalid.",
-                       [key: inspect(expected_key), value: inspect(value)]}
-                      | messages
-                    ]}}
+                  message = {
+                    "The element for the key %{key} has value %{value} that is invalid.",
+                    [key: inspect(expected_key), value: inspect(value)]
+                  }
+
+                  {:halt, {:error, list, [message | messages]}}
               end
             end)
 
           if is_list(reduced_list) do
-            :ok
+            unquote(ok_or_precond_call_quoted(precond))
           else
             reduced_list
           end
         end
       end
 
-    {match_spec_quoted, value_specs}
+    {match_spec_quoted, value_spec_preconds}
   end
 
-  defp match_list_function_quoted(:proper_list, type_spec) do
-    {can_be_empty?, element_spec} =
+  defp match_list_function_quoted(:proper_list, type_spec, precond) do
+    {can_be_empty?, element_spec_precond} =
       case type_spec do
-        [element_spec] -> {true, element_spec}
-        {:nonempty_list, _, [element_spec]} -> {false, element_spec}
+        [element_spec_precond] -> {true, element_spec_precond}
+        {:nonempty_list, _, [element_spec_precond]} -> {false, element_spec_precond}
       end
 
-    type_spec_str = TypeSpec.to_atom(type_spec)
-    element_spec_str = TypeSpec.to_atom(element_spec)
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
 
-    match_list_elements_quoted =
-      match_el_quoted(type_spec_str, element_spec_str, element_spec_str)
+    element_attributes = TypeSpec.match_spec_attributes(element_spec_precond)
+    match_list_elements_quoted = match_el_quoted(type_spec_atom, element_attributes, element_attributes)
 
-    guard_quoted =
-      if can_be_empty?, do: quote(do: length(value) >= 0), else: quote(do: length(value) > 0)
+    guard_quoted = if can_be_empty?, do: quote(do: length(value) >= 0), else: quote(do: length(value) > 0)
+
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
 
     match_spec_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), value) when unquote(guard_quoted) do
-          case do_match_list_elements(unquote(type_spec_str), value, 0) do
-            {:proper, _length} -> :ok
-            {:element_error, messages} -> {:error, value, messages}
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when unquote(guard_quoted) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
+            {:proper, _length} ->
+              unquote(ok_or_precond_call_quoted(precond))
+
+            {:element_error, messages} ->
+              {:error, value, messages}
           end
         end
       end
 
-    {[match_spec_quoted, match_list_elements_quoted], [element_spec]}
+    {[match_spec_quoted, match_list_elements_quoted], [element_spec_precond]}
   end
 
-  defp match_el_quoted(type_spec_str, head_element_spec_str, tail_element_spec_str) do
+  defp ok_or_precond_call_quoted(nil) do
+    :ok
+  end
+
+  defp ok_or_precond_call_quoted(precond) do
     quote do
-      def do_match_list_elements(unquote(type_spec_str), [head | tail], idx) do
-        case do_match_spec(unquote(head_element_spec_str), head) do
+      if unquote(Precondition.validation_call_quoted(precond, quote(do: value))) do
+        :ok
+      else
+        message =
+          build_error(
+            spec_string,
+            precond_description: unquote(precond.description),
+            precond_type: unquote(Precondition.type_string(precond))
+          )
+
+        {:error, value, [message]}
+      end
+    end
+  end
+
+  defp match_el_quoted(type_spec_atom, head_attributes, tail_attributes) do
+    {head_spec_atom, head_precond_atom, head_spec_string} = head_attributes
+    {tail_spec_atom, tail_precond_atom, tail_spec_string} = tail_attributes
+
+    quote do
+      def do_match_list_elements(unquote(type_spec_atom), [head | tail], idx) do
+        case do_match_spec({unquote(head_spec_atom), unquote(head_precond_atom)}, head, unquote(head_spec_string)) do
           :ok ->
-            do_match_list_elements(unquote(type_spec_str), tail, idx + 1)
+            do_match_list_elements(unquote(type_spec_atom), tail, idx + 1)
 
           {:error, element_value, messages} ->
             {:element_error,
              [
-               {"The element at index %{idx} has value %{element_value} that is invalid.",
-                [idx: idx, element_value: inspect(element_value)]}
+               {"The element at index %{idx} has value %{element_value} that is invalid.", [idx: idx, element_value: inspect(element_value)]}
                | messages
              ]}
         end
       end
 
-      def do_match_list_elements(unquote(type_spec_str), [], idx) do
+      def do_match_list_elements(unquote(type_spec_atom), [], idx) do
         {:proper, idx}
       end
 
-      def do_match_list_elements(unquote(type_spec_str), tail, idx) do
-        case do_match_spec(unquote(tail_element_spec_str), tail) do
+      def do_match_list_elements(unquote(type_spec_atom), tail, idx) do
+        case do_match_spec({unquote(tail_spec_atom), unquote(tail_precond_atom)}, tail, unquote(tail_spec_string)) do
           :ok ->
             {:improper, idx}
 
           {:error, element_value, messages} ->
             {:element_error,
              [
-               {"The tail element has value %{element_value} that is invalid.",
-                [element_value: inspect(element_value)]}
+               {"The tail element has value %{element_value} that is invalid.", [element_value: inspect(element_value)]}
                | messages
              ]}
         end
@@ -172,41 +212,45 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     end
   end
 
-  defp match_list_function_quoted(:maybe_improper_list, type_spec) do
-    {:maybe_improper_list, [], [head_element_spec, tail_element_spec]} = type_spec
-    type_spec_str = TypeSpec.to_atom(type_spec)
-    head_element_spec_str = TypeSpec.to_atom(head_element_spec)
-    tail_element_spec_str = TypeSpec.to_atom(tail_element_spec)
+  defp match_list_function_quoted(:maybe_improper_list, type_spec, precond) do
+    {:maybe_improper_list, [], [head_spec_precond, tail_spec_precond]} = type_spec
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
 
-    match_list_elements_quoted =
-      match_el_quoted(type_spec_str, head_element_spec_str, tail_element_spec_str)
+    head_attributes = TypeSpec.match_spec_attributes(head_spec_precond)
+    tail_attributes = TypeSpec.match_spec_attributes(tail_spec_precond)
+    match_list_elements_quoted = match_el_quoted(type_spec_atom, head_attributes, tail_attributes)
+
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
 
     match_spec_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), value) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_str), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
             {:element_error, messages} -> {:error, value, messages}
-            {_kind, _length} -> :ok
+            {_kind, _length} -> unquote(ok_or_precond_call_quoted(precond))
           end
         end
       end
 
-    {[match_spec_quoted, match_list_elements_quoted], [head_element_spec, tail_element_spec]}
+    {[match_spec_quoted, match_list_elements_quoted], [head_spec_precond, tail_spec_precond]}
   end
 
-  defp match_list_function_quoted(:nonempty_improper_list, type_spec) do
-    {:nonempty_improper_list, [], [head_element_spec, tail_element_spec]} = type_spec
-    type_spec_str = TypeSpec.to_atom(type_spec)
-    head_element_spec_str = TypeSpec.to_atom(head_element_spec)
-    tail_element_spec_str = TypeSpec.to_atom(tail_element_spec)
+  defp match_list_function_quoted(:nonempty_improper_list, type_spec, precond) do
+    {:nonempty_improper_list, [], [head_spec_precond, tail_spec_precond]} = type_spec
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
 
-    match_list_elements_quoted =
-      match_el_quoted(type_spec_str, head_element_spec_str, tail_element_spec_str)
+    head_attributes = TypeSpec.match_spec_attributes(head_spec_precond)
+    tail_attributes = TypeSpec.match_spec_attributes(tail_spec_precond)
+    match_list_elements_quoted = match_el_quoted(type_spec_atom, head_attributes, tail_attributes)
+
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
 
     match_spec_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), value) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_str), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
             {:element_error, messages} ->
               {:error, value, messages}
 
@@ -217,27 +261,29 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
               {:error, value, [{"Expected an improper list.", []}]}
 
             {_kind, _length} ->
-              :ok
+              unquote(ok_or_precond_call_quoted(precond))
           end
         end
       end
 
-    {[match_spec_quoted, match_list_elements_quoted], [head_element_spec, tail_element_spec]}
+    {[match_spec_quoted, match_list_elements_quoted], [head_spec_precond, tail_spec_precond]}
   end
 
-  defp match_list_function_quoted(:nonempty_maybe_improper_list, type_spec) do
-    {:nonempty_maybe_improper_list, [], [head_element_spec, tail_element_spec]} = type_spec
-    type_spec_str = TypeSpec.to_atom(type_spec)
-    head_element_spec_str = TypeSpec.to_atom(head_element_spec)
-    tail_element_spec_str = TypeSpec.to_atom(tail_element_spec)
+  defp match_list_function_quoted(:nonempty_maybe_improper_list, type_spec, precond) do
+    {:nonempty_maybe_improper_list, [], [head_spec_precond, tail_spec_precond]} = type_spec
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
 
-    match_list_elements_quoted =
-      match_el_quoted(type_spec_str, head_element_spec_str, tail_element_spec_str)
+    head_attributes = TypeSpec.match_spec_attributes(head_spec_precond)
+    tail_attributes = TypeSpec.match_spec_attributes(tail_spec_precond)
+    match_list_elements_quoted = match_el_quoted(type_spec_atom, head_attributes, tail_attributes)
+
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
 
     match_spec_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), value) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_str), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
             {:element_error, messages} ->
               {:error, value, messages}
 
@@ -245,11 +291,11 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
               {:error, value, [{"Expected a nonempty list.", []}]}
 
             {_kind, _length} ->
-              :ok
+              unquote(ok_or_precond_call_quoted(precond))
           end
         end
       end
 
-    {[match_spec_quoted, match_list_elements_quoted], [head_element_spec, tail_element_spec]}
+    {[match_spec_quoted, match_list_elements_quoted], [head_spec_precond, tail_spec_precond]}
   end
 end

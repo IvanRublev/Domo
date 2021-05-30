@@ -11,6 +11,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve literals and basic t1 | t1 to list [t1, t1]", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -26,7 +27,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
 
       plan_types(types, planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected =
         for {arg1, arg2} <-
@@ -43,6 +44,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve multiple | to list", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -51,7 +53,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -68,6 +70,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | to list rejecting duplicates", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -76,7 +79,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -91,6 +94,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | to list rejecting rest options for any()", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -103,7 +107,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [quote(context: TwoFieldStruct, do: any())],
@@ -117,6 +121,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve tuple with multiple | arguments to list of tuples", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -130,7 +135,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -151,6 +156,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | with nested tuples to list", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -164,7 +170,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -181,6 +187,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within [] to list", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -194,14 +201,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
           quote(context: TwoFieldStruct, do: 2),
-          quote(context: TwoFieldStruct, do: [pid()]),
-          quote(context: TwoFieldStruct, do: [[integer()]]),
-          quote(context: TwoFieldStruct, do: [[float()]])
+          [quote(context: TwoFieldStruct, do: pid())],
+          [[quote(context: TwoFieldStruct, do: integer())]],
+          [[quote(context: TwoFieldStruct, do: float())]]
         ]
       ]
 
@@ -211,6 +218,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within proper and improper lists to list of lists", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -231,22 +239,22 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_improper_list(1, 3))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_improper_list(1, 4))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_improper_list(2, 3))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_improper_list(2, 4))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_maybe_improper_list(5, 7))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_maybe_improper_list(5, 8))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_maybe_improper_list(6, 7))]),
-          quote(context: TwoFieldStruct, do: [nonempty_list(nonempty_maybe_improper_list(6, 8))]),
-          quote(context: TwoFieldStruct, do: [maybe_improper_list(nonempty_list(9), 11)]),
-          quote(context: TwoFieldStruct, do: [maybe_improper_list(nonempty_list(9), 12)]),
-          quote(context: TwoFieldStruct, do: [maybe_improper_list(nonempty_list(10), 11)]),
-          quote(context: TwoFieldStruct, do: [maybe_improper_list(nonempty_list(10), 12)])
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_improper_list(1, 3)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_improper_list(1, 4)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_improper_list(2, 3)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_improper_list(2, 4)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_maybe_improper_list(5, 7)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_maybe_improper_list(5, 8)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_maybe_improper_list(6, 7)))],
+          [quote(context: TwoFieldStruct, do: nonempty_list(nonempty_maybe_improper_list(6, 8)))],
+          [quote(context: TwoFieldStruct, do: maybe_improper_list(nonempty_list(9), 11))],
+          [quote(context: TwoFieldStruct, do: maybe_improper_list(nonempty_list(9), 12))],
+          [quote(context: TwoFieldStruct, do: maybe_improper_list(nonempty_list(10), 11))],
+          [quote(context: TwoFieldStruct, do: maybe_improper_list(nonempty_list(10), 12))]
         ]
       ]
 
@@ -256,6 +264,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within keyword list to list of lists", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -269,7 +278,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -286,12 +295,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within keyword(t) to list of keyword lists", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: keyword(integer() | float()))], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -306,12 +316,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within as_boolean(t) to list of t", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: as_boolean(integer() | float()))], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -326,6 +337,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within map to list of maps", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -345,174 +357,42 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(pid()) => [any()]}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(pid()) => [any()]}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(pid()) => tuple()}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(pid()) => tuple()}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(port()) => [any()]}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(port()) => [any()]}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(port()) => tuple()}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => float(), optional(port()) => tuple()}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => [any()]}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => [any()]}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => tuple()}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => tuple()}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(atom()) => neg_integer(), optional(port()) => [any()]},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(atom()) => neg_integer(), optional(port()) => [any()]},
-              key2: 2
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(atom()) => neg_integer(), optional(port()) => tuple()},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(atom()) => neg_integer(), optional(port()) => tuple()},
-              key2: 2
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(pid()) => [any()]}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(pid()) => [any()]}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(pid()) => tuple()}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(pid()) => tuple()}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(port()) => [any()]}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(port()) => [any()]}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(port()) => tuple()}, key2: 1}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{key1: %{required(integer()) => float(), optional(port()) => tuple()}, key2: 2}
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(pid()) => [any()]},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(pid()) => [any()]},
-              key2: 2
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(pid()) => tuple()},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(pid()) => tuple()},
-              key2: 2
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(port()) => [any()]},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(port()) => [any()]},
-              key2: 2
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(port()) => tuple()},
-              key2: 1
-            }
-          ),
-          quote(
-            context: TwoFieldStruct,
-            do: %{
-              key1: %{required(integer()) => neg_integer(), optional(port()) => tuple()},
-              key2: 2
-            }
-          )
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(pid()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(pid()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(pid()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(pid()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(port()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(port()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(port()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => float(), optional(port()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(pid()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(port()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(port()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(port()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(atom()) => neg_integer(), optional(port()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(pid()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(pid()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(pid()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(pid()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(port()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(port()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(port()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => float(), optional(port()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(pid()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(pid()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(pid()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(pid()) => tuple()}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(port()) => [any()]}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(port()) => [any()]}, key2: 2}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(port()) => tuple()}, key2: 1}),
+          quote(context: TwoFieldStruct, do: %{key1: %{required(integer()) => neg_integer(), optional(port()) => tuple()}, key2: 2})
         ]
       ]
 
@@ -522,6 +402,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within structs to list of structs", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -535,7 +416,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -552,6 +433,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve | within funcion arguments to list of functions", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
@@ -560,7 +442,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -577,12 +459,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve boolean() to list of false and true", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: boolean())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -597,12 +480,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve identifier() to list of pid, port, reference", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: identifier())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -615,16 +499,17 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
 
-    test "resolve iolist() to maybe_improper_list(byte() | binary(), binary() | []) !!!update first argument for recursive iolist",
+    test "resolve iolist() to maybe_improper_list(byte() | binary(), binary() | []) TODO: update first argument for recursive iolist",
          %{
            planner: planner,
            plan_file: plan_file,
+           preconds_file: preconds_file,
            types_file: types_file,
            deps_file: deps_file
          } do
       plan_types([quote(context: TwoFieldStruct, do: iolist())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -641,12 +526,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve iodata() to iolist or list of binary", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: iodata())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -664,12 +550,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     test "resolve number() to list of integer and float", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: number())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [
@@ -681,15 +568,16 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
 
-    test "resolve timeout() to list fo :infinity and non_neg_integer", %{
+    test "resolve timeout() to list of :infinity and non_neg_integer", %{
       planner: planner,
       plan_file: plan_file,
+      preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: timeout())], planner)
 
-      :ok = Resolver.resolve(plan_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
 
       expected = [
         [

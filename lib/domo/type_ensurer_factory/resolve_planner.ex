@@ -7,22 +7,28 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   @compile_time_key_name __MODULE__.CompileTime
 
-  @spec ensure_started(String.t()) :: {:ok, pid()}
-  def ensure_started(plan_path) do
-    case start(plan_path) do
+  @spec ensure_started(String.t(), String.t()) :: {:ok, pid()}
+  def ensure_started(plan_path, preconds_path) do
+    case start(plan_path, preconds_path) do
       {:ok, _pid} = reply -> reply
       {:error, {:already_started, pid}} -> {:ok, pid}
     end
   end
 
-  @spec start(String.t()) :: GenServer.on_start()
-  def start(plan_path) do
-    default_plan = %{filed_types_to_resolve: %{}, environments: %{}, structs_to_ensure: []}
+  @spec start(String.t(), Stringt.t()) :: GenServer.on_start()
+  def start(plan_path, preconds_path) do
+    default_plan = %{
+      filed_types_to_resolve: %{},
+      environments: %{},
+      structs_to_ensure: []
+    }
+
     plan = maybe_read_plan(plan_path, default_plan)
+    preconds = maybe_read_preconds(preconds_path, %{})
 
     GenServer.start(
       __MODULE__,
-      {plan_path, plan},
+      {plan_path, plan, preconds_path, preconds},
       name: via(plan_path)
     )
   end
@@ -35,6 +41,15 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   defp maybe_read_plan(path, default) do
     with {:ok, plan_binary} <- File.read(path),
          {:ok, content} when is_plan(content) <- binary_to_term(plan_binary) do
+      content
+    else
+      _ -> default
+    end
+  end
+
+  defp maybe_read_preconds(path, default) do
+    with {:ok, preconds_binary} <- File.read(path),
+         {:ok, content} when is_map(content) <- binary_to_term(preconds_binary) do
       content
     else
       _ -> default
@@ -80,7 +95,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   @spec plan_struct_integrity_ensurance(String.t(), module, list, String.t(), integer) ::
           :ok | any()
   def plan_struct_integrity_ensurance(plan_path, module, fields, file, line) do
-    GenServer.call(via(plan_path), {:plan_struct_ingrity_ensurance, module, fields, file, line})
+    GenServer.call(via(plan_path), {:plan_struct_integrity_ensurance, module, fields, file, line})
+  end
+
+  @spec plan_precond_checks(String.t(), module, keyword()) :: :ok | any()
+  def plan_precond_checks(plan_path, module, type_name_description) do
+    GenServer.call(via(plan_path), {:plan_precond_checks, module, type_name_description})
   end
 
   @spec flush(String.t()) :: :ok | {:error, File.posix()}
@@ -107,10 +127,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   end
 
   @impl true
-  def init({plan_path, plan}) do
+  def init({plan_path, plan, preconds_path, preconds}) do
     Application.put_env(:domo, @compile_time_key_name, true)
 
-    {:ok, %{plan_path: plan_path, plan: plan, verbose?: false}}
+    {:ok,
+     %{
+       plan_path: plan_path,
+       plan: plan,
+       preconds_path: preconds_path,
+       preconds: preconds,
+       verbose?: false
+     }}
   end
 
   @impl true
@@ -139,9 +166,16 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     {:reply, :ok, updated_state}
   end
 
-  def handle_call({:plan_struct_ingrity_ensurance, module, fields, file, line}, _from, state) do
+  def handle_call({:plan_struct_integrity_ensurance, module, fields, file, line}, _from, state) do
     updated_list = state.plan.structs_to_ensure ++ [{module, fields, file, line}]
     updated_state = put_in(state, [:plan, :structs_to_ensure], updated_list)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:plan_precond_checks, module, types_name_description}, _from, state) do
+    updated_precond_map = Map.put(state.preconds, module, types_name_description)
+    updated_state = Map.put(state, :preconds, updated_precond_map)
+
     {:reply, :ok, updated_state}
   end
 
@@ -165,17 +199,31 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   end
 
   defp do_flush(state) do
-    binary = :erlang.term_to_binary(state.plan)
-    result = File.write(state.plan_path, binary)
+    plan_binary = :erlang.term_to_binary(state.plan)
+    preconds_binary = :erlang.term_to_binary(state.preconds)
 
-    if state.verbose? do
-      IO.write("""
-      Domo resolve planner (#{inspect(self())}) flushed plan file \
-      at #{state.plan_path} with #{inspect(result)}.
-      """)
+    with :ok <- File.write(state.plan_path, plan_binary),
+         :ok <- File.write(state.preconds_path, preconds_binary) do
+      if state.verbose? do
+        IO.write("""
+        Domo resolve planner (#{inspect(self())}) flushed plan file \
+        to #{state.plan_path} and preconditions to #{state.preconds_path}.
+        """)
+      end
+
+      :ok
+    else
+      {:error, _message} = error ->
+        if state.verbose? do
+          IO.write("""
+          Domo resolve planner (#{inspect(self())}) failed to write \
+          to #{state.plan_path} or to #{state.preconds_path} due to \
+          the following error. #{inspect(error)}
+          """)
+        end
+
+        error
     end
-
-    result
   end
 
   @impl true

@@ -14,13 +14,8 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     end
   end
 
-  @spec beam_types(module(), fun(), fun()) ::
-          {:ok, [tuple()]} | {:error, {:no_beam_file, module()}}
-  def beam_types(
-        module,
-        load_module \\ &Code.ensure_loaded/1,
-        fetch_types \\ &Code.Typespec.fetch_types/1
-      ) do
+  @spec beam_types(module(), fun(), fun()) :: {:ok, [tuple()]} | {:error, {:no_beam_file, module()}}
+  def beam_types(module, load_module \\ &Code.ensure_loaded/1, fetch_types \\ &Code.Typespec.fetch_types/1) do
     with {:module, module} <- load_module.(module),
          {:ok, _type_list} = reply <- fetch_types.(module) do
       reply
@@ -29,28 +24,31 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     end
   end
 
-  @spec find_type_quoted(atom, [tuple()]) ::
-          {:ok, {atom(), Macro.t()}} | {:error, {:type_not_found, atom()}}
-  def find_type_quoted(name, type_list) do
+  @spec find_type_quoted(atom, [tuple()]) :: {:ok, {atom(), Macro.t()}} | {:error, {:type_not_found, atom()}}
+  def find_type_quoted(name, type_list, dereferenced_types \\ []) do
     notfound = {:error, {:type_not_found, name}}
 
     case Enum.find_value(type_list, notfound, &having_name(name, &1)) do
       {:ok, :user_type, target_name, _type} ->
-        find_type_quoted(target_name, type_list)
+        find_type_quoted(target_name, type_list, [target_name | dereferenced_types])
 
       {:ok, :remote_type, _target_name, type} ->
-        {:ok,
-         type
-         |> Code.Typespec.type_to_quoted()
-         |> target_type_quoted()
-         |> clean_remote_meta()}
+        quoted_type =
+          type
+          |> Code.Typespec.type_to_quoted()
+          |> target_type_quoted()
+          |> clean_remote_meta()
 
-      {:ok, :type, _target_name, type} ->
-        {:ok,
-         type
-         |> Code.Typespec.type_to_quoted()
-         |> target_type_quoted()
-         |> clean_meta()}
+        {:ok, quoted_type, Enum.reverse(dereferenced_types)}
+
+      {:ok, kind, _target_name, type} when kind in [:type, :atom, :integer] ->
+        quoted_type =
+          type
+          |> Code.Typespec.type_to_quoted()
+          |> target_type_quoted()
+          |> clean_meta()
+
+        {:ok, quoted_type, Enum.reverse(dereferenced_types)}
 
       {:error, _} = err ->
         err
@@ -67,7 +65,8 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
 
   defp target_type_quoted({:"::", _, [_name, quoted_type]}), do: quoted_type
 
-  defp clean_remote_meta({{:., _meta, aliases}, _meta2, arg3}), do: {{:., [], aliases}, [], arg3}
+  defp clean_remote_meta({{:., _meta1, aliases}, _meta2, arg3}), do: {{:., [], aliases}, [], arg3}
+  defp clean_remote_meta({_keyword_or_as_boolean, _meta1, _} = term), do: clean_meta(term)
 
   defp clean_meta(term), do: Macro.update_meta(term, fn _meta -> [] end)
 end

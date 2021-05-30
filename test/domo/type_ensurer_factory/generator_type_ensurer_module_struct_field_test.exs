@@ -2,7 +2,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
   use Domo.FileCase, async: false
   use Placebo
 
-  alias Domo.TypeEnsurerFactory.Generator
+  import GeneratorTestHelper
 
   setup do
     on_exit(fn ->
@@ -13,23 +13,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
     :ok
   end
 
-  def type_ensurer_quoted(field_spec) do
-    Generator.do_type_ensurer_module(Elixir, field_spec)
-  end
-
-  def load_type_ensurer_module(field_spec) do
-    field_spec
-    |> type_ensurer_quoted()
-    |> Code.eval_quoted()
-  end
-
   def call_ensure_type({_field, _value} = subject) do
-    apply(TypeEnsurer, :ensure_type!, [subject])
+    apply(TypeEnsurer, :ensure_field_type, [subject])
   end
 
   describe "TypeEnsurer module for field of struct type that does not use Domo" do
     test "ensures field's value" do
-      load_type_ensurer_module(%{
+      load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: %CustomStruct{})]
       })
 
@@ -41,7 +31,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
     end
 
     test "ensures field's value accounting given struct's keys and value types" do
-      load_type_ensurer_module(%{
+      load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: %CustomStruct{title: <<_::_*8>>}), quote(do: %CustomStruct{title: nil})]
       })
 
@@ -55,14 +45,14 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
 
   describe "TypeEnsurer module for field of struct that use Domo" do
     test "ensures field's value by delegating to the struct's TypeEnsurer" do
-      load_type_ensurer_module(%{
+      load_type_ensurer_module_with_no_preconds(%{
         first: [
           quote(do: %CustomStructUsingDomo{}),
           quote(do: %CustomStructUsingDomo{title: nil})
         ]
       })
 
-      allow CustomStructUsingDomo.ensure_type_ok(any()), return: :ok
+      allow CustomStructUsingDomo.ensure_type_ok(any()), exec: fn struct -> {:ok, struct} end
 
       instance = %CustomStructUsingDomo{title: :one}
       call_ensure_type({:first, instance})
@@ -72,36 +62,36 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
 
     test "should have only universal match_spec function for the struct" do
       ensurer_quoted =
-        type_ensurer_quoted(%{
+        %{
           first: [
             quote(do: %CustomStructUsingDomo{title: <<_::_*8>>}),
             quote(do: %CustomStructUsingDomo{title: nil}),
             quote(do: nil)
           ]
-        })
+        }
+        |> ResolverTestHelper.add_empty_precond_to_spec()
+        |> type_ensurer_quoted_with_no_preconds()
 
       ensurer_string = Macro.to_string(ensurer_quoted)
 
-      match_specs = Regex.scan(~r(%CustomStructUsingDomo{), ensurer_string)
-
-      assert length(match_specs) == 4
+      assert ensurer_string =~ ~r/do_match_spec\({:"%CustomStructUsingDomo{}"\,/
     end
 
     test "should have only universal match_spec function for the struct in nested container" do
       ensurer_quoted =
-        type_ensurer_quoted(%{
+        %{
           first: [
             quote(do: [{%CustomStructUsingDomo{title: <<_::_*8>>}}]),
             quote(do: [{%CustomStructUsingDomo{title: nil}}]),
             quote(do: nil)
           ]
-        })
+        }
+        |> ResolverTestHelper.add_empty_precond_to_spec()
+        |> type_ensurer_quoted_with_no_preconds()
 
       ensurer_string = Macro.to_string(ensurer_quoted)
 
-      match_specs = Regex.scan(~r(%CustomStructUsingDomo{), ensurer_string)
-
-      assert length(match_specs) == 14
+      assert ensurer_string =~ ~r/do_match_spec\({:"%CustomStructUsingDomo{}"\,/
     end
   end
 end

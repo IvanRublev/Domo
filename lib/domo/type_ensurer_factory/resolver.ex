@@ -6,9 +6,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   alias Domo.TypeEnsurerFactory.Resolver.Fields
 
   @spec resolve(String.t(), String.t(), String.t(), module) :: :ok | {:error, [Error.t()]}
-  def resolve(plan_path, types_path, deps_path, write_file_module \\ File) do
-    with {:ok, {plan, envs}} <- read_plan(plan_path),
-         {:ok, types, deps} <- resolve_plan(plan, envs, plan_path),
+  def resolve(plan_path, preconds_path, types_path, deps_path, write_file_module \\ File) do
+    with {:ok, plan} <- read_plan(plan_path),
+         {:ok, plan} <- join_preconds(preconds_path, plan),
+         {:ok, types, deps} <- resolve_plan(plan, plan_path),
          :ok <- write_resolved_types(types, types_path, write_file_module),
          :ok <- append_modules_deps(deps, deps_path, write_file_module) do
       :ok
@@ -23,27 +24,47 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     case File.read(plan_path) do
       {:ok, binary} ->
         map = :erlang.binary_to_term(binary)
-        {:ok, {map.filed_types_to_resolve, map.environments}}
+
+        {:ok,
+         [
+           fields: map.filed_types_to_resolve,
+           envs: map.environments
+         ]}
 
       _err ->
         {:error, %Error{file: plan_path, message: :no_plan}}
     end
   end
 
-  @spec resolve_plan(map, map, String.t()) :: {:ok, map, map} | {:error, map}
-  defp resolve_plan(plan, envs, plan_path) do
-    case join_plan_envs(plan, envs) do
-      {:ok, plan_envs} ->
-        modules_count = length(plan_envs)
+  defp join_preconds(preconds_path, plan) do
+    case File.read(preconds_path) do
+      {:ok, binary} ->
+        map = :erlang.binary_to_term(binary)
+        {:ok, Keyword.put(plan, :preconds, map)}
+
+      _err ->
+        {:error, %Error{file: preconds_path, message: :no_preconds}}
+    end
+  end
+
+  @spec resolve_plan(keyword, String.t()) :: {:ok, map, map} | {:error, map}
+  defp resolve_plan(plan, plan_path) do
+    fields = plan[:fields]
+    preconds = plan[:preconds]
+    envs = plan[:envs]
+
+    case join_fields_envs(fields, envs) do
+      {:ok, fields_envs} ->
+        modules_count = map_size(fields)
 
         IO.puts("""
         Domo is compiling type ensurer for #{to_string(modules_count)} \
         module#{if modules_count > 1, do: "s"} (.ex)\
         """)
 
-        case resolve_plan_envs(plan_envs) do
+        case resolve_plan_envs(fields_envs, preconds) do
           {module_filed_types, [], module_deps} ->
-            updated_module_deps = add_type_hashes_to_dependant_modules(module_deps)
+            updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
             {:ok, module_filed_types, updated_module_deps}
 
           {_module_filed_types, module_errors, _module_deps} ->
@@ -55,8 +76,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec join_plan_envs(map, map) :: {:ok, map} | {:error, tuple}
-  defp join_plan_envs(plan, envs) do
+  @spec join_fields_envs(map, map) :: {:ok, map} | {:error, tuple}
+  defp join_fields_envs(plan, envs) do
     joined =
       Enum.reduce_while(plan, [], fn {module, fields}, list ->
         env = Map.get(envs, module)
@@ -74,24 +95,23 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec resolve_plan_envs(map) :: {map, [{module, :error, any()}], map}
-  defp resolve_plan_envs(plan_envs) do
-    Enum.reduce(plan_envs, {%{}, [], %{}}, fn {module, fields, env},
-                                              {module_field_types, module_errors, module_deps} ->
-      {module, field_types, field_errors, deps} = Fields.resolve(module, fields, env)
+  @spec resolve_plan_envs(map, map) :: {map, [{module, :error, any()}], map}
+  defp resolve_plan_envs(fields_envs, preconds) do
+    Enum.reduce(fields_envs, {%{}, [], %{}}, fn {_module, _fields, env} = mfe, {module_field_types, module_errors, module_deps} ->
+      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds)
 
       updated_module_field_types = Map.put(module_field_types, module, field_types)
 
       field_errors_by_module = join_module_if_nonempty(field_errors, module)
       updated_module_errors = field_errors_by_module ++ module_errors
 
-      filtered_deps = reject_self_and_duplicates(module, deps)
+      filtered_type_deps = reject_self_and_duplicates(module, type_deps)
 
       updated_module_deps =
-        if Enum.empty?(filtered_deps) do
+        if Enum.empty?(filtered_type_deps) do
           module_deps
         else
-          Map.put(module_deps, module, {env.file, filtered_deps})
+          Map.put(module_deps, module, {env.file, filtered_type_deps})
         end
 
       {
@@ -116,7 +136,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     |> Enum.uniq()
   end
 
-  defp add_type_hashes_to_dependant_modules(module_deps) do
+  defp add_type_hashes_to_dependant_modules(module_deps, preconds) do
     type_hash_by_module =
       module_deps
       |> Enum.reduce([], fn {module, {_path, dependant_modules}}, acc ->
@@ -126,8 +146,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
       |> Enum.map(&{&1, ModuleInspector.beam_types_hash(&1)})
       |> Enum.into(%{})
 
+    preconds_hash_by_module =
+      preconds
+      |> Enum.reduce([], fn {module, types_precond_description}, list ->
+        [{module, Fields.preconditions_hash(types_precond_description)} | list]
+      end)
+      |> Enum.into(%{})
+
     Enum.reduce(module_deps, %{}, fn {module, {path, dependants}}, map ->
-      updated_dependants = Enum.map(dependants, &{&1, type_hash_by_module[&1]})
+      updated_dependants = Enum.map(dependants, &{&1, type_hash_by_module[&1], preconds_hash_by_module[&1]})
       Map.put(map, module, {path, updated_dependants})
     end)
   end

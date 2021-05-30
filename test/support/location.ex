@@ -1,6 +1,6 @@
 # credo:disable-for-this-file
 defmodule Location do
-  @enforce_keys [:street, :house]
+  @enforce_keys [:country, :city]
   defstruct [:country, :city, :line1, :line2]
 
   @type t :: %__MODULE__{

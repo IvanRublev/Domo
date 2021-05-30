@@ -29,11 +29,14 @@ defmodule Benchmark.Tweet do
     :user
   ]
 
+  @type tweet_id :: pos_integer
+  precond tweet_id: &(36_183_115_464_704 <= &1 and &1 <= 1_274_036_183_115_464_704)
+
   @type t :: %__MODULE__{
           created_at: String.t(),
           favorite_count: non_neg_integer | nil,
           favorited: boolean | nil,
-          id: pos_integer,
+          id: tweet_id,
           id_str: String.t(),
           in_reply_to_screen_name: String.t() | nil,
           in_reply_to_status_id: pos_integer | nil,

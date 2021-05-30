@@ -44,7 +44,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
     list =
       match_funs
       |> Enum.flat_map(&unfold_match_fun_list/1)
-      |> Enum.sort_by(fn {type_spec_str, _match_fun} -> type_spec_str end, &>/2)
+      |> Enum.sort_by(fn {type_spec_atom, _match_fun} -> type_spec_atom end, &>/2)
       |> Enum.map(fn {_type_spec_atom, match_fun} -> match_fun end)
 
     {:reply, list, match_funs}
@@ -55,9 +55,9 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
   end
 
   defp put_match_fun_if_missing(match_funs, [type_spec | rest_type_specs]) do
-    type_spec_str = TypeSpec.to_atom(type_spec)
+    type_spec_atom = TypeSpec.to_atom(type_spec)
 
-    if Map.has_key?(match_funs, type_spec_str) do
+    if Map.has_key?(match_funs, type_spec_atom) do
       put_match_fun_if_missing(match_funs, rest_type_specs)
     else
       {match_fun, underlying_type_specs} =
@@ -70,16 +70,16 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
         end
 
       put_match_fun_if_missing(
-        Map.put(match_funs, type_spec_str, match_fun),
+        Map.put(match_funs, type_spec_atom, match_fun),
         underlying_type_specs ++ rest_type_specs
       )
     end
   end
 
-  defp unfold_match_fun_list({type_spec_str, match_fun_list}) when is_list(match_fun_list) do
+  defp unfold_match_fun_list({type_spec_atom, match_fun_list}) when is_list(match_fun_list) do
     {_, match_fun_by_leveled_spec} =
       Enum.reduce(match_fun_list, {0, []}, fn match_fun, {level, list} ->
-        {level + 1, [{type_spec_atom_with_level(type_spec_str, level), match_fun} | list]}
+        {level + 1, [{type_spec_atom_with_level(type_spec_atom, level), match_fun} | list]}
       end)
 
     Enum.reverse(match_fun_by_leveled_spec)
@@ -87,11 +87,11 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
 
   defp unfold_match_fun_list(arg), do: List.wrap(arg)
 
-  defp type_spec_atom_with_level(type_spec_str, level) do
+  defp type_spec_atom_with_level(type_spec_atom, level) do
     if level == 0 do
-      type_spec_str
+      type_spec_atom
     else
-      "»_#{type_spec_str}_#{level}"
+      "»_#{type_spec_atom}_#{level}"
     end
   end
 end

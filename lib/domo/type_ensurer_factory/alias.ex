@@ -20,4 +20,16 @@ defmodule Domo.TypeEnsurerFactory.Alias do
       full_name -> full_name
     end
   end
+
+  def alias_to_atom(term), do: term
+
+  @spec string_by_concat(any, atom) :: String.t()
+  def string_by_concat(atom_or_alias, atom) do
+    atom_or_alias
+    |> alias_to_atom()
+    |> Module.concat(atom)
+    |> Module.split()
+    |> Enum.reject(&(&1 == "Elixir"))
+    |> Enum.join(".")
+  end
 end

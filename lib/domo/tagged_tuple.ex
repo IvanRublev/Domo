@@ -21,6 +21,9 @@ defmodule Domo.TaggedTuple do
 
   The operator is right-associative. It adds a tag or a chain of tags to a value.
 
+  Can be used in Expressions and Pattern Matching. Doesn't work in `@type`
+  definitions, please, use standard tuple syntax `{...}` there.
+
   ## Examples
 
       iex> use Domo.TaggedTuple
