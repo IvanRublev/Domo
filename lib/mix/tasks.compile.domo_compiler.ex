@@ -51,17 +51,22 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp build_ensurer_modules(paths, verbose?) do
     {plan_path, preconds_path, types_path, deps_path, code_path} = paths
 
-    Cleaner.rmdir_if_exists!(code_path)
-
     stop_and_flush_planner(plan_path, verbose?)
 
     with {:ok, deps_warns} <- recompile_depending_structs(deps_path, preconds_path, verbose?),
          stop_and_flush_planner(plan_path, verbose?),
-         :ok <- resolve_types(plan_path, preconds_path, types_path, deps_path),
+         maybe_remove_ensurers_code(plan_path, code_path, verbose?),
+         :ok <- resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?),
          {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
          {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?),
          :ok <- ensure_structs_integrity(plan_path) do
       Cleaner.rm!([plan_path, types_path])
+
+      if verbose? do
+        IO.write("""
+        Domo removed plan file #{plan_path} and types file #{types_path}.
+        """)
+      end
 
       result = if(Enum.empty?(modules), do: :noop, else: :ok)
       warnings = format_warnings([deps_warns, ens_warns])
@@ -85,16 +90,29 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     ResolvePlanner.ensure_flushed_and_stopped(plan_path, verbose?)
   end
 
+  defp maybe_remove_ensurers_code(plan_path, code_path, verbose?) do
+    if File.exists?(plan_path) do
+      Cleaner.rmdir_if_exists!(code_path)
+
+      if verbose? do
+        IO.write("""
+        Domo removed directory with generated code if existed #{code_path}.
+        """)
+      end
+    end
+  end
+
   defp recompile_depending_structs(deps_path, preconds_path, verbose?) do
     case DependencyResolver.maybe_recompile_depending_structs(deps_path, preconds_path, verbose?: verbose?) do
       {:ok, _warnings} = ok -> ok
+      {:noop, []} -> {:ok, []}
       {:error, ex_errors, ex_warnings} -> {:error, {:deps, {ex_errors, ex_warnings}}}
       {:error, message} -> {:error, {:deps, message}}
     end
   end
 
-  defp resolve_types(plan_path, preconds_path, types_path, deps_path) do
-    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path) do
+  defp resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?) do
+    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, verbose?) do
       :ok -> :ok
       {:error, message} -> {:error, {:resolve, message}}
     end
@@ -254,11 +272,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     project = MixProjectHelper.global_stub() || Mix.Project
     plan_path = manifest_path(project, :plan)
     types_path = manifest_path(project, :types)
+    preconds_path = manifest_path(project, :preconds)
     deps_path = manifest_path(project, :deps)
     code_path = generated_code_path(project)
 
     File.rm(plan_path)
     File.rm(types_path)
+    File.rm(preconds_path)
     File.rm(deps_path)
     Cleaner.rmdir_if_exists!(code_path)
   end

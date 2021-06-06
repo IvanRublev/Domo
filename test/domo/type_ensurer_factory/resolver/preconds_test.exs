@@ -26,7 +26,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   struct_module: nil,
                   message: :no_preconds
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "register preconditions for struct's t type", %{
@@ -43,7 +43,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       plan_precond_checks(planner, AllDefaultsStruct, t: "func_body2")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       assert %{
                TwoFieldStruct => {
@@ -73,7 +73,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       plan_precond_checks(planner, UserTypes, strings: "func_body1")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       precondition = Precondition.new(module: UserTypes, type_name: :strings, description: "func_body1")
 
@@ -118,7 +118,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   definitions and set precond for each of it.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "register precondition for map type having an or typed field", %{
@@ -133,7 +133,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       plan_precond_checks(planner, UserTypes, map_field_or_typed: "func_body")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       precond = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body")
 
@@ -175,7 +175,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       plan_precond_checks(planner, UserTypes, numbers: "func_body1", strings: "func_body2", two_elem_tuple: "func_body3")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       numbers_precond = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
       strings_precond = Precondition.new(module: UserTypes, type_name: :strings, description: "func_body2")
@@ -251,7 +251,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return precondition conflict error for preconditions of two types referring each other in remote module", %{
@@ -278,7 +278,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "register precondition for local type", %{
@@ -294,7 +294,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       plan_precond_checks(planner, UserTypes, numbers: "func_body1", map_field_or_typed: "func_body2")
       flush(planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       precond1 = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
       precond2 = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body2")
@@ -339,7 +339,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return precondition is not supported error for keyword(t) and as_boolean(t)", %{
@@ -375,7 +375,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                   You can extract t as a user @type and define precondition for it.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return precondition is not supported error for complicated types", %{
@@ -407,7 +407,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                 %Error{struct_module: UserTypes, message: "Precondition for value of iolist() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of identifier() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of timeout() type is not allowed."}
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return precondition is not supported error for primitive types", %{
@@ -469,7 +469,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                 %Error{struct_module: UserTypes, message: "Precondition for value of no_return() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of none() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of any() type is not allowed."}
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
   end
 end

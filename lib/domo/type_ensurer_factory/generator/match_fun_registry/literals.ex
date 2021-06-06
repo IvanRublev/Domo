@@ -92,6 +92,9 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
       term when is_integer(term) ->
         quote(do: unquote(variable_name) === unquote(term))
 
+      {:-, _, [term]} when is_integer(term) ->
+        quote(do: unquote(variable_name) === -unquote(term))
+
       {:.., _, [first, last]} ->
         quote(do: unquote(variable_name) in unquote(first)..unquote(last))
 

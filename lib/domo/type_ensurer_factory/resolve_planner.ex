@@ -7,7 +7,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   @compile_time_key_name __MODULE__.CompileTime
 
-  @spec ensure_started(String.t(), String.t()) :: {:ok, pid()}
   def ensure_started(plan_path, preconds_path) do
     case start(plan_path, preconds_path) do
       {:ok, _pid} = reply -> reply
@@ -15,7 +14,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  @spec start(String.t(), Stringt.t()) :: GenServer.on_start()
   def start(plan_path, preconds_path) do
     default_plan = %{
       filed_types_to_resolve: %{},
@@ -64,12 +62,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  @spec via(String.t()) :: atom
   def via(plan_path) do
     Atomizer.to_atom_maybe_shorten_via_sha256(plan_path)
   end
 
-  @spec compile_time?() :: boolean()
   def compile_time? do
     case Application.fetch_env(:domo, @compile_time_key_name) do
       {:ok, true} -> true
@@ -77,38 +73,30 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  @spec plan_types_resolving(String.t(), module, atom, Macro.t()) :: :ok | any()
   def plan_types_resolving(plan_path, module, field, type_quoted) do
     GenServer.call(via(plan_path), {:plan, module, field, type_quoted})
   end
 
-  @spec plan_empty_struct(String.t(), module) :: :ok | any()
   def plan_empty_struct(plan_path, module) do
     GenServer.call(via(plan_path), {:plan_empty_struct, module})
   end
 
-  @spec keep_module_environment(String.t(), module, Macro.Env.t()) :: :ok | any()
   def keep_module_environment(plan_path, module, env) do
     GenServer.call(via(plan_path), {:keep_env, module, env})
   end
 
-  @spec plan_struct_integrity_ensurance(String.t(), module, list, String.t(), integer) ::
-          :ok | any()
   def plan_struct_integrity_ensurance(plan_path, module, fields, file, line) do
     GenServer.call(via(plan_path), {:plan_struct_integrity_ensurance, module, fields, file, line})
   end
 
-  @spec plan_precond_checks(String.t(), module, keyword()) :: :ok | any()
   def plan_precond_checks(plan_path, module, type_name_description) do
     GenServer.call(via(plan_path), {:plan_precond_checks, module, type_name_description})
   end
 
-  @spec flush(String.t()) :: :ok | {:error, File.posix()}
   def flush(plan_path) do
     GenServer.call(via(plan_path), :flush)
   end
 
-  @spec stop(String.t()) :: :ok
   def stop(plan_path) do
     try do
       GenServer.stop(via(plan_path))
@@ -117,7 +105,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  @spec ensure_flushed_and_stopped(String.t()) :: :ok | {:error, File.posix()}
   def ensure_flushed_and_stopped(plan_path, verbose? \\ false) do
     try do
       GenServer.call(via(plan_path), {:flush_and_stop, verbose?})
@@ -188,7 +175,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     {:stop, :normal, do_flush(updated_state), updated_state}
   end
 
-  @spec add_key(nil | map, atom, Macro.t()) :: {:ok, map} | {:error, :field_exists}
   defp add_key(nil, field, type_quoted), do: {:ok, %{field => type_quoted}}
 
   defp add_key(map, field, type_quoted) do
@@ -218,7 +204,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
           IO.write("""
           Domo resolve planner (#{inspect(self())}) failed to write \
           to #{state.plan_path} or to #{state.preconds_path} due to \
-          the following error. #{inspect(error)}
+          the following error #{inspect(error)}.
           """)
         end
 
@@ -232,8 +218,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
     if state.verbose? do
       IO.write("""
-      Domo resolve planner (#{inspect(self())}) stopped \
-      with reason #{inspect(reason)}.\n
+      Domo resolve planner (#{inspect(self())}) stopped with reason #{inspect(reason)}.
       """)
     end
   end

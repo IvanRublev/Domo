@@ -119,13 +119,25 @@ defmodule UserTypes do
   def __precond__(:kw_length_2, value), do: apply(&(Enum.count(&1) == 2), [value])
   def __precond__(:map_value_sum_2_4, value), do: apply(&(&1 |> Map.values() |> Enum.sum() >= 2.4), [value])
 
-  def __precond__(:capital_title, value),
-    do:
-      apply(
-        fn struct ->
-          s = String.at(struct.title, 0)
-          String.upcase(s) == s
-        end,
-        [value]
-      )
+  def __precond__(:capital_title, value) do
+    apply(
+      fn struct ->
+        s = String.at(struct.title, 0)
+        String.upcase(s) == s
+      end,
+      [value]
+    )
+  end
+
+  def __precond__(:map_set_only_floats, value), do: apply(&Enum.all?(&1, fn num -> is_float(num) end), [value])
+
+  def __precond__(:inner_range_5_8, value) do
+    apply(
+      fn first..last ->
+        [first, last] = Enum.sort([first, last])
+        first > 5 and last < 8
+      end,
+      [value]
+    )
+  end
 end

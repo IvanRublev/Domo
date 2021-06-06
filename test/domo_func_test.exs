@@ -88,7 +88,7 @@ defmodule DomoFuncTest do
                    end
     end
 
-    test "issues a mismatch warning when unexpected_type_error_as_warning option is set or overriden with use Domo" do
+    test "issues a mismatch warning when unexpected_type_error_as_warning option is set or overridden with use Domo" do
       Application.put_env(:domo, :unexpected_type_error_as_warning, true)
 
       assert capture_io(:stderr, fn ->

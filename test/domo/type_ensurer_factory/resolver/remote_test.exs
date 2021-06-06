@@ -18,7 +18,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: String.t())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = map_idx_list([quote(context: String, do: <<_::_*8>>)])
       assert %{TwoFieldStruct => expected} == read_types(types_file)
@@ -41,7 +41,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       keep_env(planner, RemoteUserType, RemoteUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected =
         add_empty_precond_to_spec(%{
@@ -68,7 +68,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       keep_env(planner, RemoteUserType, RemoteUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected =
         add_empty_precond_to_spec(%{
@@ -96,7 +96,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       keep_env(planner, RemoteUserType, RemoteUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected =
         add_empty_precond_to_spec(%{
@@ -123,7 +123,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       keep_env(planner, RemoteUserType, RemoteUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected =
         add_empty_precond_to_spec(%{
@@ -163,9 +163,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
                   compiler_module: Resolver,
                   file: ^module_file,
                   struct_module: RemoteUserType,
-                  message: {:type_not_found, :nonexistent_type}
+                  message: {:type_not_found, {RemoteUserType, :nonexistent_type, "RemoteUserType.nonexistent_type()"}}
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return error no_beam_file for nonexistent type", %{
@@ -195,7 +195,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
                   struct_module: NonexistingModule,
                   message: {:no_beam_file, NonexistingModule}
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
     test "return several errors in one list", %{
@@ -241,7 +241,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
                   compiler_module: Resolver,
                   file: ^remote_user_type_file,
                   struct_module: RemoteUserType,
-                  message: {:type_not_found, :nonexistent_type}
+                  message: {:type_not_found, {RemoteUserType, :nonexistent_type, "RemoteUserType.nonexistent_type()"}}
                 },
                 %Error{
                   compiler_module: Resolver,
@@ -249,7 +249,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
                   struct_module: NonexistingModule,
                   message: {:no_beam_file, NonexistingModule}
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
   end
 end

@@ -2,6 +2,7 @@ defmodule Domo.Precondition do
   @moduledoc false
 
   alias Domo.TypeEnsurerFactory.Atomizer
+  alias Domo.TypeEnsurerFactory.Alias
 
   @enforce_keys [:module, :type_name, :description]
   defstruct @enforce_keys
@@ -15,13 +16,9 @@ defmodule Domo.Precondition do
   end
 
   def type_string(%__MODULE__{} = precondition) do
-    module =
-      precondition.module
-      |> Module.split()
-      |> Enum.reject(&(&1 == "Elixir"))
-      |> Enum.join(".")
-
-    "#{module}.#{precondition.type_name}()"
+    module = Alias.atom_to_string(precondition.module)
+    type_name = precondition.type_name
+    "#{module}.#{type_name}()"
   end
 
   def validation_call_quoted(%__MODULE__{} = precondition, value) do

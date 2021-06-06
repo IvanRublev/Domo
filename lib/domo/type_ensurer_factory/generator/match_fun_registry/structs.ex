@@ -21,7 +21,12 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
   end
 
   def ensurable_struct?({:%, _, [struct_alias, _map_spec]} = _type_spec) do
-    module = Alias.alias_to_atom(struct_alias)
+    struct_alias
+    |> Alias.alias_to_atom()
+    |> ensurable_struct?()
+  end
+
+  def ensurable_struct?(module) when is_atom(module) do
     Code.ensure_loaded?(module) and function_exported?(module, :ensure_type_ok, 1)
   end
 
@@ -86,10 +91,14 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
     type_spec_str = TypeSpec.to_atom(type_spec)
     struct_atom = Alias.alias_to_atom(struct_alias)
     precond_atom = if precond, do: Precondition.to_atom(precond)
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
+    value_match_var = if precond, do: quote(do: %unquote(struct_atom){} = value), else: quote(do: %unquote(struct_atom){})
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_str), unquote(precond_atom)}, %unquote(struct_atom){}, _spec_string), do: :ok
+        def do_match_spec({unquote(type_spec_str), unquote(precond_atom)}, unquote(value_match_var), unquote(spec_string_var)) do
+          unquote(ok_or_precond_call_quoted(precond))
+        end
       end
 
     {match_spec_functions_quoted, []}

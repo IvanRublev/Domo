@@ -19,7 +19,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       assert %{
                LocalUserType =>
@@ -46,7 +46,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       assert %{
                LocalUserType =>

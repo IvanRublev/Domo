@@ -55,7 +55,9 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: float()),
     quote(context: TwoFieldStruct, do: integer()),
     quote(context: TwoFieldStruct, do: 1),
+    quote(context: TwoFieldStruct, do: -1),
     quote(context: TwoFieldStruct, do: 1..10),
+    quote(context: TwoFieldStruct, do: -10..-1),
     quote(context: TwoFieldStruct, do: neg_integer()),
     quote(context: TwoFieldStruct, do: non_neg_integer()),
     quote(context: TwoFieldStruct, do: pos_integer()),
@@ -70,7 +72,6 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: {})
   ]
 
-  @spec literals_and_basic :: list()
   def literals_and_basic(), do: @literals_and_basic
 
   @literals_and_basic_src [
@@ -79,19 +80,14 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: [...])
   ]
 
-  @spec literals_and_basic_src :: list()
   def literals_and_basic_src(), do: @literals_and_basic_src
 
   @literals_and_basic_dst [
     quote(context: TwoFieldStruct, do: {}),
-    quote(
-      context: TwoFieldStruct,
-      do: %{:__struct__ => atom(), optional(atom()) => any()}
-    ),
+    quote(context: TwoFieldStruct, do: %{:__struct__ => atom(), optional(atom()) => any()}),
     quote(context: TwoFieldStruct, do: nonempty_list(any()))
   ]
 
-  @spec literals_and_basic_dst :: list()
   def literals_and_basic_dst(), do: @literals_and_basic_dst
 
   @built_in_src [
@@ -116,7 +112,6 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: node())
   ]
 
-  @spec built_in_src :: list()
   def built_in_src(), do: @built_in_src
 
   @built_in_dst [
@@ -142,20 +137,16 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: atom())
   ]
 
-  @spec built_in_dst :: list()
   def built_in_dst(), do: @built_in_dst
 
   @literals_basic_built_in_src @literals_and_basic ++ @literals_and_basic_src ++ @built_in_src
 
-  @spec literals_basic_built_in_src :: list()
   def literals_basic_built_in_src(), do: @literals_basic_built_in_src
 
   @literals_basic_built_in_dst @literals_and_basic ++ @literals_and_basic_dst ++ @built_in_dst
 
-  @spec literals_basic_built_in_dst :: list()
   def literals_basic_built_in_dst(), do: @literals_basic_built_in_dst
 
-  @spec plan_types(list(), pid) :: :ok
   def plan_types(types, planner) do
     types
     |> Enum.with_index()
@@ -168,7 +159,10 @@ defmodule ResolverTestHelper do
     flush(planner)
   end
 
-  @spec plan(pid, module, atom, Macro.t()) :: :ok
+  def env() do
+    __ENV__
+  end
+
   def plan(planner, module \\ TwoFieldStruct, field \\ :first, quoted_type) do
     ResolvePlanner.plan_types_resolving(
       planner,
@@ -178,7 +172,6 @@ defmodule ResolverTestHelper do
     )
   end
 
-  @spec plan_struct_integrity_ensurance(pid, module, list, String.t(), integer) :: :ok
   def plan_struct_integrity_ensurance(planner, module, fields, file, line) do
     ResolvePlanner.plan_struct_integrity_ensurance(
       planner,
@@ -189,20 +182,16 @@ defmodule ResolverTestHelper do
     )
   end
 
-  @spec plan_precond_checks(pid, module, [atom]) :: :ok
   def plan_precond_checks(planner, module, type_names) do
     ResolvePlanner.plan_precond_checks(planner, module, type_names)
   end
 
-  @spec keep_env(pid, module, Macro.env()) :: :ok
   def keep_env(planner, module \\ TwoFieldStruct, env) do
     ResolvePlanner.keep_module_environment(planner, module, env)
   end
 
-  @spec flush(pid) :: :ok
   def flush(planner), do: ResolvePlanner.flush(planner)
 
-  @spec map_idx_list([Macro.t()]) :: %{required(atom) => [Macro.t()]}
   def map_idx_list(list) do
     {list
      |> Enum.map(&add_empty_precond/1)
@@ -211,7 +200,6 @@ defmodule ResolverTestHelper do
      |> Enum.into(%{}), nil}
   end
 
-  @spec map_idx_list_multitype([Macro.t()]) :: %{required(atom) => [Macro.t()]}
   def map_idx_list_multitype(list) do
     {list
      |> Enum.map(fn quoted_types -> Enum.map(quoted_types, &add_empty_precond/1) end)
@@ -338,14 +326,12 @@ defmodule ResolverTestHelper do
     key
   end
 
-  @spec read_types(String.t()) :: map()
   def read_types(types_file) do
     types_file
     |> File.read!()
     |> :erlang.binary_to_term()
   end
 
-  @spec read_deps(String.t()) :: map()
   def read_deps(deps_file) do
     deps_file
     |> File.read!()

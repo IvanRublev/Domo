@@ -6,7 +6,7 @@ defmodule Domo do
   The library aims for two goals:
 
     * to allow only valid states for domain entities modelled with structs
-      by ensuring that their fields match the type definition
+      by ensuring that their field values conforms the type definition
 
     * to separate struct type definition and field type constraints
       that can be reused among related contexts or applications
@@ -409,7 +409,7 @@ defmodule Domo do
 
       {Height, {Meters, 324.0}} == m
 
-      @spec to_string(Height.t()) :: String.t()
+
       def to_string({Height, {Meters, val}}), do: to_string(val) <> " m"
       def to_string({Height, {Foots, val}}), do: to_string(val) <> " ft"
 

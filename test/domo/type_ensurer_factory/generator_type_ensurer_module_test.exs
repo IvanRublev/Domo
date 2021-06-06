@@ -399,7 +399,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: integer())],
         second: [quote(do: 5)],
+        second_half: [quote(do: -5)],
         third: [quote(do: 3..8)],
+        third_half: [quote(do: -8..-3)],
         forth: [quote(do: neg_integer())],
         fifth: [quote(do: non_neg_integer())],
         sixth: [quote(do: pos_integer())]
@@ -414,12 +416,23 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       assert {:error, _} = call_ensure_field_type({:second, 6})
       assert {:error, _} = call_ensure_field_type({:second, :not_an_integer})
 
+      assert :ok == call_ensure_field_type({:second_half, -5})
+      assert {:error, _} = call_ensure_field_type({:second_half, -6})
+      assert {:error, _} = call_ensure_field_type({:second_half, :not_an_integer})
+
       assert :ok == call_ensure_field_type({:third, 3})
       assert :ok == call_ensure_field_type({:third, 6})
       assert :ok == call_ensure_field_type({:third, 8})
       assert {:error, _} = call_ensure_field_type({:third, 2})
       assert {:error, _} = call_ensure_field_type({:third, 9})
       assert {:error, _} = call_ensure_field_type({:third, :not_an_integer})
+
+      assert :ok == call_ensure_field_type({:third_half, -3})
+      assert :ok == call_ensure_field_type({:third_half, -6})
+      assert :ok == call_ensure_field_type({:third_half, -8})
+      assert {:error, _} = call_ensure_field_type({:third_half, -2})
+      assert {:error, _} = call_ensure_field_type({:third_half, -9})
+      assert {:error, _} = call_ensure_field_type({:third_half, :not_an_integer})
 
       assert :ok == call_ensure_field_type({:forth, -5})
       assert :ok == call_ensure_field_type({:forth, -1})
@@ -537,6 +550,82 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
+  describe "Generated TypeEnsurer module verifies Kernel struct type" do
+    test "MapSet with no precondition" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: %MapSet{})]
+      })
+
+      assert :ok == call_ensure_field_type({:first, MapSet.new()})
+      assert :ok == call_ensure_field_type({:first, MapSet.new([:one])})
+      assert :ok == call_ensure_field_type({:first, MapSet.new([:one, :two, :three])})
+      assert {:error, _} = call_ensure_field_type({:first, [:one]})
+      assert {:error, _} = call_ensure_field_type({:first, %{one: 1}})
+      assert {:error, _} = call_ensure_field_type({:first, :not_a_map_set})
+    end
+
+    test "MapSet with precondition" do
+      precondition = Precondition.new(module: UserTypes, type_name: :map_set_only_floats, description: "map_set_only_floats")
+
+      load_type_ensurer_module({%{first: [{quote(do: %MapSet{}), precondition}]}, nil})
+
+      assert :ok == call_ensure_field_type({:first, MapSet.new([3.2, 0.0, 1.0])})
+      assert {:error, _} = call_ensure_field_type({:first, MapSet.new([3.2, 1])})
+      assert {:error, _} = call_ensure_field_type({:first, "h"})
+    end
+
+    test "Range.t() with no precondition" do
+      load_type_ensurer_module_with_no_preconds(
+        case ElixirVersion.version() do
+          [1, minor, _] when minor < 12 ->
+            %{first: [quote(context: Range, do: %Range{first: integer(), last: integer()})]}
+
+          [1, minor, _] when minor >= 12 ->
+            %{
+              first: [
+                quote(context: Range, do: %Range{first: integer(), last: integer(), step: pos_integer()}),
+                quote(context: Range, do: %Range{first: integer(), last: integer(), step: neg_integer()})
+              ]
+            }
+        end
+      )
+
+      assert :ok == call_ensure_field_type({:first, 1..3})
+      assert :ok == call_ensure_field_type({:first, 3..1})
+      assert :ok == call_ensure_field_type({:first, -5..2})
+      assert {:error, _} = call_ensure_field_type({:first, [:one]})
+      assert {:error, _} = call_ensure_field_type({:first, %{one: 1}})
+      assert {:error, _} = call_ensure_field_type({:first, :not_a_range})
+    end
+
+    test "Range.t() with precondition" do
+      precondition = Precondition.new(module: UserTypes, type_name: :inner_range_5_8, description: "inner_range")
+
+      load_type_ensurer_module(
+        case ElixirVersion.version() do
+          [1, minor, _] when minor < 12 ->
+            {%{first: [{quote(context: Range, do: %Range{first: integer(), last: integer()}), precondition}]}, nil}
+
+          [1, minor, _] when minor >= 12 ->
+            {%{
+               first: [
+                 {quote(context: Range, do: %Range{first: integer(), last: integer(), step: pos_integer()}), precondition},
+                 {quote(context: Range, do: %Range{first: integer(), last: integer(), step: neg_integer()}), precondition}
+               ]
+             }, nil}
+        end
+      )
+
+      assert :ok == call_ensure_field_type({:first, 6..7})
+      assert :ok == call_ensure_field_type({:first, 7..6})
+      assert :ok == call_ensure_field_type({:first, 7..7})
+      assert {:error, _} = call_ensure_field_type({:first, 5..7})
+      assert {:error, _} = call_ensure_field_type({:first, 0..2})
+      assert {:error, _} = call_ensure_field_type({:first, 9..7})
+      assert {:error, _} = call_ensure_field_type({:first, :not_a_range})
+    end
+  end
+
   describe "Generated TypeEnsurer module verifies basic/listeral typed" do
     test "proper [t]" do
       load_type_ensurer_module_with_no_preconds(%{
@@ -548,6 +637,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       assert :ok == call_ensure_field_type({:first, [:one, :two, :three]})
       assert {:error, _} = call_ensure_field_type({:first, [1]})
       assert {:error, _} = call_ensure_field_type({:first, [:one | 1]})
+      assert {:error, _} = call_ensure_field_type({:first, [:one | :two]})
       assert {:error, _} = call_ensure_field_type({:first, [:first, :second, "third", :forth]})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_list})
     end

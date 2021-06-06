@@ -1,7 +1,6 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.Fields.Arguments do
   @moduledoc false
 
-  @spec all_combinations(list(list())) :: list(list())
   def all_combinations([]), do: [[]]
 
   def all_combinations(list_list) do

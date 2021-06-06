@@ -3,6 +3,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields.ArgumentsTest do
 
   alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
 
+  # Number of combinations can be calculated by rule of product
+  # https://en.wikipedia.org/wiki/Rule_of_product
+
   describe "all combinations should" do
     test "return 1 element for [[:a], [:b]]" do
       assert [

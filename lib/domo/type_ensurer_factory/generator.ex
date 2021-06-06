@@ -94,16 +94,16 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   # credo:disable-for-lines:118
-  @spec do_type_ensurer_module(module(), map()) :: tuple()
+
   def do_type_ensurer_module(parent_module, fields_spec_t_precond) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
-    {fields_spec, t_precond} = TypeSpec.generalize_specs_for_ensurable_structs(fields_spec_t_precond)
-
+    {fields_spec, t_precond} = fields_spec_t_precond
     t_precond_quoted = t_precondition_quoted(parent_module, t_precond)
 
     fields_spec
     |> Map.values()
+    |> Enum.uniq()
     |> Enum.reject(&any_spec?/1)
     |> Enum.concat()
     |> Enum.each(&MatchFunRegistry.register_match_spec_fun(pid, &1))
@@ -254,7 +254,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     cond do
       any_spec?(spec_precond_list) ->
         quote do
-          def ensure_field_type({unquote(field), value}), do: :ok
+          def ensure_field_type({unquote(field), _value}), do: :ok
         end
 
       match?([_spec], spec_precond_list) ->

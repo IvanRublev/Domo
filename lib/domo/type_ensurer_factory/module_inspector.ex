@@ -1,12 +1,10 @@
 defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   @moduledoc false
 
-  @spec module_context?(Env.t()) :: true | false
   def module_context?(env) do
     not is_nil(env.module) and is_nil(env.function)
   end
 
-  @spec beam_types(module()) :: binary() | nil
   def beam_types_hash(module) do
     case beam_types(module) do
       {:ok, type_list} -> type_list |> :erlang.term_to_binary() |> :erlang.md5()
@@ -14,17 +12,28 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     end
   end
 
-  @spec beam_types(module(), fun(), fun()) :: {:ok, [tuple()]} | {:error, {:no_beam_file, module()}}
   def beam_types(module, load_module \\ &Code.ensure_loaded/1, fetch_types \\ &Code.Typespec.fetch_types/1) do
     with {:module, module} <- load_module.(module),
-         {:ok, _type_list} = reply <- fetch_types.(module) do
-      reply
+         {:ok, type_list} <- fetch_types.(module) do
+      only_direct_type_list =
+        type_list
+        |> Enum.reject(&parametrized_type?/1)
+        |> Enum.into([])
+
+      {:ok, only_direct_type_list}
     else
       _ -> {:error, {:no_beam_file, module}}
     end
   end
 
-  @spec find_type_quoted(atom, [tuple()]) :: {:ok, {atom(), Macro.t()}} | {:error, {:type_not_found, atom()}}
+  defp parametrized_type?({:type, {_name, _definition, [_ | _] = _arg_list}}) do
+    true
+  end
+
+  defp parametrized_type?(_type) do
+    false
+  end
+
   def find_type_quoted(name, type_list, dereferenced_types \\ []) do
     notfound = {:error, {:type_not_found, name}}
 

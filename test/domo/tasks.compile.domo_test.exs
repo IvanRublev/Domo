@@ -92,8 +92,8 @@ defmodule Domo.MixTasksCompileDomoTest do
       types_file: types_file,
       deps_file: deps_file
     } do
-      allow Resolver.resolve(any(), any(), any(), any()),
-        exec: fn _, _, _, _ ->
+      allow Resolver.resolve(any(), any(), any(), any(), any()),
+        exec: fn _, _, _, _, _ ->
           File.write!(types_file, :erlang.term_to_binary(%{}))
         end
 
@@ -106,13 +106,13 @@ defmodule Domo.MixTasksCompileDomoTest do
 
       DomoMixTask.run([])
 
-      assert_called Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      assert_called Resolver.resolve(plan_file, preconds_file, types_file, deps_file, any())
     end
 
     test "return :error if resolve failed" do
       module_file = __ENV__.file
 
-      allow Resolver.resolve(any(), any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any(), any()),
         seq: [
           {:error,
            [
@@ -325,8 +325,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       assert_called Cleaner.rm!([plan_file, types_file])
     end
 
-    test "remove previous type_ensurer modules source code before next compilation",
-         %{code_path: code_path} do
+    test "remove previous type_ensurer modules source code giving existing plan file", %{code_path: code_path} do
       Placebo.unstub()
 
       allow Cleaner.rm!(any()), return: [:ok]
@@ -359,16 +358,49 @@ defmodule Domo.MixTasksCompileDomoTest do
                :generate
              ]
     end
+
+    test "does not remove previous type_ensurer modules source code missing new plan file", %{code_path: code_path} do
+      Placebo.unstub()
+
+      allow Cleaner.rm!(any()), return: [:ok]
+
+      me = self()
+
+      allow Cleaner.rmdir_if_exists!(code_path),
+        meck_options: [:passthrough],
+        exec: fn _ ->
+          send(me, :rmdir_if_exists!)
+          :ok
+        end
+
+      DomoMixTask.run([])
+
+      refute self()
+             |> Process.info(:messages)
+             |> elem(1)
+             |> Enum.filter(&(&1 in [:rmdir_if_exists!, :generate])) == [:rmdir_if_exists!]
+    end
   end
 
   describe "Domo compiler task for next run should" do
-    test "recompile structs depending on structs with chanded types with elixir", %{
+    test "recompile structs depending on structs with changed types with elixir", %{
       deps_file: deps_file,
       preconds_file: preconds_file
     } do
       allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
 
       DomoMixTask.run([])
+
+      assert_called DependencyResolver.maybe_recompile_depending_structs(deps_file, preconds_file, any())
+    end
+
+    test "continue normally giving Elixir not compiling anything for current app in umbrella project", %{
+      deps_file: deps_file,
+      preconds_file: preconds_file
+    } do
+      allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:noop, []}
+
+      assert DomoMixTask.run([])
 
       assert_called DependencyResolver.maybe_recompile_depending_structs(deps_file, preconds_file, any())
     end
@@ -410,6 +442,7 @@ defmodule Domo.MixTasksCompileDomoTest do
     msg = capture_io(fn -> DomoMixTask.run(["--verbose"]) end)
 
     assert_called ResolvePlanner.ensure_flushed_and_stopped(any(), true)
+    assert msg =~ ~r(Resolve types of Domo.MixTasksCompileDomoTest.Module)
     assert msg =~ ~r(Compiled .*/domo_mix_tasks_compile_domo_test_module_type_ensurer.ex)
   end
 
@@ -436,7 +469,7 @@ defmodule Domo.MixTasksCompileDomoTest do
     test "print error giving a types resolve failure" do
       allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
 
-      allow Resolver.resolve(any(), any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any(), any()),
         return: {:error, %Error{compiler_module: Resolver, file: "/plan_path", message: :no_plan}}
 
       msg = capture_io(fn -> DomoMixTask.run([]) end)
@@ -447,7 +480,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     test "print error giving a type ensurer generator failure" do
       allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
-      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
+      allow Resolver.resolve(any(), any(), any(), any(), any()), return: :ok
 
       allow Generator.generate(any(), any()),
         return:
@@ -466,7 +499,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     test "print error giving a type ensurer compiltion failure" do
       allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
-      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
+      allow Resolver.resolve(any(), any(), any(), any(), any()), return: :ok
       allow Generator.generate(any(), any()), return: {:ok, []}
 
       allow Generator.compile(any(), any()),
@@ -494,7 +527,7 @@ defmodule Domo.MixTasksCompileDomoTest do
              }
            ]}
 
-      allow Resolver.resolve(any(), any(), any(), any()), return: :ok
+      allow Resolver.resolve(any(), any(), any(), any(), any()), return: :ok
       allow Generator.generate(any(), any()), return: {:ok, []}
 
       allow Generator.compile(any(), any()),
@@ -537,11 +570,13 @@ defmodule Domo.MixTasksCompileDomoTest do
     test "remove plan, types, deps files and compiled code directory", %{
       plan_file: plan_file,
       types_file: types_file,
+      preconds_file: preconds_file,
       deps_file: deps_file,
       code_path: code_path
     } do
       File.touch!(plan_file)
       File.touch!(types_file)
+      File.touch!(preconds_file)
       File.touch!(deps_file)
       File.mkdir_p!(code_path)
       File.touch!(Path.join([code_path, "file.ex"]))
@@ -550,6 +585,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
       refute File.exists?(plan_file)
       refute File.exists?(types_file)
+      refute File.exists?(preconds_file)
       refute File.exists?(deps_file)
       refute File.exists?(code_path)
     end

@@ -38,52 +38,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
     Macro.to_string(type_spec)
   end
 
-  def generalize_specs_for_ensurable_structs(fields_specs_t_precond) do
-    {specs, t_precond} = fields_specs_t_precond
-
-    updated_specs =
-      for {field, specs} <- specs, into: %{} do
-        {field, maybe_uniq_spec_list(specs)}
-      end
-
-    {updated_specs, t_precond}
-  end
-
-  defp maybe_uniq_spec_list(spec_list) do
-    spec_list
-    |> Enum.map(&maybe_general_struct_spec/1)
-    |> Enum.uniq()
-  end
-
-  defp maybe_general_struct_spec(type_spec_precond) do
-    cond do
-      Lists.list_spec?(type_spec_precond) ->
-        Lists.map_value_type(type_spec_precond, &maybe_general_struct_spec/1)
-
-      Tuples.tuple_spec?(type_spec_precond) ->
-        Tuples.map_value_type(type_spec_precond, &maybe_general_struct_spec/1)
-
-      Maps.map_spec?(type_spec_precond) ->
-        Maps.map_key_value_type(type_spec_precond, &maybe_general_struct_spec/1)
-
-      Structs.struct_spec?(type_spec_precond) ->
-        {type_spec, _precond} = split_spec_precond(type_spec_precond)
-
-        if Structs.ensurable_struct?(type_spec) do
-          drop_fields_struct_spec(type_spec_precond)
-        else
-          Structs.map_key_value_type(type_spec_precond, &maybe_general_struct_spec/1)
-        end
-
-      true ->
-        type_spec_precond
-    end
-  end
-
-  defp drop_fields_struct_spec({{:%, context, [struct_alias, _map_spec]}, precond}) do
-    {{:%, context, [struct_alias, {:%{}, [], []}]}, precond}
-  end
-
   def filter_preconds(type_spec_precond) do
     result =
       cond do

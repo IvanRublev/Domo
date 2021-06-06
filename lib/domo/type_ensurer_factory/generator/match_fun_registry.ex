@@ -46,6 +46,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
       |> Enum.flat_map(&unfold_match_fun_list/1)
       |> Enum.sort_by(fn {type_spec_atom, _match_fun} -> type_spec_atom end, &>/2)
       |> Enum.map(fn {_type_spec_atom, match_fun} -> match_fun end)
+      |> Enum.uniq()
 
     {:reply, list, match_funs}
   end

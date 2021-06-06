@@ -1,6 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
   use Domo.FileCase
 
+  alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
 
   import ResolverTestHelper
@@ -27,7 +28,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
 
       plan_types(types, planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected =
         for {arg1, arg2} <-
@@ -53,7 +54,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -79,7 +80,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -107,7 +108,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [quote(context: TwoFieldStruct, do: any())],
@@ -135,7 +136,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -170,7 +171,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -201,7 +202,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -239,7 +240,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -278,7 +279,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -301,7 +302,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: keyword(integer() | float()))], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -322,7 +323,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: as_boolean(integer() | float()))], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -357,7 +358,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -399,7 +400,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
 
-    test "resolve | within structs to list of structs", %{
+    test "raise 4096 field type combinations max error giving 8*8*8*8*2 | types within map", %{
       planner: planner,
       plan_file: plan_file,
       preconds_file: preconds_file,
@@ -410,27 +411,88 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         [
           quote(
             context: TwoFieldStruct,
-            do: %TwoFieldStruct{fist: integer() | nil, second: float() | atom()}
+            do: %{
+              key1: atom() | integer() | float() | true | false | :one | :two | :three,
+              key2: atom() | integer() | float() | true | false | :one | :two | :three,
+              key3: atom() | integer() | float() | true | false | :one | :two | :three,
+              key4: atom() | integer() | float() | true | false | :one | :two | :three,
+              key5: atom() | integer()
+            }
           )
         ],
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      module_file = ResolverTestHelper.env().file
+
+      assert {:error,
+              [
+                %Error{
+                  compiler_module: Resolver,
+                  file: ^module_file,
+                  struct_module: TwoFieldStruct,
+                  message:
+                    "Failed to generate 8192 type combinations with max. allowed 4096. Consider reducing number of | options or change the container type to struct using Domo."
+                }
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+    end
+
+    test "resolve | within structs to list of structs", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan_types(
+        [
+          quote(
+            context: CustomStruct,
+            do: %CustomStruct{fist: integer() | nil, second: float() | atom()}
+          )
+        ],
+        planner
+      )
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
-          quote(context: TwoFieldStruct, do: %TwoFieldStruct{fist: integer(), second: float()}),
-          quote(context: TwoFieldStruct, do: %TwoFieldStruct{fist: integer(), second: atom()}),
-          quote(context: TwoFieldStruct, do: %TwoFieldStruct{fist: nil, second: float()}),
-          quote(context: TwoFieldStruct, do: %TwoFieldStruct{fist: nil, second: atom()})
+          quote(context: CustomStruct, do: %CustomStruct{fist: integer(), second: float()}),
+          quote(context: CustomStruct, do: %CustomStruct{fist: integer(), second: atom()}),
+          quote(context: CustomStruct, do: %CustomStruct{fist: nil, second: float()}),
+          quote(context: CustomStruct, do: %CustomStruct{fist: nil, second: atom()})
         ]
       ]
 
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
 
-    test "resolve | within funcion arguments to list of functions", %{
+    test "resolve | within ensurable struct to struct with any fields", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan_types(
+        [
+          quote(
+            context: CustomStructUsingDomo,
+            do: %CustomStructUsingDomo{fist: integer() | nil, second: float() | atom()}
+          )
+        ],
+        planner
+      )
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      expected = [[quote(context: CustomStructUsingDomo, do: %CustomStructUsingDomo{})]]
+
+      assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
+    end
+
+    test "resolve | within function arguments to list of functions", %{
       planner: planner,
       plan_file: plan_file,
       preconds_file: preconds_file,
@@ -442,7 +504,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
         planner
       )
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -465,7 +527,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: boolean())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -486,7 +548,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: identifier())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -509,7 +571,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
          } do
       plan_types([quote(context: TwoFieldStruct, do: iolist())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -523,7 +585,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
 
-    test "resolve iodata() to iolist or list of binary", %{
+    test "resolve iodata() to iolist() or list of binary", %{
       planner: planner,
       plan_file: plan_file,
       preconds_file: preconds_file,
@@ -532,7 +594,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: iodata())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -556,7 +618,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: number())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [
@@ -577,7 +639,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
     } do
       plan_types([quote(context: TwoFieldStruct, do: timeout())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [
         [

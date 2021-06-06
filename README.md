@@ -12,7 +12,7 @@ composable tagged tuples.
 The library aims for two goals:
 
   * to allow only valid states for domain entities modelled with structs
-    by ensuring that their fields match the type definition
+    by ensuring that their field values conforms the type definition
 
   * to separate struct type definition and field type constraints
     that can be reused among related contexts or applications
@@ -442,7 +442,7 @@ To extract the value use pattern matching.
 ```elixir
 {Height, {Meters, 324.0}} == m
 
-@spec to_string(Height.t()) :: String.t()
+
 def to_string({Height, {Meters, val}}), do: to_string(val) <> " m"
 def to_string({Height, {Foots, val}}), do: to_string(val) <> " ft"
 ```
@@ -525,15 +525,18 @@ To set option globally add lines into the `config.exs` file like the following:
 
 ## Limitations
 
-The recursive types like `@type t :: :end | {integer, t()}` are not supported.
+The recursive types like `@type t :: :end | {integer, t()}` are not supported. 
+Because of that `Macro.t()` is not supported.
 
-Parametrized types are not supported. Library returns `{:type_not_found, :key}` error
-for `@type dict(key, value) :: [{key, value}]` type definition.
+Parametrized types are not supported. Library returns `{:type_not_found, :key}` error for `@type dict(key, value) :: [{key, value}]` type definition.
+
+`MapSet.t(value)` just checks that the struct is of `MapSet`. Precondition
+can be used to verify set values.
 
 Domo doesn't check struct fields default value explicitly; instead,
 it fails when one creates a struct with wrong defaults.
 
-Generated submodule with TypedStruct's :module option is not supported.
+Generated submodule with TypedStruct's `:module` option is not supported.
 
 ## Migration
 
@@ -646,6 +649,14 @@ with correct states at every update that is valid in many business contexts.
 4. Make a PR to this repository
 
 ## Changelog 
+
+### 1.2.4
+* Speedup resolving of struct types
+* Limit the number of allowed fields types combinations to 4096
+* Support `Range.t()` and `MapSet.t()`
+* Keep type ensurers source code after compiling umbrella project
+* Remove preconditions manifest file on `mix clean` command
+* List processed structs giving mix `--verbose` option
 
 ### 1.2.3
 * Support struct's attribute introduced in Elixir 1.12.0 for error checking

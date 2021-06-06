@@ -59,39 +59,5 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
 
       assert_called CustomStructUsingDomo.ensure_type_ok(instance)
     end
-
-    test "should have only universal match_spec function for the struct" do
-      ensurer_quoted =
-        %{
-          first: [
-            quote(do: %CustomStructUsingDomo{title: <<_::_*8>>}),
-            quote(do: %CustomStructUsingDomo{title: nil}),
-            quote(do: nil)
-          ]
-        }
-        |> ResolverTestHelper.add_empty_precond_to_spec()
-        |> type_ensurer_quoted_with_no_preconds()
-
-      ensurer_string = Macro.to_string(ensurer_quoted)
-
-      assert ensurer_string =~ ~r/do_match_spec\({:"%CustomStructUsingDomo{}"\,/
-    end
-
-    test "should have only universal match_spec function for the struct in nested container" do
-      ensurer_quoted =
-        %{
-          first: [
-            quote(do: [{%CustomStructUsingDomo{title: <<_::_*8>>}}]),
-            quote(do: [{%CustomStructUsingDomo{title: nil}}]),
-            quote(do: nil)
-          ]
-        }
-        |> ResolverTestHelper.add_empty_precond_to_spec()
-        |> type_ensurer_quoted_with_no_preconds()
-
-      ensurer_string = Macro.to_string(ensurer_quoted)
-
-      assert ensurer_string =~ ~r/do_match_spec\({:"%CustomStructUsingDomo{}"\,/
-    end
   end
 end

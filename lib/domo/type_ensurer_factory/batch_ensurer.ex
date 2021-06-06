@@ -38,7 +38,6 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     |> Enum.map(&%Error{&1 | compiler_module: __MODULE__})
   end
 
-  @spec read_plan(String.t()) :: {:ok, {map, list}} | {:error, map}
   defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->

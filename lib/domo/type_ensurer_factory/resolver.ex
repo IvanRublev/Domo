@@ -1,15 +1,15 @@
 defmodule Domo.TypeEnsurerFactory.Resolver do
   @moduledoc false
 
+  alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver.Fields
 
-  @spec resolve(String.t(), String.t(), String.t(), module) :: :ok | {:error, [Error.t()]}
-  def resolve(plan_path, preconds_path, types_path, deps_path, write_file_module \\ File) do
+  def resolve(plan_path, preconds_path, types_path, deps_path, write_file_module \\ File, verbose?) do
     with {:ok, plan} <- read_plan(plan_path),
          {:ok, plan} <- join_preconds(preconds_path, plan),
-         {:ok, types, deps} <- resolve_plan(plan, plan_path),
+         {:ok, types, deps} <- resolve_plan(plan, plan_path, verbose?),
          :ok <- write_resolved_types(types, types_path, write_file_module),
          :ok <- append_modules_deps(deps, deps_path, write_file_module) do
       :ok
@@ -19,7 +19,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec read_plan(String.t()) :: {:ok, {map, list}} | {:error, map}
   defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->
@@ -47,8 +46,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec resolve_plan(keyword, String.t()) :: {:ok, map, map} | {:error, map}
-  defp resolve_plan(plan, plan_path) do
+  defp resolve_plan(plan, plan_path, verbose?) do
     fields = plan[:fields]
     preconds = plan[:preconds]
     envs = plan[:envs]
@@ -62,7 +60,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         module#{if modules_count > 1, do: "s"} (.ex)\
         """)
 
-        case resolve_plan_envs(fields_envs, preconds) do
+        case resolve_plan_envs(fields_envs, preconds, verbose?) do
           {module_filed_types, [], module_deps} ->
             updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
             {:ok, module_filed_types, updated_module_deps}
@@ -76,7 +74,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec join_fields_envs(map, map) :: {:ok, map} | {:error, tuple}
   defp join_fields_envs(plan, envs) do
     joined =
       Enum.reduce_while(plan, [], fn {module, fields}, list ->
@@ -95,10 +92,18 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec resolve_plan_envs(map, map) :: {map, [{module, :error, any()}], map}
-  defp resolve_plan_envs(fields_envs, preconds) do
-    Enum.reduce(fields_envs, {%{}, [], %{}}, fn {_module, _fields, env} = mfe, {module_field_types, module_errors, module_deps} ->
-      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds)
+  defp resolve_plan_envs(fields_envs, preconds, verbose?) do
+    resolvable_structs =
+      fields_envs
+      |> Enum.reduce([], fn {module, _fields, _env}, acc -> [module | acc] end)
+      |> MapSet.new()
+
+    Enum.reduce(fields_envs, {%{}, [], %{}}, fn {module, _fields, env} = mfe, {module_field_types, module_errors, module_deps} ->
+      if verbose? do
+        IO.puts("Resolve types of #{Alias.atom_to_string(module)}")
+      end
+
+      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds, resolvable_structs)
 
       updated_module_field_types = Map.put(module_field_types, module, field_types)
 
@@ -159,7 +164,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end)
   end
 
-  @spec wrap_module_errors(map, map) :: [Error.t()] | []
   defp wrap_module_errors(module_errors, envs) do
     Enum.map(module_errors, fn {module, error} ->
       message =
@@ -172,7 +176,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end)
   end
 
-  @spec write_resolved_types(map, String.t(), module) :: :ok | {:error, map}
   defp write_resolved_types(map, types_path, file_module) do
     binary = :erlang.term_to_binary(map)
 
@@ -182,7 +185,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  @spec append_modules_deps(map, String.t(), module) :: :ok | {:error, map}
   defp append_modules_deps(deps_map, deps_path, file_module) do
     merged_map = merge_map_from_file(deps_path, deps_map, file_module)
     write_map(merged_map, deps_path, file_module)
