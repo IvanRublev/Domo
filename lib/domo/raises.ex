@@ -132,10 +132,12 @@ defmodule Domo.Raises do
     |> Module.get_attribute(:type)
     |> Enum.find_value(fn {:type, {:"::", _, spec}, _} ->
       with [{:t, _, _}, t_type] <- spec,
-           {:%, _, [{_, _, _} = module, {:%{}, _, _}]} <- t_type do
+           {:%, _, [module, {:%{}, _, _}]} <- t_type do
         case module do
           {:__MODULE__, _, _} -> true
           {:__aliases__, _, _} = an_alias -> Alias.alias_to_atom(an_alias) == caller_env.module
+          module when is_atom(module) -> module == caller_env.module
+          _typo_after_percentage -> false
         end
       else
         _ -> false

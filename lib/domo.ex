@@ -478,6 +478,10 @@ defmodule Domo do
       if any, and appending `_ok`.
       Defaults are `new` and `new_ok` appropriately.
 
+    * `remote_types_as_any` - keyword list of types by modules that should
+      be treated as any(). Value example `ExternalModule: [:t, :name], OtherModule: :t`
+      Default is nil.
+
   To set option globally add lines into the `config.exs` file like the following:
 
       config :domo, :unexpected_type_error_as_warning, true
@@ -486,14 +490,23 @@ defmodule Domo do
   ## Limitations
 
   The recursive types like `@type t :: :end | {integer, t()}` are not supported.
+  Because of that `Macro.t()` is not supported.
 
-  Parametrized types are not supported. Library returns `{:type_not_found, :key}` error
-  for `@type dict(key, value) :: [{key, value}]` type definition.
+  Parametrized types are not supported. Library returns `{:type_not_found, :key}` error for `@type dict(key, value) :: [{key, value}]` type definition.
+
+  `MapSet.t(value)` just checks that the struct is of `MapSet`. Precondition
+  can be used to verify set values.
+
+  Only 4096 combinations of | type are supported. If an `ExternalStruct` has
+  the `t()` type giving more then 4096 combinations, you can use
+  `remote_types_as_any: [ExternalStruct: :t]` option to treat it as `any()`,
+  wrap the type to `@type user_type :: ExternalStruct.t()`
+  and use `precond user_type: ...` macro to verify the type's value.
 
   Domo doesn't check struct fields default value explicitly; instead,
   it fails when one creates a struct with wrong defaults.
 
-  Generated submodule with TypedStruct's :module option is not supported.
+  Generated submodule with TypedStruct's `:module` option is not supported.
 
   ## Migration
 
@@ -527,6 +540,13 @@ defmodule Domo do
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
     Raises.raise_absence_of_domo_compiler!(Mix.Project.config(), opts, __CALLER__)
+
+    global_anys = Application.get_env(:domo, :remote_types_as_any)
+    local_anys = Keyword.get(opts, :remote_types_as_any)
+
+    unless is_nil(global_anys) and is_nil(local_anys) do
+      collect_types_to_treat_as_any(__CALLER__.module, global_anys, local_anys)
+    end
 
     global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new)
     new_fun_name = Keyword.get(opts, :name_of_new_function, global_new_func_name)
@@ -669,6 +689,30 @@ defmodule Domo do
 
       @after_compile {Domo, :_collect_types_for_domo_compiler}
     end
+  end
+
+  defp collect_types_to_treat_as_any(module, global_anys, local_anys) do
+    project = MixProjectHelper.global_stub() || Mix.Project
+    plan_path = DomoMixTask.manifest_path(project, :plan)
+    preconds_path = DomoMixTask.manifest_path(project, :preconds)
+
+    {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+
+    unless is_nil(global_anys) do
+      global_anys_map = cast_keyword_to_map_of_lists_by_module(global_anys)
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(plan_path, global_anys_map)
+    end
+
+    unless is_nil(local_anys) do
+      local_anys_map = cast_keyword_to_map_of_lists_by_module(local_anys)
+      ResolvePlanner.keep_remote_types_to_treat_as_any(plan_path, module, local_anys_map)
+    end
+  end
+
+  defp cast_keyword_to_map_of_lists_by_module(kw_list) do
+    kw_list
+    |> Enum.map(fn {key, value} -> {Module.concat(Elixir, key), List.wrap(value)} end)
+    |> Enum.into(%{})
   end
 
   @doc false

@@ -25,7 +25,7 @@ defmodule DomoFuncNamesTest do
     Path.join([src_path(), path])
   end
 
-  test "generates constructor with name set with name_of_new_function option globally or overriden with use Domo" do
+  test "generates constructor with name set with name_of_new_function option globally or overridden with use Domo" do
     Application.put_env(:domo, :name_of_new_function, :custom_new)
 
     compile_titled_struct("TitleHolder")

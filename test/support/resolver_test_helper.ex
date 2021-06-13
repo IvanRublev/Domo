@@ -182,6 +182,21 @@ defmodule ResolverTestHelper do
     )
   end
 
+  def keep_global_remote_types_to_treat_as_any(planner, remote_types_as_any) do
+    ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+      planner,
+      remote_types_as_any
+    )
+  end
+
+  def keep_remote_types_to_treat_as_any(planner, module, remote_types_as_any) do
+    ResolvePlanner.keep_remote_types_to_treat_as_any(
+      planner,
+      module,
+      remote_types_as_any
+    )
+  end
+
   def plan_precond_checks(planner, module, type_names) do
     ResolvePlanner.plan_precond_checks(planner, module, type_names)
   end

@@ -9,6 +9,39 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
   setup [:setup_project_planner]
 
   describe "TypeEnsurerFactory.Resolver should" do
+    test "treat remote types to any() according to global setting joined with one for given module", %{
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan(plan_file, RemoteUserType, :field1, quote(do: Module.t()))
+      plan(plan_file, RemoteUserType, :field2, quote(do: LocalUserType.int()))
+      plan(plan_file, RemoteUserType, :field3, quote(do: local_int()))
+      plan(plan_file, RemoteUserType, :field4, quote(do: Module1.name()))
+      plan(plan_file, RemoteUserType, :field5, quote(do: Module1.field()))
+
+      keep_env(plan_file, RemoteUserType, RemoteUserType.env())
+
+      keep_global_remote_types_to_treat_as_any(plan_file, %{Module => [:t], RemoteUserType => [:local_int]})
+      keep_remote_types_to_treat_as_any(plan_file, RemoteUserType, %{Module1 => [:field, :name]})
+
+      flush(plan_file)
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      expected =
+        add_empty_precond_to_spec(%{
+          field1: [quote(do: any())],
+          field2: [quote(do: integer())],
+          field3: [quote(do: any())],
+          field4: [quote(do: any())],
+          field5: [quote(do: any())]
+        })
+
+      assert %{RemoteUserType => expected} == read_types(types_file)
+    end
+
     test "resolve String.t() to <<_::_*8>>", %{
       planner: planner,
       plan_file: plan_file,

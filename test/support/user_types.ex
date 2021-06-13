@@ -46,6 +46,7 @@ defmodule RemoteUserType do
   @type some_int :: Submodule.op()
   @type sub_float :: Submodule.sub_float()
   @type tof :: %__MODULE__{field: OneField.t()}
+  @type local_int :: integer()
 
   def env, do: __ENV__
 end

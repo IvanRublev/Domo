@@ -18,7 +18,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     default_plan = %{
       filed_types_to_resolve: %{},
       environments: %{},
-      structs_to_ensure: []
+      structs_to_ensure: [],
+      remote_types_as_any_by_module: %{}
     }
 
     plan = maybe_read_plan(plan_path, default_plan)
@@ -34,7 +35,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   defguard is_plan(value)
            when is_map_key(value, :filed_types_to_resolve) and
                   is_map_key(value, :environments) and
-                  is_map_key(value, :structs_to_ensure)
+                  is_map_key(value, :structs_to_ensure) and
+                  is_map_key(value, :remote_types_as_any_by_module)
 
   defp maybe_read_plan(path, default) do
     with {:ok, plan_binary} <- File.read(path),
@@ -83,6 +85,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   def keep_module_environment(plan_path, module, env) do
     GenServer.call(via(plan_path), {:keep_env, module, env})
+  end
+
+  def keep_global_remote_types_to_treat_as_any(plan_path, remote_types_as_any) do
+    GenServer.call(via(plan_path), {:keep_global_types_as_any, remote_types_as_any})
+  end
+
+  def keep_remote_types_to_treat_as_any(plan_path, module, remote_types_as_any) do
+    GenServer.call(via(plan_path), {:keep_types_as_any, module, remote_types_as_any})
   end
 
   def plan_struct_integrity_ensurance(plan_path, module, fields, file, line) do
@@ -150,6 +160,27 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   def handle_call({:keep_env, module, env}, _from, state) do
     updated_envs = Map.put(state.plan.environments, module, env)
     updated_state = put_in(state, [:plan, :environments], updated_envs)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:keep_global_types_as_any, remote_types_as_any}, _from, state) do
+    updated_remotes_as_any_by_module = Map.put(state.plan.remote_types_as_any_by_module, :global, remote_types_as_any)
+    updated_state = put_in(state, [:plan, :remote_types_as_any_by_module], updated_remotes_as_any_by_module)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:keep_types_as_any, module, remote_types_as_any}, _from, state) do
+    updated_remotes_as_any_by_module =
+      Map.update(
+        state.plan.remote_types_as_any_by_module,
+        module,
+        remote_types_as_any,
+        &Map.merge(&1, remote_types_as_any, fn _key, types_lhs, types_rhs ->
+          [types_rhs | types_lhs] |> List.flatten() |> Enum.uniq()
+        end)
+      )
+
+    updated_state = put_in(state, [:plan, :remote_types_as_any_by_module], updated_remotes_as_any_by_module)
     {:reply, :ok, updated_state}
   end
 

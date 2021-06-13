@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.2.4"
+  @version "1.2.5"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do

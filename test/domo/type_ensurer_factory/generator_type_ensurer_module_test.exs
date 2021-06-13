@@ -828,46 +828,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
-  describe "Generated TypeEnsurer module verifies structs with " do
-    test "given keys and value type with preconditions" do
-      struct_precondition = Precondition.new(module: UserTypes, type_name: :capital_title, description: "capital_title_func")
-      precondition = Precondition.new(module: UserTypes, type_name: :binary_6, description: "binary_6_func")
-
-      load_type_ensurer_module(
-        {%{
-           first: [
-             {
-               quote(context: String, do: %CustomStruct{title: {<<_::_*8>>, unquote(precondition)}}),
-               struct_precondition
-             }
-           ]
-         }, nil}
-      )
-
-      assert :ok == call_ensure_field_type({:first, %CustomStruct{title: "Hello!"}})
-      assert {:error, _} = call_ensure_field_type({:first, %CustomStruct{title: "Hello"}})
-      assert {:error, _} = call_ensure_field_type({:first, %CustomStruct{title: "hello!"}})
-    end
-
-    test "delegation to type ensurer and precondition" do
-      struct_precondition = Precondition.new(module: UserTypes, type_name: :capital_title, description: "capital_title_func")
-
-      load_type_ensurer_module(
-        {%{
-           first: [
-             {
-               quote(context: String, do: %CustomStructWithEnsureOk{title: {<<_::_*8>>, nil}}),
-               struct_precondition
-             }
-           ]
-         }, nil}
-      )
-
-      assert :ok == call_ensure_field_type({:first, %CustomStructWithEnsureOk{title: "Hello"}})
-      assert {:error, _} = call_ensure_field_type({:first, %CustomStructWithEnsureOk{title: "hello"}})
-    end
-  end
-
   describe "Generated TypeEnsurer module verifies basic/listeral typed maps of" do
     test "given keys and value types" do
       load_type_ensurer_module_with_no_preconds(%{

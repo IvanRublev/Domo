@@ -4,7 +4,7 @@
 [![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)
 [![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)
 
-⚠️ This library generates code for structures that can bring suboptimal compilation times increased to approx 20%. Please, evaluate before use ⚠️
+⚠️ This library generates code for structures that can bring suboptimal compilation times increased to approx 20% ⚠️
 
 Domo is a library to model a business domain with type-safe structs and
 composable tagged tuples.
@@ -518,6 +518,10 @@ The following options can be passed with `use Domo, [...]`
     if any, and appending `_ok`.
     Defaults are `new` and `new_ok` appropriately.
 
+  * `remote_types_as_any` - keyword list of types by modules that should
+    be treated as any(). Value example `ExternalModule: [:t, :name], OtherModule: :t`
+    Default is nil.
+
 To set option globally add lines into the `config.exs` file like the following:
 
     config :domo, :unexpected_type_error_as_warning, true
@@ -649,6 +653,10 @@ with correct states at every update that is valid in many business contexts.
 4. Make a PR to this repository
 
 ## Changelog 
+
+### 1.2.5
+* Add `remote_types_as_any` option to disable validation of specified complex
+  remote types. What can be replaced by precondition for wrapping user-defined type.
 
 ### 1.2.4
 * Speedup resolving of struct types

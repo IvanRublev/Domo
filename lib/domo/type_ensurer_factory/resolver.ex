@@ -27,7 +27,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         {:ok,
          [
            fields: map.filed_types_to_resolve,
-           envs: map.environments
+           envs: map.environments,
+           anys_by_module: map.remote_types_as_any_by_module
          ]}
 
       _err ->
@@ -51,6 +52,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     preconds = plan[:preconds]
     envs = plan[:envs]
 
+    if verbose? and map_size(plan[:anys_by_module]) > 0 do
+      IO.write("""
+      Domo treats the following remote types as any() by module:
+      #{inspect(plan[:anys_by_module])}
+      """)
+    end
+
     case join_fields_envs(fields, envs) do
       {:ok, fields_envs} ->
         modules_count = map_size(fields)
@@ -60,7 +68,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         module#{if modules_count > 1, do: "s"} (.ex)\
         """)
 
-        case resolve_plan_envs(fields_envs, preconds, verbose?) do
+        anys_by_module = plan[:anys_by_module]
+
+        case resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
           {module_filed_types, [], module_deps} ->
             updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
             {:ok, module_filed_types, updated_module_deps}
@@ -92,7 +102,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  defp resolve_plan_envs(fields_envs, preconds, verbose?) do
+  defp resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
     resolvable_structs =
       fields_envs
       |> Enum.reduce([], fn {module, _fields, _env}, acc -> [module | acc] end)
@@ -103,7 +113,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         IO.puts("Resolve types of #{Alias.atom_to_string(module)}")
       end
 
-      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds, resolvable_structs)
+      remote_types_as_any =
+        Map.merge(
+          anys_by_module[:global] || %{},
+          anys_by_module[module] || %{},
+          fn _key, type_names_lhs, type_names_rhs -> List.flatten([type_names_rhs | type_names_lhs]) end
+        )
+
+      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds, remote_types_as_any, resolvable_structs)
 
       updated_module_field_types = Map.put(module_field_types, module, field_types)
 

@@ -117,6 +117,21 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                )
     end
 
+    test "accept types to treat as any", %{plan_path: plan_path} do
+      assert :ok ==
+               ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+                 plan_path,
+                 %{Module => [:t]}
+               )
+
+      assert :ok ==
+               ResolvePlanner.keep_remote_types_to_treat_as_any(
+                 plan_path,
+                 TwoFieldStruct,
+                 %{Module => [:name], Module1 => [:type1, :type2]}
+               )
+    end
+
     test "be able to flush all planned types to disk", %{plan_path: plan_path} do
       ResolvePlanner.plan_types_resolving(
         plan_path,
@@ -155,6 +170,28 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         9
       )
 
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+        plan_path,
+        %{Module => [:t]}
+      )
+
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+        plan_path,
+        %{Module => [:title]}
+      )
+
+      ResolvePlanner.keep_remote_types_to_treat_as_any(
+        plan_path,
+        TwoFieldStruct,
+        %{Module => [:name], Module1 => [:type1, :type2]}
+      )
+
+      ResolvePlanner.keep_remote_types_to_treat_as_any(
+        plan_path,
+        IncorrectDefault,
+        %{Module2 => [:name]}
+      )
+
       assert :ok == ResolvePlanner.flush(plan_path)
 
       plan =
@@ -171,7 +208,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                environments: %{TwoFieldStruct => env},
                structs_to_ensure: [
                  {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
-               ]
+               ],
+               remote_types_as_any_by_module: %{
+                 :global => %{Module => [:title]},
+                 TwoFieldStruct => %{Module => [:name], Module1 => [:type1, :type2]},
+                 IncorrectDefault => %{Module2 => [:name]}
+               }
              } == plan
     end
 
@@ -227,7 +269,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
           environments: %{IncorrectDefault => incorrect_default_env},
           structs_to_ensure: [
             {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
-          ]
+          ],
+          remote_types_as_any_by_module: %{
+            :global => %{Module => [:t]},
+            TwoFieldStruct => %{Module => [:number]}
+          }
         })
 
       File.write!(plan_path, plan_binary)
@@ -256,6 +302,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         12
       )
 
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+        plan_path,
+        %{Module => [:title]}
+      )
+
+      ResolvePlanner.keep_remote_types_to_treat_as_any(
+        plan_path,
+        TwoFieldStruct,
+        %{Module => [:name], Module1 => [:type1, :type2]}
+      )
+
       assert :ok == ResolvePlanner.flush(plan_path)
 
       plan =
@@ -275,7 +332,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                structs_to_ensure: [
                  {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9},
                  {TwoFieldStruct, [title: "World", duration: 20], "/other_module_path.ex", 12}
-               ]
+               ],
+               remote_types_as_any_by_module: %{
+                 :global => %{Module => [:title]},
+                 TwoFieldStruct => %{Module => [:name, :number], Module1 => [:type1, :type2]}
+               }
              } == plan
     end
 

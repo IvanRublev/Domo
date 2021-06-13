@@ -1,5 +1,6 @@
 defmodule DomoFuncTest do
   use Domo.FileCase, async: false
+  use Placebo
 
   import ExUnit.CaptureIO
 
@@ -19,6 +20,24 @@ defmodule DomoFuncTest do
     Code.eval_file("test/support/empty_struct.ex")
 
     {:ok, []} = DomoMixTask.run([])
+  end
+
+  setup do
+    File.mkdir_p!(src_path())
+
+    config = Mix.Project.config()
+    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
+    allow Mix.Project.config(), meck_options: [:passthrough], return: config
+
+    :ok
+  end
+
+  defp src_path do
+    tmp_path("/src")
+  end
+
+  defp src_path(path) do
+    Path.join([src_path(), path])
   end
 
   def build_sample_structs(_context) do
@@ -88,7 +107,7 @@ defmodule DomoFuncTest do
                    end
     end
 
-    test "issues a mismatch warning when unexpected_type_error_as_warning option is set or overridden with use Domo" do
+    test "issues a mismatch warning when `unexpected_type_error_as_warning` option is set or overridden with use Domo" do
       Application.put_env(:domo, :unexpected_type_error_as_warning, true)
 
       assert capture_io(:stderr, fn ->
@@ -102,6 +121,48 @@ defmodule DomoFuncTest do
              end) =~ "Invalid value \"mr\" for field :title of %RecipientWarnOverriden{}."
     after
       Application.delete_env(:domo, :unexpected_type_error_as_warning)
+    end
+
+    test "ensures remote types as any type listing them in `remote_types_as_any` option or overridden with use Domo" do
+      Application.put_env(:domo, :remote_types_as_any, EmptyStruct: :t, CustomStructUsingDomo: [:t])
+
+      compile_recipient_foreign_struct("RecipientForeignStructs")
+
+      DomoMixTask.run([])
+
+      assert _ = apply(RecipientForeignStructs, :new, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
+
+      assert_raise ArgumentError, ~r/Invalid value :hello for field :title of %RecipientForeignStructs{}./, fn ->
+        apply(RecipientForeignStructs, :new, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: :hello]])
+      end
+
+      Application.put_env(:domo, :remote_types_as_any, CustomStructUsingDomo: :t)
+
+      compile_recipient_foreign_struct(
+        "RecipientForeignStructsRemoteTypesAsAnyOverriden",
+        "remote_types_as_any: [Recipient: [:name]]"
+      )
+
+      DomoMixTask.run([])
+
+      assert _ =
+               apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new, [
+                 [placeholder: EmptyStruct.new(), custom_struct: :not_custom_struct, title: :not_a_string]
+               ])
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value :not_empty_struct for field :placeholder of %RecipientForeignStructsRemoteTypesAsAnyOverriden{}./,
+                   fn ->
+                     apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new, [
+                       [
+                         placeholder: :not_empty_struct,
+                         custom_struct: :not_custom_struct,
+                         title: :not_a_string
+                       ]
+                     ])
+                   end
+    after
+      Application.delete_env(:domo, :remote_types_as_any)
     end
 
     test "raises an error for missing keys or keys that don't exist in the struct" do
@@ -236,7 +297,7 @@ defmodule DomoFuncTest do
                    end
     end
 
-    test "issues a mismatch warning when unexpected_type_error_as_warning option is set or overriden with use Domo",
+    test "issues a mismatch warning when `unexpected_type_error_as_warning` option is set or overriden with use Domo",
          %{bob: bob} do
       malformed_bob = %{bob | name: :bob_hope}
       Application.put_env(:domo, :unexpected_type_error_as_warning, true)
@@ -317,5 +378,36 @@ defmodule DomoFuncTest do
                      Recipient.ensure_type_ok(%EmptyStruct{})
                    end
     end
+  end
+
+  defp compile_recipient_foreign_struct(module_name, use_arg \\ nil) do
+    path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
+
+    use_domo =
+      ["use Domo", use_arg]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(", ")
+
+    File.write!(path, """
+    defmodule #{module_name} do
+      #{use_domo}
+
+      @enforce_keys [:placeholder, :custom_struct, :title]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{
+              placeholder: EmptyStruct.t(),
+              custom_struct: CustomStructUsingDomo.t(),
+              title: Recipient.name()
+            }
+    end
+    """)
+
+    compile_with_elixir()
+  end
+
+  defp compile_with_elixir do
+    command = Mix.Utils.module_name_to_command("Mix.Tasks.Compile.Elixir", 2)
+    Mix.Task.rerun(command, [])
   end
 end

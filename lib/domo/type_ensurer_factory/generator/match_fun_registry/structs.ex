@@ -8,6 +8,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
   def struct_spec?(type_spec) do
     case type_spec do
       {{:%, _, [{:__aliases__, _, _}, {:%{}, _, _}]}, _precond} -> true
+      {{:%, _, [struct_name, {:%{}, _, _}]}, _precond} when is_atom(struct_name) -> true
       _ -> false
     end
   end

@@ -258,7 +258,7 @@ defmodule DomoUseTest do
       :ok
     end
 
-    test "raise abscense of Domo compiler calling structure functions with no TypeEnsurer generated yet" do
+    test "raise absence of Domo compiler calling structure functions with no TypeEnsurer generated yet" do
       defmodule Module do
         use Domo
 
@@ -300,7 +300,7 @@ defmodule DomoUseTest do
       assert_called ResolvePlanner.ensure_started(any(), any())
     end
 
-    test "keep the module environment for further type resolvance" do
+    test "keep the module environment for further type resolve" do
       module_empty()
 
       expected_module = __MODULE__.Module

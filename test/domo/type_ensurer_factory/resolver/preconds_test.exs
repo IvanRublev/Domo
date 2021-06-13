@@ -16,7 +16,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       preconds_file: preconds_file,
       deps_file: deps_file
     } do
-      File.write!(plan_file, :erlang.term_to_binary(%{filed_types_to_resolve: nil, environments: nil}))
+      File.write!(plan_file, :erlang.term_to_binary(%{filed_types_to_resolve: nil, environments: nil, remote_types_as_any_by_module: nil}))
 
       assert {:error,
               [
