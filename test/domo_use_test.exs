@@ -242,16 +242,8 @@ defmodule DomoUseTest do
       allow ResolvePlanner.plan_empty_struct(any(), any()), return: :ok
       allow ResolvePlanner.plan_precond_checks(any(), any(), any()), return: :ok
       allow ResolvePlanner.compile_time?(), return: tags.compile_time?
-
-      allow ResolvePlanner.plan_struct_integrity_ensurance(
-              any(),
-              any(),
-              any(),
-              any(),
-              any()
-            ),
-            return: :ok
-
+      allow ResolvePlanner.plan_struct_defaults_ensurance(any(), any(), any(), any(), any()), return: :ok
+      allow ResolvePlanner.plan_struct_integrity_ensurance(any(), any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.flush(any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
 
@@ -337,6 +329,20 @@ defmodule DomoUseTest do
                       expected_module,
                       :second,
                       is(fn {:float, _, _} -> true end)
+                    )
+    end
+
+    test "plan struct defaults ensurance" do
+      module_two_fields()
+
+      call_line = 33
+
+      assert_called ResolvePlanner.plan_struct_defaults_ensurance(
+                      any(),
+                      __MODULE__.Module,
+                      [first: nil, second: 1.0],
+                      is(fn file -> String.ends_with?(file, "/domo_use_test.exs") end),
+                      call_line
                     )
     end
 

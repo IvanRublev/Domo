@@ -3,6 +3,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   import GeneratorTestHelper
 
+  alias Domo.ErrorBuilder
   alias Domo.Precondition
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
@@ -40,7 +41,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   def call_pretty_error({:error, _} = error) do
-    apply(TypeEnsurer, :pretty_error, [error])
+    apply(ErrorBuilder, :pretty_error, [error])
+  end
+
+  def call_pretty_error_by_key({:error, _} = error) do
+    apply(ErrorBuilder, :pretty_error_by_key, [error])
   end
 
   describe "Generated TypeEnsurer module" do
@@ -75,7 +80,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       end
     end
 
-    test "has pretty_error_message function returning :error tuple with human readable message" do
+    test "has pretty_error function returning :error tuple with human readable message" do
       load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
 
       error =
@@ -86,13 +91,14 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
            :a_key,
            :wrong_value,
            [:float],
-           [{"hello %{value}", [value: "world"]}]
+           [{"hello %{value}", [value: "world"]}, {"other", []}]
          }}
 
       assert """
              Invalid value :wrong_value for field :a_key of %:a_struct_module{}. Expected the value matching the float type.
              Underlying errors:
-                - hello world\
+                - hello world
+                - other\
              """ == call_pretty_error(error)
     end
 
@@ -107,18 +113,19 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
            :a_key,
            :wrong_value,
            ["float()"],
-           [{"hello %{value}", [value: "world"]}]
+           [{"hello %{value}", [value: "world"]}, {"other", []}]
          }}
 
       assert {:a_key,
               """
               Invalid value :wrong_value for field :a_key of %:a_struct_module{}. Expected the value matching the float() type.
               Underlying errors:
-                 - hello world\
-              """} == apply(TypeEnsurer, :pretty_error_by_key, [error])
+                 - hello world
+                 - other\
+              """} == call_pretty_error_by_key(error)
     end
 
-    test "returns :error when t precondition function freturns false" do
+    test "returns :error giving t precondition false result" do
       precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
@@ -252,7 +259,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              """ == call_pretty_error(response)
     end
 
-    test "returns :error when all precondition functions returns false for given value" do
+    test "returns :error when value matches one of types and its precondition returns false" do
       precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
@@ -268,8 +275,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              Invalid value -1 for field :first of %Elixir{}. Expected the value matching the integer() | atom() type.
              Underlying errors:
                 - Expected the value matching the integer() type. And a true value from the precondition function \"positive_integer_func\" defined \
-             for UserTypes.positive_integer() type.
-                - Expected the value matching the atom() type.\
+             for UserTypes.positive_integer() type.\
              """ == call_pretty_error(response)
     end
   end

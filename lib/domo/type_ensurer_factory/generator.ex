@@ -128,83 +128,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
         unquote_splicing(match_spec_functions)
 
         def do_match_spec({_spec_atom, _precond_atom}, value, spec_string) do
-          message = build_error(spec_string, nil)
+          message = apply(Domo.ErrorBuilder, :build_error, [spec_string, nil])
           {:error, value, [message]}
-        end
-
-        defp build_error(spec_string, [precond_description: _description, precond_type: _type_string] = opts) do
-          {template, keywords} = build_error(spec_string, nil)
-
-          template =
-            template <>
-              " And a true value from the precondition" <>
-              " function \"%{precond_description}\" defined for %{precond_type} type."
-
-          keywords = Keyword.merge(keywords, opts)
-
-          {template, keywords}
-        end
-
-        defp build_error(spec_string, nil) do
-          {"Expected the value matching the %{type} type.", type: spec_string}
-        end
-
-        def pretty_error_by_key({:error, {_, _, field, _, _, _}} = error) do
-          {field || :t, pretty_error(error)}
-        end
-
-        def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}) do
-          field_string = if field, do: "for field #{inspect(field)} of %#{inspect(struct_module)}{}"
-
-          value_description =
-            [
-              "Invalid value",
-              inspect(value),
-              field_string
-            ]
-            |> Enum.reject(&is_nil/1)
-            |> Enum.join(" ")
-
-          {underlying_error_types, count} =
-            error_templates
-            |> List.flatten()
-            |> Enum.reduce({[], 0}, fn {_msg, list}, {types, count} -> {[list[:type] | types], count + length(list)} end)
-
-          only_primitive_or_values = Enum.reverse(underlying_error_types) == expected_types and count == length(expected_types)
-
-          or_type_spec = Enum.join(expected_types, " | ")
-          general_or_error = "Expected the value matching the #{or_type_spec} type."
-
-          error_templates = List.flatten(error_templates)
-          {general_error_template, general_error_args} = hd(error_templates)
-          rest_underlying_errors = List.delete_at(error_templates, 0)
-          general_error = interpolate_error_template(general_error_template, general_error_args)
-
-          {general_error_string, underlying_errors} =
-            if String.starts_with?(general_error, general_or_error) do
-              {general_error, rest_underlying_errors}
-            else
-              {general_or_error, error_templates}
-            end
-
-          underlying_error_strings =
-            underlying_errors
-            |> Enum.map(fn {template, args} -> "   - " <> interpolate_error_template(template, args) end)
-            |> Enum.join("\n")
-
-          underlying_error_strings =
-            unless underlying_error_strings == "" or only_primitive_or_values == true do
-              "\nUnderlying errors:\n" <> underlying_error_strings
-            end
-
-          "#{value_description}. #{general_error_string}#{underlying_error_strings}"
-        end
-
-        defp interpolate_error_template(template, args) do
-          Enum.reduce(args, template, fn {key, value}, template ->
-            string = if is_nil(value), do: "nil", else: to_string(value)
-            String.replace(template, "%{#{key}}", string)
-          end)
         end
       end
     end
@@ -229,7 +154,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
           type_spec = "#{unquote(struct_module_string)}.t()"
 
           message =
-            build_error(
+            Domo.ErrorBuilder.build_error(
               type_spec,
               precond_description: unquote(t_precond.description),
               precond_type: unquote(Precondition.type_string(t_precond))

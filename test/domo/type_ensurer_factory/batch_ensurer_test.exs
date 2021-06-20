@@ -67,6 +67,30 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
               ]} = BatchEnsurer.ensure_struct_integrity(plan_file)
     end
 
+    test "return the error if no fields in plan are found", %{plan_file: plan_file} do
+      File.write!(plan_file, :erlang.term_to_binary(%{}))
+
+      assert {:error,
+              [
+                %Error{
+                  compiler_module: BatchEnsurer,
+                  file: ^plan_file,
+                  struct_module: nil,
+                  message: {:no_field_in_plan, :structs_to_ensure}
+                }
+              ]} = BatchEnsurer.ensure_struct_integrity(plan_file)
+
+      assert {:error,
+              [
+                %Error{
+                  compiler_module: BatchEnsurer,
+                  file: ^plan_file,
+                  struct_module: nil,
+                  message: {:no_field_in_plan, :struct_defaults_to_ensure}
+                }
+              ]} = BatchEnsurer.ensure_struct_defaults(plan_file)
+    end
+
     test "return :ok when giving structures matching their types", %{
       planner: planner,
       plan_file: plan_file
@@ -114,6 +138,28 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
     end
 
+    test "return error with a first struct field's default value not matching its type", %{
+      planner: planner,
+      plan_file: plan_file
+    } do
+      file = Path.join(@source_dir, "/some_caller_module.ex")
+
+      plan_struct_defaults_ensurance(
+        planner,
+        CustomStructUsingDomo,
+        [title: :hello],
+        file,
+        2
+      )
+
+      flush(planner)
+
+      assert {:error, {^file, 2, message}} = BatchEnsurer.ensure_struct_defaults(plan_file)
+
+      assert message =~ "A default value given via defstruct/1 in CustomStructUsingDomo module mismatches the type."
+      assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
+    end
+
     @first_path Path.join(@source_dir, "/some_caller_module.ex")
     @second_path Path.join(@source_dir, "/other_caller_module.ex")
     @third_path Path.join(@source_dir, "/third_caller_module.ex")
@@ -153,6 +199,51 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       third_mtime = mtime(@third_path)
 
       BatchEnsurer.ensure_struct_integrity(plan_file)
+
+      assert mtime(@first_path) == some_mtime
+      assert mtime(@second_path) > other_mtime
+      assert mtime(@third_path) > third_mtime
+    end
+
+    @first_path Path.join(@source_dir, "/some_caller_module.ex")
+    @second_path Path.join(@source_dir, "/other_caller_module.ex")
+    @third_path Path.join(@source_dir, "/third_caller_module.ex")
+    @tag touch_paths: [@first_path, @second_path, @third_path]
+    test "touch files having field's default value not matching its type", %{
+      planner: planner,
+      plan_file: plan_file
+    } do
+      plan_struct_defaults_ensurance(
+        planner,
+        CustomStructUsingDomo,
+        [title: "hello"],
+        @first_path,
+        8
+      )
+
+      plan_struct_defaults_ensurance(
+        planner,
+        Recipient,
+        [title: "hello"],
+        @second_path,
+        9
+      )
+
+      plan_struct_defaults_ensurance(
+        planner,
+        RecipientWarnOverriden,
+        [title: "world"],
+        @third_path,
+        11
+      )
+
+      flush(planner)
+
+      some_mtime = mtime(@first_path)
+      other_mtime = mtime(@second_path)
+      third_mtime = mtime(@third_path)
+
+      BatchEnsurer.ensure_struct_defaults(plan_file)
 
       assert mtime(@first_path) == some_mtime
       assert mtime(@second_path) > other_mtime

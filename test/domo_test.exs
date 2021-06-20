@@ -10,7 +10,23 @@ defmodule DomoTest do
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
-  Code.compiler_options(no_warn_undefined: [Account, Receiver, ReceiverUserTypeAfterT, Game, Customer, Airplane, Airplane.Seat])
+  Code.compiler_options(
+    no_warn_undefined: [
+      Account,
+      Article,
+      Money,
+      Library,
+      Library.Shelve,
+      Library.Book,
+      Library.Book.Author,
+      Receiver,
+      ReceiverUserTypeAfterT,
+      Game,
+      Customer,
+      Airplane,
+      Airplane.Seat
+    ]
+  )
 
   setup do
     Code.compiler_options(ignore_module_conflict: true)
@@ -253,6 +269,68 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       end
     end
 
+    test "ensures that struct default values conform to t() type" do
+      compile_struct_with_defaults("id: 1, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
+
+      assert {:ok, []} = DomoMixTask.run([])
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      [path] = compile_struct_with_defaults(":id, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: ^path,
+        position: 1,
+        message: "A default value given via defstruct/1 in Bar module mismatches the type." <> _,
+        severity: :error
+      }
+
+      assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
+      assert msg =~ "Invalid value nil for field :id of %Bar{}. Expected the value matching the integer() type."
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      [path] = compile_struct_with_defaults(":id, field: :hello", enforce_keys: ":id", t: "id: integer(), field: integer()")
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: ^path,
+        position: 1,
+        message: "A default value given via defstruct/1 in Bar module mismatches the type." <> _,
+        severity: :error
+      }
+
+      assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
+      assert msg =~ "Invalid value :hello for field :field of %Bar{}. Expected the value matching the integer() type."
+
+      plan_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :plan)
+      refute File.exists?(plan_file)
+
+      types_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :types)
+      refute File.exists?(types_file)
+    end
+
     test "recompile module that builds struct using Domo at compile time when the struct's type changes" do
       :code.purge(Elixir.Game.TypeEnsurer)
       :code.delete(Elixir.Game.TypeEnsurer)
@@ -315,6 +393,123 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
   end
 
+  describe "Domo library error messages should" do
+    test "have no underlying errors printed giving | type with primitive type arguments" do
+      compile_receiver_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert_raise ArgumentError,
+                   """
+                   the following values should have types defined for fields of the Receiver struct:
+                    * Invalid value nil for field :title of %Receiver{}. Expected the value \
+                   matching the :mr | :ms | :dr type.\
+                   """,
+                   fn ->
+                     _ = Receiver.new(title: nil, name: "ok")
+                   end
+    end
+
+    test "have only underlying error for matching argument type with failed precondition giving | with user type arguments" do
+      compile_money_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert_raise ArgumentError,
+                   """
+                   the following values should have types defined for fields of the Money struct:
+                    * Invalid value 0.3 for field :amount of %Money{}. Expected the value \
+                   matching the :none | float() | integer() type.
+                   Underlying errors:
+                      - Expected the value matching the float() type. And a true value from the \
+                   precondition function "&(&1 > 0.5)" defined for Money.float_amount() type.\
+                   """,
+                   fn ->
+                     _ = Money.new(amount: 0.3)
+                   end
+    end
+
+    test "returns error for | sum type with details about part that matches most deeply" do
+      compile_article_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert_raise ArgumentError,
+                   """
+                   the following values should have types defined for fields of the Article struct:
+                    * Invalid value {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}} \
+                   for field :metadata of %Article{}. Expected the value matching the \
+                   :none \
+                   | {:simple, %{author: <<_::_*8>>, published: %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()}}} \
+                   | {:detail, <<_::_*8>>} \
+                   | {:detail, %{author: <<_::_*8>>, published_updated: %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()}}} \
+                   | {:detail, %{author: <<_::_*8>>, published_updated: <<_::_*8>>}} type.
+                   Underlying errors:
+                      - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
+                        - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
+                        - Expected the value matching the %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()} type.
+                      - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
+                        - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
+                        - Expected the value matching the <<_::_*8>> type.\
+                   """,
+                   fn ->
+                     _ = Article.new(metadata: {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}})
+                   end
+    end
+
+    test "returns error for most deepest error for nested structs" do
+      compile_library_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert_raise ArgumentError,
+                   """
+                   the following values should have types defined for fields of the Library struct:
+                    * Invalid value [%Library.Shelve{address: "A5", books: [%Library.Book{author: %Library.Book.Author{first_name: "Jack", second_name: "Kerouac"}, title: "On the Road"}]}, \
+                   %Library.Shelve{address: "B1", books: [%Library.Book{author: %Library.Book.Author{first_name: "William S.", second_name: "Burroughs"}, title: "Naked Lunch"}, \
+                   %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"}]}] for field :shelves of %Library{}. \
+                   Expected the value matching the [%Library.Shelve{}] type.
+                   Underlying errors:
+                      - The element at index 1 has value %Library.Shelve{address: "B1", books: [%Library.Book{author: %Library.Book.Author{first_name: "William S.", second_name: "Burroughs"}, title: "Naked Lunch"}, \
+                   %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"}]} that is invalid.
+                      - Value of field :books is invalid due to the following:
+                        - The element at index 1 has value %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"} that is invalid.
+                        - Value of field :author is invalid due to Invalid value %Library.Book.Author{first_name: "Allen", second_name: :ginsberg} for field :author of %Library.Book{}. \
+                   Value of field :second_name is invalid due to Invalid value :ginsberg for field :second_name of %Library.Book.Author{}. Expected the value matching the <<_::_*8>> type.
+                    * Invalid value 1 for field :name of %Library{}. Expected the value matching the <<_::_*8>> type.\
+                   """,
+                   fn ->
+                     alias Library.Shelve
+                     alias Library.Book
+                     alias Library.Book.Author
+
+                     _ =
+                       Library.new(
+                         name: 1,
+                         shelves: [
+                           Shelve.new(
+                             address: "A5",
+                             books: [Book.new(title: "On the Road", author: Author.new(first_name: "Jack", second_name: "Kerouac"))]
+                           ),
+                           %{
+                             Shelve.new(
+                               address: "B1",
+                               books: []
+                             )
+                             | books: [
+                                 Book.new(title: "Naked Lunch", author: Author.new(first_name: "William S.", second_name: "Burroughs")),
+                                 %{
+                                   Book.new(title: "Howl and Other Poems", author: Author.new(first_name: "-", second_name: "-"))
+                                   | author: %{Author.new(first_name: "Allen", second_name: "") | second_name: :ginsberg}
+                                 }
+                               ]
+                           }
+                         ]
+                       )
+                   end
+    end
+  end
+
   defp compile_account_struct do
     path = src_path("/account.ex")
 
@@ -343,6 +538,102 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     [path]
   end
 
+  defp compile_money_struct do
+    path = src_path("/money.ex")
+
+    File.write!(path, """
+    defmodule Money do
+      use Domo
+
+      @enforce_keys [:amount]
+      defstruct @enforce_keys
+
+      @type float_amount :: float()
+      precond float_amount: &(&1 > 0.5)
+
+      @type int_amount :: integer()
+      precond int_amount: &(&1 >= 1)
+
+      @type t :: %__MODULE__{amount: :none | float_amount() | int_amount()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_article_struct do
+    path = src_path("/article.ex")
+
+    File.write!(path, """
+    defmodule Article do
+      use Domo
+
+      @enforce_keys [:metadata]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{metadata: :none | simple_metadata() | detail_metadata()}
+
+      @type simple_metadata :: {:simple, %{author: String.t(), published: Date.t()}}
+      @type detail_metadata :: {:detail, String.t() | %{author: String.t(), published_updated: Date.t() | String.t()}}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_library_struct do
+    path = src_path("/library.ex")
+
+    File.write!(path, """
+    defmodule Library do
+      use Domo
+
+      alias Library.Shelve
+
+      @enforce_keys [:name, :shelves]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{name: String.t(), shelves: [Shelve.t()]}
+    end
+
+    defmodule Library.Shelve do
+      use Domo
+
+      alias Library.Book
+
+      @enforce_keys [:address, :books]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{address: String.t(), books: [Book.t()]}
+    end
+
+    defmodule Library.Book do
+      use Domo
+
+      alias Library.Book.Author
+
+      @enforce_keys [:title, :author]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{title: String.t(), author: Author.t()}
+    end
+
+    defmodule Library.Book.Author do
+      use Domo
+
+      @enforce_keys [:first_name, :second_name]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{first_name: String.t(), second_name: String.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
   defp compile_receiver_struct do
     path = src_path("/receiver.ex")
 
@@ -351,7 +642,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       use Domo
 
       @enforce_keys [:title, :name]
-      defstruct [:title, :name, :age]
+      defstruct [:title, :name, age: 0]
 
       @type title :: :mr | :ms | :dr
       @type name :: String.t()
@@ -372,7 +663,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       use Domo
 
       @enforce_keys [:title, :name]
-      defstruct [:title, :name, :age]
+      defstruct [:title, :name, age: 0]
 
       @type t :: %__MODULE__{title: title(), name: name(), age: age()}
       @type title :: :mr | :ms | :dr
@@ -546,13 +837,30 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     defmodule Foo do
       use Domo
 
-      defstruct [:title]
+      defstruct [title: ""]
       @type t :: %__MODULE__{title: String.t()}
     end
 
     defmodule FooHolder do
       defstruct [foo: #{default_command}]
       @type t :: %__MODULE__{foo: Foo.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_struct_with_defaults(fields, enforce_keys: enforce_keys, t: type_fields) do
+    path = src_path("/valid_bar_default.ex")
+
+    File.write!(path, """
+    defmodule Bar do
+      use Domo
+
+      #{if enforce_keys, do: enforce_keys, else: ""}
+      defstruct [#{fields}]
+      @type t :: %__MODULE__{#{type_fields}}
     end
     """)
 

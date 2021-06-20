@@ -32,11 +32,10 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
               :ok
             else
               message =
-                build_error(
+                apply(Domo.ErrorBuilder, :build_error, [
                   spec_string,
-                  precond_description: unquote(precond.description),
-                  precond_type: unquote(Precondition.type_string(precond))
-                )
+                  [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
+                ])
 
               {:error, value, [message]}
             end

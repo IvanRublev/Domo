@@ -22,7 +22,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       defmodule Module do
         use Domo
 
-        defstruct [:first, second: 1.0]
+        defstruct first: :atom, second: 1.0
         @type t :: %__MODULE__{first: atom, second: float}
       end
   end
@@ -32,7 +32,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       defmodule Module1 do
         use Domo
 
-        defstruct [:former]
+        defstruct former: 0
         @type t :: %__MODULE__{former: integer}
       end
   end
@@ -66,6 +66,8 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task should" do
     setup do
+      allow BatchEnsurer.ensure_struct_defaults(any()), return: :ok
+      allow BatchEnsurer.ensure_struct_integrity(any()), return: :ok
       allow Cleaner.rm!(any()), return: nil
       allow Cleaner.rmdir_if_exists!(any()), return: nil
       :ok
@@ -359,7 +361,7 @@ defmodule Domo.MixTasksCompileDomoTest do
              ]
     end
 
-    test "does not remove previous type_ensurer modules source code missing new plan file", %{code_path: code_path} do
+    test "Not remove previous type_ensurer modules source code missing new plan file", %{code_path: code_path} do
       Placebo.unstub()
 
       allow Cleaner.rm!(any()), return: [:ok]
@@ -533,6 +535,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       allow Generator.compile(any(), any()),
         return: {:ok, [AModule], [{"/other_path", 2, "another warning"}]}
 
+      allow BatchEnsurer.ensure_struct_defaults(any()), return: :ok
       allow BatchEnsurer.ensure_struct_integrity(any()), return: :ok
 
       allow Cleaner.rmdir_if_exists!(any()), return: :ok

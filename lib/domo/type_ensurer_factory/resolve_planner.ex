@@ -19,6 +19,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
       filed_types_to_resolve: %{},
       environments: %{},
       structs_to_ensure: [],
+      struct_defaults_to_ensure: [],
       remote_types_as_any_by_module: %{}
     }
 
@@ -36,6 +37,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
            when is_map_key(value, :filed_types_to_resolve) and
                   is_map_key(value, :environments) and
                   is_map_key(value, :structs_to_ensure) and
+                  is_map_key(value, :struct_defaults_to_ensure) and
                   is_map_key(value, :remote_types_as_any_by_module)
 
   defp maybe_read_plan(path, default) do
@@ -97,6 +99,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   def plan_struct_integrity_ensurance(plan_path, module, fields, file, line) do
     GenServer.call(via(plan_path), {:plan_struct_integrity_ensurance, module, fields, file, line})
+  end
+
+  def plan_struct_defaults_ensurance(plan_path, module, fields, file, line) do
+    GenServer.call(via(plan_path), {:plan_struct_defaults_ensurance, module, fields, file, line})
   end
 
   def plan_precond_checks(plan_path, module, type_name_description) do
@@ -190,6 +196,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     {:reply, :ok, updated_state}
   end
 
+  def handle_call({:plan_struct_defaults_ensurance, module, fields, file, line}, _from, state) do
+    updated_list = replace_or_append_defaults(state.plan.struct_defaults_to_ensure, {module, fields, file, line})
+    updated_state = put_in(state, [:plan, :struct_defaults_to_ensure], updated_list)
+    {:reply, :ok, updated_state}
+  end
+
   def handle_call({:plan_precond_checks, module, types_name_description}, _from, state) do
     updated_precond_map = Map.put(state.preconds, module, types_name_description)
     updated_state = Map.put(state, :preconds, updated_precond_map)
@@ -204,6 +216,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   def handle_call({:flush_and_stop, verbose?}, _from, state) do
     updated_state = %{state | verbose?: verbose?}
     {:stop, :normal, do_flush(updated_state), updated_state}
+  end
+
+  defp replace_or_append_defaults(list, defaults) do
+    {module, _fields, _file, _line} = defaults
+    idx = Enum.find_index(list, fn {existing_module, _fields, _file, _line} -> existing_module == module end)
+
+    if is_nil(idx) do
+      Enum.concat(list, [defaults])
+    else
+      List.replace_at(list, idx, defaults)
+    end
   end
 
   defp add_key(nil, field, type_quoted), do: {:ok, %{field => type_quoted}}

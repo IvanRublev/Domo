@@ -117,6 +117,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                )
     end
 
+    test "accept struct defaults for postponed ensurance", %{plan_path: plan_path} do
+      assert :ok ==
+               ResolvePlanner.plan_struct_defaults_ensurance(
+                 plan_path,
+                 TwoFieldStruct,
+                 [title: "Hello"],
+                 "/module_path.ex",
+                 2
+               )
+    end
+
     test "accept types to treat as any", %{plan_path: plan_path} do
       assert :ok ==
                ResolvePlanner.keep_global_remote_types_to_treat_as_any(
@@ -170,6 +181,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         9
       )
 
+      ResolvePlanner.plan_struct_defaults_ensurance(
+        plan_path,
+        TwoFieldStruct,
+        [title: "Hello"],
+        "/module_path.ex",
+        2
+      )
+
       ResolvePlanner.keep_global_remote_types_to_treat_as_any(
         plan_path,
         %{Module => [:t]}
@@ -208,6 +227,9 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                environments: %{TwoFieldStruct => env},
                structs_to_ensure: [
                  {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
+               ],
+               struct_defaults_to_ensure: [
+                 {TwoFieldStruct, [title: "Hello"], "/module_path.ex", 2}
                ],
                remote_types_as_any_by_module: %{
                  :global => %{Module => [:title]},
@@ -270,6 +292,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
           structs_to_ensure: [
             {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
           ],
+          struct_defaults_to_ensure: [
+            {TwoFieldStruct, [title: "Hello"], "/module_path.ex", 2},
+            {Module, [field: 1], "/module_path.ex", 2}
+          ],
           remote_types_as_any_by_module: %{
             :global => %{Module => [:t]},
             TwoFieldStruct => %{Module => [:number]}
@@ -302,6 +328,22 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         12
       )
 
+      ResolvePlanner.plan_struct_defaults_ensurance(
+        plan_path,
+        TwoFieldStruct,
+        [title: "World"],
+        "/other_module_path.ex",
+        3
+      )
+
+      ResolvePlanner.plan_struct_defaults_ensurance(
+        plan_path,
+        Module1,
+        [id: 5],
+        "/module_path1.ex",
+        2
+      )
+
       ResolvePlanner.keep_global_remote_types_to_treat_as_any(
         plan_path,
         %{Module => [:title]}
@@ -332,6 +374,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                structs_to_ensure: [
                  {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9},
                  {TwoFieldStruct, [title: "World", duration: 20], "/other_module_path.ex", 12}
+               ],
+               struct_defaults_to_ensure: [
+                 {TwoFieldStruct, [title: "World"], "/other_module_path.ex", 3},
+                 {Module, [field: 1], "/module_path.ex", 2},
+                 {Module1, [id: 5], "/module_path1.ex", 2}
                ],
                remote_types_as_any_by_module: %{
                  :global => %{Module => [:title]},

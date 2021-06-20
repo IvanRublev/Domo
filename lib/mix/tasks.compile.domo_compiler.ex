@@ -59,6 +59,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
          :ok <- resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?),
          {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
          {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?),
+         :ok <- ensure_struct_defaults(plan_path),
          :ok <- ensure_structs_integrity(plan_path) do
       Cleaner.rm!([plan_path, types_path])
 
@@ -130,6 +131,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
       {:ok, modules, te_warns} -> {:ok, {modules, te_warns}}
       {:error, ex_errors, ex_warnings} -> {:error, {:compile, {ex_errors, ex_warnings}}}
       {:error, message} -> {:error, {:compile, message}}
+    end
+  end
+
+  defp ensure_struct_defaults(plan_path) do
+    case BatchEnsurer.ensure_struct_defaults(plan_path) do
+      :ok -> :ok
+      {:error, message} -> {:error, {:batch_ensurer, {[message], []}}}
     end
   end
 

@@ -20,6 +20,11 @@ defmodule Domo do
   type definition. Then it ensures that the field's value is in the valid range
   by calling the user-defined precondition function for the value's type.
 
+  The library is a practical tool for the compile-time check. It automatically
+  validates that the default values of the struct conform to its type.
+  And ensure that instances constructed with `new/1` function to be
+  a macro argument match their types.
+
   ## Rationale
 
   One of the ways to validate that input data is of the model struct's type
@@ -531,6 +536,7 @@ defmodule Domo do
 
   """
 
+  alias Domo.ErrorBuilder
   alias Domo.TypeEnsurerFactory.ResolvePlanner
   alias Domo.MixProjectHelper
   alias Domo.Raises
@@ -540,6 +546,8 @@ defmodule Domo do
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
     Raises.raise_absence_of_domo_compiler!(Mix.Project.config(), opts, __CALLER__)
+
+    start_resolve_planner()
 
     global_anys = Application.get_env(:domo, :remote_types_as_any)
     local_anys = Keyword.get(opts, :remote_types_as_any)
@@ -686,17 +694,29 @@ defmodule Domo do
 
       @before_compile {Raises, :raise_not_in_a_struct_module!}
       @before_compile {Raises, :raise_no_type_t_defined!}
+      @before_compile {Domo, :_plan_struct_defaults_ensurance}
 
       @after_compile {Domo, :_collect_types_for_domo_compiler}
     end
   end
 
-  defp collect_types_to_treat_as_any(module, global_anys, local_anys) do
+  defp start_resolve_planner do
     project = MixProjectHelper.global_stub() || Mix.Project
     plan_path = DomoMixTask.manifest_path(project, :plan)
     preconds_path = DomoMixTask.manifest_path(project, :preconds)
 
     {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+
+    plan_path
+  end
+
+  defp get_plan_path do
+    project = MixProjectHelper.global_stub() || Mix.Project
+    DomoMixTask.manifest_path(project, :plan)
+  end
+
+  defp collect_types_to_treat_as_any(module, global_anys, local_anys) do
+    plan_path = get_plan_path()
 
     unless is_nil(global_anys) do
       global_anys_map = cast_keyword_to_map_of_lists_by_module(global_anys)
@@ -723,7 +743,7 @@ defmodule Domo do
       Enum.reduce(Map.from_struct(struct), [], fn key_value, errors ->
         case apply(type_ensurer, :ensure_field_type, [key_value]) do
           {:error, _} = error ->
-            [apply(type_ensurer, err_fun, [error]) | errors]
+            [apply(ErrorBuilder, err_fun, [error]) | errors]
 
           _ ->
             errors
@@ -733,7 +753,7 @@ defmodule Domo do
     t_precondition_error =
       if Enum.empty?(errors) do
         case apply(type_ensurer, :t_precondition, [struct]) do
-          {:error, _} = error -> apply(type_ensurer, err_fun, [error])
+          {:error, _} = error -> apply(ErrorBuilder, err_fun, [error])
           :ok -> nil
         end
       end
@@ -743,11 +763,8 @@ defmodule Domo do
 
   @doc false
   def _collect_types_for_domo_compiler(env, bytecode) do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    plan_path = DomoMixTask.manifest_path(project, :plan)
-    preconds_path = DomoMixTask.manifest_path(project, :preconds)
+    plan_path = get_plan_path()
 
-    {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
     :ok = ResolvePlanner.keep_module_environment(plan_path, env.module, env)
 
     {:"::", _, [{:t, _, _}, {:%, _, [_module_name, {:%{}, _, field_type_list}]}]} =
@@ -776,9 +793,32 @@ defmodule Domo do
   end
 
   @doc false
+  def _plan_struct_defaults_ensurance(env) do
+    plan_path = get_plan_path()
+
+    struct = Module.get_attribute(env.module, :__struct__) || Module.get_attribute(env.module, :struct)
+    enforce_keys = Module.get_attribute(env.module, :enforce_keys) || []
+    keys_to_drop = [:__struct__ | enforce_keys]
+
+    defaults =
+      struct
+      |> Map.from_struct()
+      |> Enum.reject(fn {key, _value} -> key in keys_to_drop end)
+      |> Enum.sort_by(fn {key, _value} -> key end)
+
+    :ok ==
+      ResolvePlanner.plan_struct_defaults_ensurance(
+        plan_path,
+        env.module,
+        defaults,
+        to_string(env.file),
+        env.line
+      )
+  end
+
+  @doc false
   def _plan_struct_integrity_ensurance(module, enumerable) do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    plan_path = DomoMixTask.manifest_path(project, :plan)
+    plan_path = get_plan_path()
 
     {:current_stacktrace, calls} = Process.info(self(), :current_stacktrace)
 
@@ -854,11 +894,8 @@ defmodule Domo do
       Raises.raise_nonexistent_type_for_precond(missing_type)
     end
 
-    project = MixProjectHelper.global_stub() || Mix.Project
-    plan_path = DomoMixTask.manifest_path(project, :plan)
-    preconds_path = DomoMixTask.manifest_path(project, :preconds)
-
-    {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+    # precond macro can be called via import Domo, so need to start resolve planner
+    plan_path = start_resolve_planner()
     :ok = ResolvePlanner.plan_precond_checks(plan_path, module, precond_name_description)
   end
 

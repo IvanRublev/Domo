@@ -182,6 +182,16 @@ defmodule ResolverTestHelper do
     )
   end
 
+  def plan_struct_defaults_ensurance(planner, module, fields, file, line) do
+    ResolvePlanner.plan_struct_defaults_ensurance(
+      planner,
+      module,
+      fields,
+      file,
+      line
+    )
+  end
+
   def keep_global_remote_types_to_treat_as_any(planner, remote_types_as_any) do
     ResolvePlanner.keep_global_remote_types_to_treat_as_any(
       planner,

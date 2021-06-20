@@ -3,7 +3,7 @@ defmodule Recipient do
   use Domo
 
   @enforce_keys [:title, :name]
-  defstruct [:title, :name, :age]
+  defstruct [:title, :name, age: 0]
 
   @type title :: :mr | :ms | :dr
   @type name :: String.t()
@@ -15,7 +15,7 @@ defmodule RecipientWarnOverriden do
   use Domo, unexpected_type_error_as_warning: true
 
   @enforce_keys [:title, :name]
-  defstruct [:title, :name, :age]
+  defstruct [:title, :name, age: 0]
 
   @type title :: :mr | :ms | :dr
   @type name :: String.t()
@@ -27,7 +27,7 @@ defmodule RecipientNewOverriden do
   use Domo, name_of_new_function: :locally_set_new!
 
   @enforce_keys [:title, :name]
-  defstruct [:title, :name, :age]
+  defstruct [:title, :name, age: 0]
 
   @type title :: :mr | :ms | :dr
   @type name :: String.t()

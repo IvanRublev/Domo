@@ -73,10 +73,8 @@ defmodule DomoFuncTest do
                     * Invalid value %Recipient{age: 27, name: "Bob", title: "mr"} for field :title of %RecipientNestedOrTypes{}. \
                    Expected the value matching the :mr | %Recipient{} | :dr type.
                    Underlying errors:
-                      - Expected the value matching the :mr type.
                       - Value of field :title is invalid due to Invalid value "mr" for field :title of %Recipient{}. \
-                   Expected the value matching the :mr | :ms | :dr type.
-                      - Expected the value matching the :dr type.\
+                   Expected the value matching the :mr | :ms | :dr type.\
                    """,
                    fn ->
                      _ = RecipientNestedOrTypes.new(title: %Recipient{title: "mr", name: "Bob", age: 27})

@@ -3,7 +3,7 @@ defmodule RecipientWithPrecond do
   use Domo
 
   @enforce_keys [:title, :name]
-  defstruct [:title, :name, :age]
+  defstruct [:title, :name, age: 0]
 
   @type title :: :mr | :ms | :dr
   @type name :: String.t()
