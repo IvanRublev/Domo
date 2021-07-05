@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
   def list_spec?(type_spec_precond) do
@@ -77,7 +77,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     match_spec_quoted =
       quote do
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [] = unquote(value_var), unquote(spec_string_var)),
-          do: unquote(ok_or_precond_call_quoted(precond))
+          do: unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [{_key, _value} | _] = value, spec_string) do
           reduced_list =
@@ -109,7 +109,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
             end)
 
           if is_list(reduced_list) do
-            unquote(ok_or_precond_call_quoted(precond))
+            unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           else
             reduced_list
           end
@@ -141,7 +141,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when unquote(guard_quoted) do
           case do_match_list_elements(unquote(type_spec_atom), value, 0) do
             {:proper, _length} ->
-              unquote(ok_or_precond_call_quoted(precond))
+              unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
             {:element_error, messages} ->
               {:error, value, messages}
@@ -150,26 +150,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
       end
 
     {[match_spec_quoted, match_list_elements_quoted], [element_spec_precond]}
-  end
-
-  defp ok_or_precond_call_quoted(nil) do
-    :ok
-  end
-
-  defp ok_or_precond_call_quoted(precond) do
-    quote do
-      if unquote(Precondition.validation_call_quoted(precond, quote(do: value))) do
-        :ok
-      else
-        message =
-          apply(Domo.ErrorBuilder, :build_error, [
-            spec_string,
-            [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
-          ])
-
-        {:error, value, [message]}
-      end
-    end
   end
 
   defp match_el_quoted(type_spec_atom, head_attributes, tail_attributes) do
@@ -227,7 +207,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
           case do_match_list_elements(unquote(type_spec_atom), value, 0) do
             {:element_error, messages} -> {:error, value, messages}
-            {_kind, _length} -> unquote(ok_or_precond_call_quoted(precond))
+            {_kind, _length} -> unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           end
         end
       end
@@ -260,7 +240,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
               {:error, value, [{"Expected an improper list.", []}]}
 
             {_kind, _length} ->
-              unquote(ok_or_precond_call_quoted(precond))
+              unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           end
         end
       end
@@ -290,7 +270,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
               {:error, value, [{"Expected a nonempty list.", []}]}
 
             {_kind, _length} ->
-              unquote(ok_or_precond_call_quoted(precond))
+              unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           end
         end
       end

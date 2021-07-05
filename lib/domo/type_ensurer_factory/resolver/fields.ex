@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs
   alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
@@ -98,7 +98,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   defp resolve_type({{:., _, [rem_module, rem_type]}, _, _}, _module, precond, env_preconds_anys_resolvables, {types, errs, deps}) do
     {env, preconds_map, remote_types_as_any, _resolvables} = env_preconds_anys_resolvables
-    rem_module = Macro.expand_once(rem_module, env)
+
+    rem_module_alias =
+      if is_atom(rem_module) do
+        {:__aliases__, [], [Alias.atom_drop_elixir_prefix(rem_module)]}
+      else
+        rem_module
+      end
+
+    rem_module = Macro.expand_once(rem_module_alias, env)
 
     cond do
       Enum.member?(remote_types_as_any[rem_module] || [], rem_type) ->

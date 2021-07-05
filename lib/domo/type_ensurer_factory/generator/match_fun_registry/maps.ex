@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
   def map_spec?(type_spec) do
@@ -79,7 +79,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
             when map_size(value) == unquote(expected_map_size) do
           # credo:disable-for-next-line
           with unquote_splicing(with_expectations_quoted) do
-            unquote(ok_or_precond_call_quoted(precond))
+            unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           else
             {map_key, {:error, map_value, messages}} ->
               message = {
@@ -93,26 +93,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
       end
 
     {match_spec_quoted, value_spec_preconds}
-  end
-
-  defp ok_or_precond_call_quoted(nil) do
-    :ok
-  end
-
-  defp ok_or_precond_call_quoted(precond) do
-    quote do
-      if unquote(Precondition.validation_call_quoted(precond, quote(do: value))) do
-        :ok
-      else
-        message =
-          apply(Domo.ErrorBuilder, :build_error, [
-            spec_string,
-            [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
-          ])
-
-        {:error, value, [message]}
-      end
-    end
   end
 
   defp match_spec_required_keys_quoted(type_spec, precond) do
@@ -155,7 +135,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
               error
 
             [] ->
-              unquote(ok_or_precond_call_quoted(precond))
+              unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
             list when is_list(list) ->
               message = {"There are extra key value pairs %{kv_pairs} not defined in the type.", [kv_pairs: inspect(list)]}

@@ -31,7 +31,7 @@ defmodule Domo.Raises do
   def raise_or_warn_values_should_have_expected_types(opts, module, errors) do
     error_points =
       errors
-      |> Enum.map(&(" * " <> &1))
+      |> Enum.map(&(" * " <> cast_to_string(&1)))
       |> Enum.join("\n")
 
     raise_or_warn(opts, ArgumentError, """
@@ -39,6 +39,9 @@ defmodule Domo.Raises do
     #{error_points}\
     """)
   end
+
+  defp cast_to_string(value) when is_binary(value), do: value
+  defp cast_to_string(value), do: inspect(value)
 
   def raise_or_warn_struct_precondition_should_be_true(opts, t_error) do
     raise_or_warn(opts, ArgumentError, t_error)

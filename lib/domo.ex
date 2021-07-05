@@ -239,7 +239,7 @@ defmodule Domo do
   If the field is of the struct type that uses Domo as well, then the ensurance
   of the field's value delegates to the `TypeEnsurer` of that struct.
 
-  Suppose the user defines the boolean precondition function with the `precond/1` macro
+  Suppose the user defines the precondition function with the `precond/1` macro
   for the type referenced in the struct using Domo. In that case,
   the `TypeEnsurer` module calls the user-defined function as the last
   verification step.
@@ -327,7 +327,7 @@ defmodule Domo do
   ### Define preconditions for the structure fields values
 
   To automatically verify ranges of values for the whole struct or a concrete
-  field's type, define a boolean precondition function with the `precond/1` macro
+  field's type, define a precondition function with the `precond/1` macro
   for that type.
 
       defmodule Invoice do
@@ -835,17 +835,31 @@ defmodule Domo do
   end
 
   @doc """
-  Macro to define a boolean precondition function for the type.
+  Macro to define a range precondition function for the type.
   The function is called to ensure that the struct field's value range is valid
-  after ensuring its type and before returning the struct's instance.
+  after ensuring its type just before returning the struct's instance.
+
+  Precondition function should return one of the following values:
+  `true | false | :ok | {:error, any()}`. For false return value library
+  will generate the error message automatically. And for `{:error, message}` tuple
+  the `message` will be passed through.
+
+  To get the `message` value in the form of `{:error, field: message}` use the
+  `new_ok/1` or `ensure_type/1`.
+
+  When using as:
 
       precond identifier: &match?(<<"AXX-", _, _ :: binary>>, &1)
 
-  The macro adds the following function to the module:
+  the macro adds the following function to the module:
 
       def __precond__(:"identifier", value) do
         apply(&match?(<<"AXX-", _, _ :: binary>>, &1), [value])
       end
+
+  Another variant can be:
+
+      precond identifier: &(if match?(<<"AXX-", _, _ :: binary>>, &1), do: :ok, else: {:error, "identifier should be like AXX-yyyyyyy"})
 
   """
   defmacro precond([{type_name, {fn?, _, _} = fun}])

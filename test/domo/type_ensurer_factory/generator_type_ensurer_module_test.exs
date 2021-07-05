@@ -4,7 +4,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   import GeneratorTestHelper
 
   alias Domo.ErrorBuilder
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do

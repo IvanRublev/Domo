@@ -259,7 +259,7 @@ generated functions.
 If the field is of the struct type that uses Domo as well, then the ensurance
 of the field's value delegates to the `TypeEnsurer` of that struct.
 
-Suppose the user defines the boolean precondition function with the `precond/1` macro
+Suppose the user defines the precondition function with the `precond/1` macro
 for the type referenced in the struct using Domo. In that case,
 the `TypeEnsurer` module calls the user-defined function as the last
 verification step.
@@ -351,7 +351,7 @@ raise an `ArgumentError` or return `{:error, _}` tuple appropriately.
 ### Define preconditions for the structure fields values
 
 To automatically verify ranges of values for the whole struct or a concrete
-field's type, define a boolean precondition function with the `precond/1` macro
+field's type, define a precondition function with the `precond/1` macro
 for that type.
 
 ```elixir
@@ -657,7 +657,12 @@ with correct states at every update that is valid in many business contexts.
 
 4. Make a PR to this repository
 
-## Changelog 
+## Changelog
+
+### 1.2.7
+* Fix the bug to make recompilation occur when fixing alias for remote type.
+
+* Support custom errors to be returned from functions defined with `precond/1`.
 
 ### 1.2.6
 * Validates type conformance of default values given with `defstruct/1` to the

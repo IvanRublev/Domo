@@ -26,6 +26,14 @@ defmodule Domo.TypeEnsurerFactory.Alias do
 
   def atom_to_alias(term), do: term
 
+  def atom_drop_elixir_prefix(term) when is_atom(term) do
+    term |> atom_to_string() |> String.to_atom()
+  end
+
+  def atom_drop_elixir_prefix(term) do
+    term
+  end
+
   def alias_to_atom({:__aliases__, options, module_parts}) do
     case Keyword.get(options, :alias) do
       false -> Module.concat(module_parts)

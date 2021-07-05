@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
   use Domo.FileCase
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
 

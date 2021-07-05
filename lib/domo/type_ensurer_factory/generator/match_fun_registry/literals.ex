@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
@@ -21,33 +21,17 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
     {type_spec, precond} = TypeSpec.split_spec_precond(type_spec_precond)
     type_spec_atom = TypeSpec.to_atom(type_spec)
     quoted_guard = guard_quoted(type_spec, :value)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
 
-    quoted_match_spec =
-      if precond do
-        precond_atom = Precondition.to_atom(precond)
-
-        quote do
-          def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, spec_string) when unquote(quoted_guard) do
-            if unquote(Precondition.validation_call_quoted(precond, quote(do: value))) do
-              :ok
-            else
-              message =
-                apply(Domo.ErrorBuilder, :build_error, [
-                  spec_string,
-                  [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
-                ])
-
-              {:error, value, [message]}
-            end
-          end
-        end
-      else
-        quote do
-          def do_match_spec({unquote(type_spec_atom), nil}, value, _spec_string) when unquote(quoted_guard), do: :ok
+    match_spec_functions_quoted =
+      quote do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when unquote(quoted_guard) do
+          unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
         end
       end
 
-    {quoted_match_spec, []}
+    {match_spec_functions_quoted, []}
   end
 
   # credo:disable-for-lines:91

@@ -22,6 +22,10 @@ defmodule Domo.ErrorBuilder do
     {field || :t, pretty_error(error)}
   end
 
+  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, {:bypass, message}}}) do
+    message
+  end
+
   def pretty_error({:error, {:type_mismatch, struct_module, field, value, _expected_types, [single_error_template]}}) do
     invalid_value = invalid_value_message(value, field, struct_module)
     general_error_string = general_error_message(single_error_template)

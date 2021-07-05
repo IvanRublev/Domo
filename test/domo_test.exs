@@ -13,6 +13,7 @@ defmodule DomoTest do
   Code.compiler_options(
     no_warn_undefined: [
       Account,
+      AccountCustomErrors,
       Article,
       Money,
       Library,
@@ -201,7 +202,38 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       end
     end
 
-    test "recompiles type ensurer of depending struct when the type of dependant struct Not using Domo changes" do
+    test "return custom error from preconditions" do
+      compile_account_custom_errors_struct()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      account = AccountCustomErrors.new(id: "adk-47896", name: "John Smith", money: 2)
+      assert %{__struct__: AccountCustomErrors} = account
+
+      assert_raise RuntimeError,
+                   "precond function defined for AccountCustomErrors.money\(\) type should return true | false | :ok | {:error, any()} value",
+                   fn ->
+                     _ = AccountCustomErrors.new(id: "adk-47896", name: "John Smith", money: 1)
+                   end
+
+      assert_raise ArgumentError,
+                   "the following values should have types defined for fields of the AccountCustomErrors struct:\n * Id should match format xxx-12345",
+                   fn ->
+                     _ = AccountCustomErrors.new(id: "ak47896", name: "John Smith", money: 2)
+                   end
+
+      assert {:error, id: "Id should match format xxx-12345"} = AccountCustomErrors.new_ok(id: "ak47896", name: "John Smith", money: 2)
+
+      assert_raise ArgumentError,
+                   "the following values should have types defined for fields of the AccountCustomErrors struct:\n * :empty_name_string",
+                   fn ->
+                     _ = AccountCustomErrors.new(id: "adk-47896", name: "", money: 2)
+                   end
+
+      assert {:error, name: :empty_name_string} = AccountCustomErrors.new_ok(id: "adk-47896", name: "", money: 2)
+    end
+
+    test "recompiles type ensurer of depending struct when the type of dependent struct Not using Domo changes" do
       compile_airplane_and_seat_structs()
 
       {:ok, []} = DomoMixTask.run([])
@@ -508,6 +540,33 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                        )
                    end
     end
+  end
+
+  defp compile_account_custom_errors_struct do
+    path = src_path("/account_custom_errors.ex")
+
+    File.write!(path, """
+    defmodule AccountCustomErrors do
+      use Domo
+
+      @enforce_keys [:id, :name, :money]
+      defstruct @enforce_keys
+
+      @type name :: String.t()
+      precond name: &(if byte_size(&1) > 0, do: :ok, else: {:error, :empty_name_string})
+
+      @type id :: String.t()
+      precond id: &(if String.match?(&1, ~r/[a-z]{3}-\\d{5}/), do: :ok, else: {:error, "Id should match format xxx-12345"})
+
+      @type money :: integer()
+      precond money: fn value -> if rem(value, 2) == 0, do: true, else: 1 end
+
+      @type t :: %__MODULE__{id: id(), name: name(), money: money()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
   end
 
   defp compile_account_struct do

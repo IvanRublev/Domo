@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
   def tuple_spec?(type_spec_precond) do
@@ -49,11 +49,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
             {unquote(idx), do_match_spec({unquote(el_spec_atom), unquote(el_precond_atom)}, unquote(var), unquote(el_spec_string))}
         end
       end)
-      |> maybe_concat(precond, fn ->
-        quote do
-          true <- !!unquote(Precondition.validation_call_quoted(precond, quote(do: value)))
-        end
-      end)
 
     else_block_quoted =
       quote do
@@ -65,18 +60,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
 
           {:error, value, [message | messages]}
       end
-      |> maybe_concat(precond, fn ->
-        quote do
-          false ->
-            message =
-              apply(Domo.ErrorBuilder, :build_error, [
-                spec_string,
-                [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
-              ])
-
-            {:error, value, [message]}
-        end
-      end)
 
     type_spec_atom = TypeSpec.to_atom(type_spec)
     precond_atom = if precond, do: Precondition.to_atom(precond)
@@ -87,7 +70,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, {unquote_splicing(elem_vars_quoted)} = value, unquote(spec_string_var)) do
           # credo:disable-for-next-line
           with unquote_splicing(with_expectations_quoted) do
-            :ok
+            unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           else
             unquote(else_block_quoted)
           end
@@ -110,7 +93,4 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
   defp reverse_in_tuple({list1, list2, list3}) do
     {Enum.reverse(list1), Enum.reverse(list2), Enum.reverse(list3)}
   end
-
-  defp maybe_concat(list_lhs, nil, _list_rhs_fun), do: list_lhs
-  defp maybe_concat(list_lhs, _precond, elem_fun), do: Enum.concat(list_lhs, List.wrap(elem_fun.()))
 end

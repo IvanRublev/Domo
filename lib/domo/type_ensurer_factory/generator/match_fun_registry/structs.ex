@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
@@ -61,7 +61,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
         def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %unquote(struct_atom){} = value, unquote(spec_string_var)) do
           case unquote(struct_atom).ensure_type_ok(value) do
             {:ok, _instance} ->
-              unquote(ok_or_precond_call_quoted(precond))
+              unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
             {:error, struct_errors} ->
               messages =
@@ -98,7 +98,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
     match_spec_functions_quoted =
       quote do
         def do_match_spec({unquote(type_spec_str), unquote(precond_atom)}, unquote(value_match_var), unquote(spec_string_var)) do
-          unquote(ok_or_precond_call_quoted(precond))
+          unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
         end
       end
 
@@ -118,32 +118,12 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
       quote do
         def do_match_spec({unquote(type_spec_str), unquote(precond_atom)}, %unquote(struct_atom){} = value, unquote(spec_string_var)) do
           case do_match_spec({unquote(map_spec_atom), nil}, Map.from_struct(value), unquote(map_spec_string)) do
-            :ok -> unquote(ok_or_precond_call_quoted(precond))
+            :ok -> unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
             {:error, _value, _message} = err -> err
           end
         end
       end
 
     {match_spec_functions_quoted, [{map_spec, nil}]}
-  end
-
-  defp ok_or_precond_call_quoted(nil) do
-    :ok
-  end
-
-  defp ok_or_precond_call_quoted(precond) do
-    quote do
-      if unquote(Precondition.validation_call_quoted(precond, quote(do: value))) do
-        :ok
-      else
-        message =
-          apply(Domo.ErrorBuilder, :build_error, [
-            spec_string,
-            [precond_description: unquote(precond.description), precond_type: unquote(Precondition.type_string(precond))]
-          ])
-
-        {:error, value, [message]}
-      end
-    end
   end
 end

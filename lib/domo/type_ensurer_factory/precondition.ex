@@ -1,4 +1,4 @@
-defmodule Domo.Precondition do
+defmodule Domo.TypeEnsurerFactory.Precondition do
   @moduledoc false
 
   alias Domo.TypeEnsurerFactory.Atomizer
@@ -21,9 +21,22 @@ defmodule Domo.Precondition do
     "#{module}.#{type_name}()"
   end
 
-  def validation_call_quoted(%__MODULE__{} = precondition, value) do
+  def ok_or_precond_call_quoted(nil, _spec_string, _value) do
+    :ok
+  end
+
+  def ok_or_precond_call_quoted(%__MODULE__{} = precond, spec_string, value) do
     quote do
-      unquote(precondition.module).__precond__(unquote(precondition.type_name), unquote(value))
+      return_value = unquote(precond.module).__precond__(unquote(precond.type_name), unquote(value))
+
+      opts = [
+        spec_string: unquote(spec_string),
+        precond_description: unquote(precond.description),
+        precond_type: unquote(type_string(precond)),
+        value: unquote(value)
+      ]
+
+      Domo.PreconditionHandler.cast_to_ok_error(return_value, opts)
     end
   end
 end

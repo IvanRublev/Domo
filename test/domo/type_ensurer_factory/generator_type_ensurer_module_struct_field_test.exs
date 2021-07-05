@@ -4,7 +4,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
 
   import GeneratorTestHelper
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
 
   setup do
     on_exit(fn ->

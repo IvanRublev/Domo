@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Error
   alias __MODULE__.MatchFunRegistry
@@ -135,40 +135,30 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     end
   end
 
-  defp t_precondition_quoted(_struct_module, nil) do
-    quote do
-      def t_precondition(_value) do
-        :ok
-      end
-    end
-  end
-
   defp t_precondition_quoted(struct_module, t_precond) do
     struct_module_string = inspect(struct_module)
+    value_var = if t_precond, do: quote(do: value), else: quote(do: _value)
 
     quote do
-      def t_precondition(value) do
-        if unquote(Precondition.validation_call_quoted(t_precond, quote(do: value))) do
-          :ok
-        else
-          type_spec = "#{unquote(struct_module_string)}.t()"
+      def t_precondition(unquote(value_var)) do
+        spec_string = "#{unquote(struct_module_string)}.t()"
 
-          message =
-            Domo.ErrorBuilder.build_error(
-              type_spec,
-              precond_description: unquote(t_precond.description),
-              precond_type: unquote(Precondition.type_string(t_precond))
-            )
+        result = unquote(Precondition.ok_or_precond_call_quoted(t_precond, quote(do: spec_string), quote(do: value)))
 
-          {:error,
-           {
-             :type_mismatch,
-             nil,
-             nil,
-             value,
-             [type_spec],
-             [message]
-           }}
+        case result do
+          :ok ->
+            :ok
+
+          {:error, value, [message]} ->
+            {:error,
+             {
+               :type_mismatch,
+               nil,
+               nil,
+               value,
+               [spec_string],
+               [message]
+             }}
         end
       end
     end

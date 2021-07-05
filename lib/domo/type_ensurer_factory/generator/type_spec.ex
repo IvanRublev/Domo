@@ -1,7 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
   @moduledoc false
 
-  alias Domo.Precondition
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Atomizer
 
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.{
