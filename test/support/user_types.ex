@@ -141,4 +141,20 @@ defmodule UserTypes do
       [value]
     )
   end
+
+  def __precond__(:t_custom_msg, value) do
+    if apply(&(&1.first > 2), [value]) do
+      :ok
+    else
+      {:error, "First field value should be greater then two"}
+    end
+  end
+
+  def __precond__(:positive_integer_custom_msg, value) do
+    if apply(&(&1 > 0), [value]) do
+      :ok
+    else
+      {:error, "Expected positive integer"}
+    end
+  end
 end

@@ -229,6 +229,31 @@ defmodule Domo do
       from the precondition function \\"&(rem(&1, 5) == 0)\\" defined \\
       for User.divisible_5_integer() type."]}
 
+  Domo library plays nicely with [Echo.Changeset](https://hexdocs.pm/ecto/Ecto.Changeset.html).
+  It exports `validate_type/*` functions in `Domo.Changeset` module
+  to automatically validate field changes to conform `t()` type of the schema.
+
+      defmodule User do
+        use Ecto.Schema
+        use Domo
+        import Ecto.Changeset
+        import Domo.Changeset
+
+        schema "users" do
+          field :name
+        end
+
+        @type t :: %__MODULE__{
+          name :: String.t() | nil
+        }
+
+        def changeset(user, params \\ %{}) do
+          user
+          |> cast(params, [:name])
+          |> validate_type()
+        end
+      end
+
   ## How it works
 
   For `MyModule` struct using Domo, the library generates a `MyModule.TypeEnsurer`
@@ -467,6 +492,14 @@ defmodule Domo do
       |> Enum.intersperse("_")
       |> Enum.join()
       |> tag(Id)
+
+  ## Usage with Ecto
+
+  Ecto schema can have `t()` type defined and Domo library can validate
+  field changes conform to the defined type with `validate_type/*` functions
+  for the given changeset.
+
+  See `Domo.Changeset` module documentation for example.
 
   ## Options
 
