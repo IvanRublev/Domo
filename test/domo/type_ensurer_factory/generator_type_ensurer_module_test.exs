@@ -32,6 +32,10 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     :ok
   end
 
+  def call_fields() do
+    apply(TypeEnsurer, :fields, [])
+  end
+
   def call_ensure_field_type({_field, _value} = subject) do
     apply(TypeEnsurer, :ensure_field_type, [subject])
   end
@@ -49,6 +53,15 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   describe "Generated TypeEnsurer module" do
+    test "has fields/0 function returning list of struct fields" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: integer())],
+        second: [quote(do: integer())]
+      })
+
+      assert call_fields() == [:first, :second]
+    end
+
     test "has ensure_field_type/1 function for each field" do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: integer())],
@@ -145,7 +158,24 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              """ == call_pretty_error(response)
     end
 
-    test "returns :ok when t precondition function freturns true" do
+    test "returns :error with message from the t precondition function" do
+      precondition = Precondition.new(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [{quote(do: integer()), nil}],
+          second: [{quote(do: integer()), nil}]
+        },
+        precondition
+      })
+
+      response = call_t_precondition(%{first: 1, second: 2})
+      assert {:error, _} = response
+
+      assert "First field value should be greater then two" == call_pretty_error(response)
+    end
+
+    test "returns :ok when t precondition function returns true" do
       precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
@@ -276,6 +306,60 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              Underlying errors:
                 - Expected the value matching the integer() type. And a true value from the precondition function \"positive_integer_func\" defined \
              for UserTypes.positive_integer() type.\
+             """ == call_pretty_error(response)
+    end
+
+    test "returns :error with failure message from the precondition function" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+      load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
+
+      response = call_ensure_field_type({:first, -1})
+
+      assert {:error, _} = response
+
+      assert "Expected positive integer" == call_pretty_error(response)
+    end
+
+    test "returns :error with failure message from the precondition function if it's only underlying error for | type" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{first: [{quote(do: integer()), precondition}, nil]},
+        nil
+      })
+
+      response = call_ensure_field_type({:first, -1})
+
+      assert {:error, _} = response
+
+      assert "Expected positive integer" == call_pretty_error(response)
+    end
+
+    test "returns :error message with failure message from precondition function as underlying error for | type " do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [
+            {
+              {{quote(do: integer()), nil}, {quote(do: integer()), precondition}},
+              nil
+            },
+            nil
+          ]
+        },
+        nil
+      })
+
+      response = call_ensure_field_type({:first, {1, -1}})
+
+      assert {:error, _} = response
+
+      assert """
+             Invalid value {1, -1} for field :first of %Elixir{}. Expected the value matching the {integer(), integer()} | nil type.
+             Underlying errors:
+                - The element at index 1 has value -1 that is invalid.
+                  - Expected positive integer\
              """ == call_pretty_error(response)
     end
   end

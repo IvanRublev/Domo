@@ -99,6 +99,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     {:ok, pid} = MatchFunRegistry.start_link()
 
     {fields_spec, t_precond} = fields_spec_t_precond
+
+    field_names = Map.keys(fields_spec)
     t_precond_quoted = t_precondition_quoted(parent_module, t_precond)
 
     fields_spec
@@ -120,6 +122,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     quote do
       defmodule unquote(type_ensurer_alias) do
         @moduledoc false
+
+        def fields, do: unquote(field_names)
 
         unquote(t_precond_quoted)
 

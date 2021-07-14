@@ -147,4 +147,16 @@ defmodule Domo.Raises do
       end
     end)
   end
+
+  def raise_no_schema_module do
+    raise """
+    Can't find schema module because changeset contains map data. \
+    Please, pass schema module with validate_type(changeset, schema_module) call.
+    """
+  end
+
+  def raise_no_type_ensurer_for_schema_module(module) do
+    module_string = Alias.atom_to_string(module)
+    raise "No type ensurer for the schema module found. Please, use Domo in #{module_string} schema module."
+  end
 end

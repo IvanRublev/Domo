@@ -21,7 +21,7 @@ defmodule Domo.PreconditionHandler do
         {:error, opts[:value], [message]}
 
       {:error, message} ->
-        {:error, opts[:value], {:bypass, message}}
+        {:error, opts[:value], [{:bypass, message}]}
 
       _ ->
         raise "precond function defined for #{opts[:precond_type]} type should return true | false | :ok | {:error, any()} value"

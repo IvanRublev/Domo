@@ -22,7 +22,7 @@ defmodule Domo.ErrorBuilder do
     {field || :t, pretty_error(error)}
   end
 
-  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, {:bypass, message}}}) do
+  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, [{:bypass, message}]}}) do
     message
   end
 
@@ -34,14 +34,19 @@ defmodule Domo.ErrorBuilder do
   end
 
   def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}) do
-    top_level_error = generate_top_level_error(expected_types)
-    underlying_errors = collect_deepest_underlying_errors(error_templates)
+    if bypass_error = Enum.find(error_templates, &match?([{:bypass, _message}], &1)) do
+      [{:bypass, message}] = bypass_error
+      message
+    else
+      top_level_error = generate_top_level_error(expected_types)
+      underlying_errors = collect_deepest_underlying_errors(error_templates)
 
-    invalid_value = invalid_value_message(value, field, struct_module)
-    general_error_string = general_error_message(top_level_error)
-    underlying_errors_string = underlying_errors_message(underlying_errors)
+      invalid_value = invalid_value_message(value, field, struct_module)
+      general_error_string = general_error_message(top_level_error)
+      underlying_errors_string = underlying_errors_message(underlying_errors)
 
-    "#{invalid_value} #{general_error_string}#{underlying_errors_string}"
+      "#{invalid_value} #{general_error_string}#{underlying_errors_string}"
+    end
   end
 
   defp generate_top_level_error(expected_types) do
@@ -113,9 +118,7 @@ defmodule Domo.ErrorBuilder do
   end
 
   defp underlying_errors_message([_ | _] = errors) do
-    lines =
-      errors
-      |> interpolate_indent_unerlying()
+    lines = interpolate_indent_unerlying(errors)
 
     ["\nUnderlying errors:"]
     |> Enum.concat(lines)
@@ -130,6 +133,10 @@ defmodule Domo.ErrorBuilder do
     |> Enum.map(fn {{template, args}, level} ->
       String.duplicate("  ", Enum.min([level, 1])) <> "   - " <> interpolate_error_template(template, args)
     end)
+  end
+
+  defp interpolate_error_template(:bypass, message) do
+    message
   end
 
   defp interpolate_error_template(template, args) do
