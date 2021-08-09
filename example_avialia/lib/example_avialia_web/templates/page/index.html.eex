@@ -1,0 +1,103 @@
+<section class="row">
+  <article class="column shorter-column">
+    <h2>Boardings service</h2>
+    <%= form_for @passenger_changeset, Routes.page_path(@conn, :new_boarding), [method: :post], fn f -> %>
+      <%= unless Enum.empty?(f.errors) do %>
+        <div class="alert alert-danger">
+          <p>Oops, something went wrong! Please check the errors.</p>
+        </div>
+      <% end %>
+
+      <%= error_tag f, :t %>
+
+      <%= label f, :flight, "Flight (ALA-xxxx)" %>
+      <%= text_input f, :flight %>
+      <%= error_tag f, :flight %>
+
+      <%= label f, :first_name, "First name" %>
+      <%= text_input f, :first_name %>
+      <%= error_tag f, :first_name %>
+
+      <%= label f, :last_name, "Last name" %>
+      <%= text_input f, :last_name %>
+      <%= error_tag f, :last_name %>
+
+      <%= label f, :seat, "Seat" %>
+      <%= text_input f, :seat %>
+      <%= error_tag f, :seat %>
+
+      <%= submit "Add Passenger" %>
+    <% end %>
+    <table>
+    <%= for passenger <- @passengers_list do %>
+      <tr>
+        <td><%= passenger.id %></td>
+        <td><%= passenger.flight %></td>
+        <td><%= passenger.first_name %></td>
+        <td><%= passenger.last_name %></td>
+        <td><%= passenger.seat %></td>
+        <td><%=
+          link to: "#{Routes.page_path(@conn, :delete_boarding)}?id=#{passenger.id}" do
+            submit "x", type: :button
+          end
+        %></td>
+      </tr>
+    <% end %>
+    </table>
+  </article>
+
+  <article class="column">
+    <h2>Cargo service</h2>
+    <%= form_for @conn, Routes.page_path(@conn, :new_cargo), [as: :shipment, method: :post, errors: @shipment_errors], fn f -> %>
+      <%= unless Enum.empty?(f.errors) do %>
+        <div class="alert alert-danger">
+          <p>Oops, something went wrong! Please check the errors.</p>
+        </div>
+      <% end %>
+
+      <%= error_tag f, :t %>
+
+      <%= label f, :flight, "Flight (ALA-xxxx)" %>
+      <%= text_input f, :flight %>
+      <%= error_tag f, :flight %>
+
+      <%= label f, :shipment_kind_variant, "Shipment" %>
+      <%= for {variant_value, variant_title} <- @shipment_kind_variants do %>
+        <label class="label-inline"><%= radio_button f, :shipment_kind_variant, variant_value %><%= variant_title %></label>
+      <% end %>
+
+      <%= label f, :shipment_kind_id, "Shipment Id" %>
+      <%= text_input f, :shipment_kind_id %>
+      <%= error_tag f, :kind %>
+
+      <%= label f, :weight_measurement, "Measurement" %>
+      <%= select f, :weight_measurement, @measurements_list %>
+
+      <%= label f, :weight_count, "Count" %>
+      <%= text_input f, :weight_count, type: :number, min: 1 %>
+      <%= error_tag f, :weight %>
+
+      <%= label f, :document_names, "Document names (separated by comma , )" %>
+      <%= text_input f, :document_names %>
+      <%= error_tag f, :documents %>
+
+      <%= submit "Add Shipment" %>
+    <% end %>
+    <table>
+    <%= for shipment_attributes <- @shipments_list do %>
+      <tr>
+        <td><%= shipment_attributes.id %></td>
+        <td><%= shipment_attributes.flight %></td>
+        <td><%= shipment_attributes.kind_travel_document_id %></td>
+        <td><%= shipment_attributes.weight_measure %></td>
+        <td><%= shipment_attributes.weight_kilos %></td>
+        <td><%= shipment_attributes.documents_count %></td>
+        <td><%=
+          link to: "#{Routes.page_path(@conn, :delete_cargo)}?id=#{shipment_attributes.id}" do
+            submit "x", type: :button
+          end
+        %></td>
+      </tr>
+    <% end %>
+  </article>
+</section>

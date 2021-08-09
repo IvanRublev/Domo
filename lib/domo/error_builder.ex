@@ -1,58 +1,105 @@
 defmodule Domo.ErrorBuilder do
   @moduledoc false
 
-  def build_error(spec_string, [precond_description: _description, precond_type: _type_string] = opts) do
-    {template, keywords} = build_error(spec_string, nil)
+  def build_precond_type_error(message) do
+    {:bypass, message}
+  end
+
+  def build_precond_field_error(opts) do
+    spec_string = opts[:spec_string]
+
+    {template, keywords} = build_field_error(spec_string)
 
     template =
       template <>
         " And a true value from the precondition" <>
         " function \"%{precond_description}\" defined for %{precond_type} type."
 
-    keywords = Keyword.merge(keywords, opts)
+    precond_opts = Keyword.take(opts, [:precond_description, :precond_type])
+    keywords = Keyword.merge(keywords, precond_opts)
 
     {template, keywords}
   end
 
-  def build_error(spec_string, nil) do
+  def build_field_error(spec_string) do
     {"Expected the value matching the %{type} type.", type: spec_string}
   end
 
-  def pretty_error_by_key({:error, {_, _, field, _, _, _}} = error) do
-    {field || :t, pretty_error(error)}
+  def precond_error?({:bypass, _message}), do: true
+  def precond_error?({_template, keywords}), do: Keyword.has_key?(keywords, :precond_description)
+  def precond_error?(_value), do: false
+
+  def pretty_error_by_key(_error, _maybe_filter_precond_errors \\ false)
+
+  def pretty_error_by_key({:error, {_, _, field, _, _, _}} = error, maybe_filter_precond_errors) do
+    {field || :t, pretty_error(error, maybe_filter_precond_errors)}
   end
 
-  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, [{:bypass, message}]}}) do
-    message
+  def pretty_error(_error, _maybe_filter_precond_errors \\ false)
+
+  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, [{:bypass, message}]}}, maybe_filter_precond_errors) do
+    if maybe_filter_precond_errors do
+      [message]
+    else
+      message
+    end
   end
 
-  def pretty_error({:error, {:type_mismatch, struct_module, field, value, _expected_types, [single_error_template]}}) do
-    invalid_value = invalid_value_message(value, field, struct_module)
+  def pretty_error({:error, {:type_mismatch, struct_module, field, value, _expected_types, [single_error_template]}}, maybe_filter_precond_errors) do
     general_error_string = general_error_message(single_error_template)
 
-    "#{invalid_value} #{general_error_string}"
+    message =
+      if maybe_filter_precond_errors and precond_error?(single_error_template) do
+        general_error_string
+      else
+        invalid_value = invalid_value_message(value, field, struct_module)
+        "#{invalid_value} #{general_error_string}"
+      end
+
+    if maybe_filter_precond_errors do
+      List.wrap(message)
+    else
+      message
+    end
   end
 
-  def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}) do
-    if bypass_error = Enum.find(error_templates, &match?([{:bypass, _message}], &1)) do
-      [{:bypass, message}] = bypass_error
-      message
+  def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}, maybe_filter_precond_errors) do
+    underlying_errors = collect_deepest_underlying_errors(error_templates)
+
+    precond_errors =
+      if maybe_filter_precond_errors do
+        underlying_errors
+        |> List.flatten()
+        |> Enum.filter(&precond_error?/1)
+        |> Enum.map(fn {template, keywords} -> interpolate_error_template(template, keywords) end)
+      else
+        []
+      end
+
+    message =
+      if precond_errors == [] do
+        top_level_error = generate_top_level_error(expected_types)
+
+        invalid_value = invalid_value_message(value, field, struct_module)
+        general_error_string = general_error_message(top_level_error)
+        underlying_errors_string = underlying_errors_message(underlying_errors)
+
+        "#{invalid_value} #{general_error_string}#{underlying_errors_string}"
+      else
+        precond_errors
+      end
+
+    if maybe_filter_precond_errors do
+      List.wrap(message)
     else
-      top_level_error = generate_top_level_error(expected_types)
-      underlying_errors = collect_deepest_underlying_errors(error_templates)
-
-      invalid_value = invalid_value_message(value, field, struct_module)
-      general_error_string = general_error_message(top_level_error)
-      underlying_errors_string = underlying_errors_message(underlying_errors)
-
-      "#{invalid_value} #{general_error_string}#{underlying_errors_string}"
+      message
     end
   end
 
   defp generate_top_level_error(expected_types) do
     expected_types
     |> Enum.join(" | ")
-    |> build_error(nil)
+    |> build_field_error()
   end
 
   defp collect_deepest_underlying_errors([[_ | _] | _] = error_or_templates) do

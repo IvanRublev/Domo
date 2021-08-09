@@ -245,13 +245,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
         quote(context: RemoteUserType, do: RemoteUserType.nonexistent_type())
       )
 
-      plan(
-        planner,
-        RemoteUserType,
-        :field,
-        {{:., [], [{:__aliases__, [], [:Submodule]}, :sub_float]}, [], []}
-      )
-
       keep_env(planner, RemoteUserType, RemoteUserType.env())
 
       plan(

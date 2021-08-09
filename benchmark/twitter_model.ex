@@ -1,7 +1,9 @@
 defmodule Benchmark.Tweet do
   @moduledoc """
   Tweet object with some redactions.
+
   ## Reference
+
   [Tweet object](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object)
   """
 
@@ -58,7 +60,9 @@ end
 defmodule Benchmark.Tweet.User do
   @moduledoc """
   User object with some redactions.
+
   ## Reference
+
   [User object](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object)
   """
 

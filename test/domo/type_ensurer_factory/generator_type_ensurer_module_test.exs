@@ -32,8 +32,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     :ok
   end
 
-  def call_fields() do
-    apply(TypeEnsurer, :fields, [])
+  def call_fields(arg) do
+    apply(TypeEnsurer, :fields, [arg])
   end
 
   def call_ensure_field_type({_field, _value} = subject) do
@@ -44,8 +44,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     apply(TypeEnsurer, :t_precondition, [subject])
   end
 
-  def call_pretty_error({:error, _} = error) do
-    apply(ErrorBuilder, :pretty_error, [error])
+  def call_pretty_error({:error, _} = error, maybe_filter_precond_errors \\ false) do
+    apply(ErrorBuilder, :pretty_error, [error, maybe_filter_precond_errors])
   end
 
   def call_pretty_error_by_key({:error, _} = error) do
@@ -53,13 +53,41 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   describe "Generated TypeEnsurer module" do
-    test "has fields/0 function returning list of struct fields" do
+    setup do
       load_type_ensurer_module_with_no_preconds(%{
-        first: [quote(do: integer())],
-        second: [quote(do: integer())]
+        __example_meta_field__: [quote(do: atom())],
+        __any_meta_field__: [quote(do: term())],
+        second: [quote(do: integer())],
+        first: [quote(do: integer()), quote(do: nil)],
+        third: [quote(do: any())],
+        fourth: [quote(do: term())]
       })
 
-      assert call_fields() == [:first, :second]
+      :ok
+    end
+
+    test "has fields(:typed) return fields sorted alphabetically with specific types with __meta fields__ rejected" do
+      assert call_fields(:typed_no_meta_no_any) == [:first, :second]
+    end
+
+    test "has fields(:typed_with_any) return fields sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:typed_no_meta_with_any) == [:first, :fourth, :second, :third]
+    end
+
+    test "has fields(:typed_with_meta) return fields sorted alphabetically with specific types with __meta fields__ included" do
+      assert call_fields(:typed_with_meta_no_any) == [:__example_meta_field__, :first, :second]
+    end
+
+    test "has fields(:typed_with_meta_with_any) return fields sorted alphabetically with specific types with __meta fields__ included" do
+      assert call_fields(:typed_with_meta_with_any) == [:__any_meta_field__, :__example_meta_field__, :first, :fourth, :second, :third]
+    end
+
+    test "has fields(:required) return fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:required_no_meta) == [:second]
+    end
+
+    test "has fields(:required_with_meta) return fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:required_with_meta) == [:__example_meta_field__, :second]
     end
 
     test "has ensure_field_type/1 function for each field" do
@@ -137,8 +165,24 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
                  - other\
               """} == call_pretty_error_by_key(error)
     end
+  end
 
-    test "returns :error giving t precondition false result" do
+  describe "For type level invariant errors generated TypeEnsurer module" do
+    test "returns :ok when t precondition function returns true" do
+      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [{quote(do: integer()), nil}],
+          second: [{quote(do: integer()), nil}]
+        },
+        precondition
+      })
+
+      assert :ok = call_t_precondition(%{first: 10, second: 2})
+    end
+
+    test "returns :error with reference to precond function having t precondition false result" do
       precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
@@ -174,22 +218,10 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
       assert "First field value should be greater then two" == call_pretty_error(response)
     end
+  end
 
-    test "returns :ok when t precondition function returns true" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
-
-      load_type_ensurer_module({
-        %{
-          first: [{quote(do: integer()), nil}],
-          second: [{quote(do: integer()), nil}]
-        },
-        precondition
-      })
-
-      assert :ok = call_t_precondition(%{first: 10, second: 2})
-    end
-
-    test "returns :error when value mismatches the type" do
+  describe "For field level errors Generated TypeEnsurer module" do
+    test "returns :error when value mismatches the field's type" do
       load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
 
       response = call_ensure_field_type({:first, "one"})
@@ -200,7 +232,37 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
                call_pretty_error(response)
     end
 
-    test "returns :error when value matches type and precondition returns false" do
+    test "returns :ok when field value matches the specified type" do
+      load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
+      assert :ok == call_ensure_field_type({:first, 1})
+    end
+
+    test "returns :error when value doesn't match any of | types specified" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: integer()), quote(do: atom())]
+      })
+
+      response = call_ensure_field_type({:first, "one"})
+
+      assert {:error, _} = response
+
+      assert """
+             Invalid value "one" for field :first of %Elixir{}. Expected the value matching the integer() | atom() type.\
+             """ == call_pretty_error(response)
+    end
+
+    test "returns :ok when field value matches one of the | types" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: integer()), quote(do: atom())]
+      })
+
+      assert :ok == call_ensure_field_type({:first, 1})
+      assert :ok == call_ensure_field_type({:first, :one})
+    end
+  end
+
+  describe "For field level precondition with No custom errors Generated TypeEnsurer module" do
+    test "returns :error when value matches field's type and precondition returns false" do
       precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
 
@@ -215,7 +277,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              """ == call_pretty_error(response)
     end
 
-    test "returns :error when deeply nested value matches type and precondition returns false" do
+    test "returns :error when field's containerized value matches the type and precondition returns false" do
       int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       tuple_precondition = Precondition.new(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
 
@@ -243,53 +305,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              """ == call_pretty_error(response)
     end
 
-    test "returns :ok when field value matches the specified type" do
-      load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
-      assert :ok == call_ensure_field_type({:first, 1})
-    end
-
     test "returns :ok when value matches type and precondition returns true" do
       precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
       assert :ok == call_ensure_field_type({:first, 1})
     end
 
-    test "returns :ok when field value matches one of the specified types" do
-      load_type_ensurer_module_with_no_preconds(%{
-        first: [quote(do: integer()), quote(do: atom())]
-      })
-
-      assert :ok == call_ensure_field_type({:first, 1})
-      assert :ok == call_ensure_field_type({:first, :one})
-    end
-
-    test "return :ok when one of preconditions return true for field value" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-
-      load_type_ensurer_module({
-        %{first: [{quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
-        nil
-      })
-
-      assert :ok == call_ensure_field_type({:first, 1})
-      assert :ok == call_ensure_field_type({:first, :one})
-    end
-
-    test "returns :error when value doesn't match any of types specified" do
-      load_type_ensurer_module_with_no_preconds(%{
-        first: [quote(do: integer()), quote(do: atom())]
-      })
-
-      response = call_ensure_field_type({:first, "one"})
-
-      assert {:error, _} = response
-
-      assert """
-             Invalid value "one" for field :first of %Elixir{}. Expected the value matching the integer() | atom() type.\
-             """ == call_pretty_error(response)
-    end
-
-    test "returns :error when value matches one of types and its precondition returns false" do
+    test "returns :error when value matches the | type and precondition returns false" do
       precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
@@ -309,33 +331,21 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              """ == call_pretty_error(response)
     end
 
-    test "returns :error with failure message from the precondition function" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
-      load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
-
-      response = call_ensure_field_type({:first, -1})
-
-      assert {:error, _} = response
-
-      assert "Expected positive integer" == call_pretty_error(response)
-    end
-
-    test "returns :error with failure message from the precondition function if it's only underlying error for | type" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+    test "return :ok when field's value matches the | type and precondition return true" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
-        %{first: [{quote(do: integer()), precondition}, nil]},
+        %{first: [{quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
         nil
       })
 
-      response = call_ensure_field_type({:first, -1})
-
-      assert {:error, _} = response
-
-      assert "Expected positive integer" == call_pretty_error(response)
+      assert :ok == call_ensure_field_type({:first, 1})
+      assert :ok == call_ensure_field_type({:first, :one})
     end
+  end
 
-    test "returns :error message with failure message from precondition function as underlying error for | type " do
+  describe "For field level precondition custom errors Generated TypeEnsurer module" do
+    test "bypasses :error from precondition function for containerized | type" do
       precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
 
       load_type_ensurer_module({
@@ -361,6 +371,211 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
                 - The element at index 1 has value -1 that is invalid.
                   - Expected positive integer\
              """ == call_pretty_error(response)
+    end
+
+    test "bypasses :error from the precondition for | nil type" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{first: [{quote(do: float()), nil}, {quote(do: integer()), precondition}, nil]},
+        nil
+      })
+
+      response = call_ensure_field_type({:first, -1})
+
+      assert {:error, _} = response
+
+      assert """
+             Invalid value -1 for field :first of %Elixir{}. Expected the value matching the float() | integer() | nil type.
+             Underlying errors:
+                - Expected positive integer\
+             """ == call_pretty_error(response)
+    end
+  end
+
+  describe "For type level invariant errors generated TypeEnsurer module with maybe_filter_precond_errors: true option" do
+    test "returns list of errors with reference to precond function having t precondition false result" do
+      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [{quote(do: integer()), nil}],
+          second: [{quote(do: integer()), nil}]
+        },
+        precondition
+      })
+
+      response = call_t_precondition(%{first: 1, second: 2})
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) ==
+               [
+                 """
+                 Expected the value matching the Elixir.t() type. \
+                 And a true value from the precondition function \"t_func\" defined for UserTypes.t() type.\
+                 """
+               ]
+    end
+
+    test "returns list of errors with message from the t precondition function" do
+      precondition = Precondition.new(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [{quote(do: integer()), nil}],
+          second: [{quote(do: integer()), nil}]
+        },
+        precondition
+      })
+
+      response = call_t_precondition(%{first: 1, second: 2})
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) == ["First field value should be greater then two"]
+    end
+  end
+
+  describe "For field level precondition Generated TypeEnsurer module with maybe_filter_precond_errors: true option" do
+    test "returns error wrapped in list when no precond error received" do
+      load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
+
+      response = call_ensure_field_type({:first, "one"})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) == [
+               """
+               Invalid value "one" for field :first of %Elixir{}. \
+               Expected the value matching the integer() type.\
+               """
+             ]
+    end
+
+    test "returns error wrapped in list when value doesn't match any of | types specified and no precondition fails" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: integer()), quote(do: atom())]
+      })
+
+      response = call_ensure_field_type({:first, "one"})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) ==
+               [
+                 """
+                 Invalid value "one" for field :first of %Elixir{}. \
+                 Expected the value matching the integer() | atom() type.\
+                 """
+               ]
+    end
+
+    test "returns list of errors when value matches field's type and precondition returns false" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
+
+      response = call_ensure_field_type({:first, -1})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) ==
+               [
+                 """
+                 Expected the value matching the integer() type. \
+                 And a true value from the precondition function "positive_integer_func" defined \
+                 for UserTypes.positive_integer() type.\
+                 """
+               ]
+    end
+
+    test "returns list of errors when field's containerized value matches the type and precondition returns false" do
+      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      tuple_precondition = Precondition.new(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [
+            {
+              {{quote(do: integer()), nil}, {quote(do: integer()), int_precondition}},
+              tuple_precondition
+            }
+          ]
+        },
+        nil
+      })
+
+      response = call_ensure_field_type({:first, {0, -1}})
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) ==
+               [
+                 """
+                 Expected the value matching the integer() type. And a true value from \
+                 the precondition function "positive_integer_func" defined for UserTypes.positive_integer() type.\
+                 """
+               ]
+    end
+
+    test "returns list of errors when value matches the | type and precondition returns false" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+
+      load_type_ensurer_module({
+        %{first: [{quote(do: non_neg_integer()), precondition}, {quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
+        nil
+      })
+
+      response = call_ensure_field_type({:first, 0})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) ==
+               [
+                 """
+                 Expected the value matching the non_neg_integer() type. And a true value from \
+                 the precondition function \"positive_integer_func\" defined for UserTypes.positive_integer() type.\
+                 """,
+                 """
+                 Expected the value matching the integer() type. And a true value from \
+                 the precondition function \"positive_integer_func\" defined for UserTypes.positive_integer() type.\
+                 """
+               ]
+    end
+
+    test "returns list of errors from precondition function for containerized | type" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{
+          first: [
+            {
+              {{quote(do: integer()), nil}, {quote(do: integer()), precondition}},
+              nil
+            },
+            nil
+          ]
+        },
+        nil
+      })
+
+      response = call_ensure_field_type({:first, {1, -1}})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) == ["Expected positive integer"]
+    end
+
+    test "returns list of errors from the precondition for | nil type" do
+      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+
+      load_type_ensurer_module({
+        %{first: [{quote(do: float()), nil}, {quote(do: integer()), precondition}, nil]},
+        nil
+      })
+
+      response = call_ensure_field_type({:first, -1})
+
+      assert {:error, _} = response
+
+      assert call_pretty_error(response, true) == ["Expected positive integer"]
     end
   end
 

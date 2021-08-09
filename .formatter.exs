@@ -7,7 +7,7 @@ locals_without_parens = [precond: 1, allow: :*, assert_called: :*]
   ],
   locals_without_parens: locals_without_parens,
   export: [
-    locals_without_parens: locals_without_parens
+    locals_without_parens: [precond: 1]
   ],
   line_length: 150
 ]

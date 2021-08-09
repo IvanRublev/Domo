@@ -12,16 +12,12 @@ defmodule Domo.PreconditionHandler do
         :ok
 
       false ->
-        message =
-          apply(ErrorBuilder, :build_error, [
-            opts[:spec_string],
-            [precond_description: opts[:precond_description], precond_type: opts[:precond_type]]
-          ])
-
+        message = apply(ErrorBuilder, :build_precond_field_error, [opts])
         {:error, opts[:value], [message]}
 
       {:error, message} ->
-        {:error, opts[:value], [{:bypass, message}]}
+        wraped_message = apply(ErrorBuilder, :build_precond_type_error, [message])
+        {:error, opts[:value], [wraped_message]}
 
       _ ->
         raise "precond function defined for #{opts[:precond_type]} type should return true | false | :ok | {:error, any()} value"

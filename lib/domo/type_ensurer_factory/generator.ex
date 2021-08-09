@@ -100,7 +100,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
     {fields_spec, t_precond} = fields_spec_t_precond
 
-    field_names = Map.keys(fields_spec)
+    field_kinds = Macro.escape(collect_field_name_by_kind(fields_spec))
+
     t_precond_quoted = t_precondition_quoted(parent_module, t_precond)
 
     fields_spec
@@ -123,7 +124,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
       defmodule unquote(type_ensurer_alias) do
         @moduledoc false
 
-        def fields, do: unquote(field_names)
+        def fields(kind), do: unquote(field_kinds) |> Map.get(kind)
 
         unquote(t_precond_quoted)
 
@@ -132,11 +133,63 @@ defmodule Domo.TypeEnsurerFactory.Generator do
         unquote_splicing(match_spec_functions)
 
         def do_match_spec({_spec_atom, _precond_atom}, value, spec_string) do
-          message = apply(Domo.ErrorBuilder, :build_error, [spec_string, nil])
+          message = apply(Domo.ErrorBuilder, :build_field_error, [spec_string])
           {:error, value, [message]}
         end
       end
     end
+  end
+
+  defp collect_field_name_by_kind(fields_spec) do
+    {all, not_any, not_meta, not_any_not_meta, required_not_meta, required} =
+      fields_spec
+      |> Enum.sort_by(fn {field_name, _field_types} -> field_name end, :desc)
+      |> Enum.reduce(
+        {[], [], [], [], [], []},
+        fn {field_name, field_types}, {all, not_any, not_meta, not_any_not_meta, required_not_meta, required} ->
+          {any?, nil?} = any_nil_typed?(field_types)
+          not_any_typed? = not any?
+          not_nillable? = not nil?
+          not_meta? = not meta_field?(field_name)
+
+          {
+            [field_name | all],
+            if(not_any_typed?, do: [field_name | not_any], else: not_any),
+            if(not_meta?, do: [field_name | not_meta], else: not_meta),
+            if(not_any_typed? and not_meta?, do: [field_name | not_any_not_meta], else: not_any_not_meta),
+            if(not_any_typed? and not_nillable? and not_meta?, do: [field_name | required_not_meta], else: required_not_meta),
+            if(not_any_typed? and not_nillable?, do: [field_name | required], else: required)
+          }
+        end
+      )
+
+    %{
+      typed_no_meta_no_any: not_any_not_meta,
+      typed_no_meta_with_any: not_meta,
+      typed_with_meta_no_any: not_any,
+      typed_with_meta_with_any: all,
+      required_no_meta: required_not_meta,
+      required_with_meta: required
+    }
+  end
+
+  defp any_nil_typed?(field_types) do
+    Enum.reduce_while(field_types, {false, false}, fn field_type, {any?, nil?} ->
+      updated_any? = any? or (match?({:term, _, _}, field_type) or match?({:any, _, _}, field_type))
+      updated_nil? = nil? or is_nil(field_type)
+
+      if updated_any? and updated_nil? do
+        {:halt, {true, true}}
+      else
+        {:cont, {updated_any?, updated_nil?}}
+      end
+    end)
+  end
+
+  defp meta_field?(field_name) do
+    field_string = Atom.to_string(field_name)
+    underscore = "__"
+    String.starts_with?(field_string, underscore) and String.ends_with?(field_string, underscore)
   end
 
   defp t_precondition_quoted(struct_module, t_precond) do

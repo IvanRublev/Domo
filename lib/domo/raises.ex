@@ -63,7 +63,7 @@ defmodule Domo.Raises do
       raise(CompileError,
         file: caller_env.file,
         line: caller_env.line,
-        description: "use Domo should be called in a module scope only. To have tagged tuple functions try use Domo.TaggedTuple instead."
+        description: "use Domo should be called in a module scope only."
       )
     end
   end
@@ -158,5 +158,14 @@ defmodule Domo.Raises do
   def raise_no_type_ensurer_for_schema_module(module) do
     module_string = Alias.atom_to_string(module)
     raise "No type ensurer for the schema module found. Please, use Domo in #{module_string} schema module."
+  end
+
+  def raise_no_ecto_module(module) do
+    module_string = Alias.atom_to_string(module)
+    raise "No #{module_string} module loaded. Please, add https://hex.pm/packages/ecto package to the dependencies section in mix.exs file."
+  end
+
+  def raise_not_defined_fields(extra_fields, module) do
+    raise "No fields #{inspect(extra_fields)} are defined in the #{inspect(module)}.t() type."
   end
 end

@@ -19,10 +19,13 @@ pre{padding: 1em;}
 
 .container{
   margin: 0 auto;
-  max-width: 95.0rem;
+  max-width: 114.0rem;
   padding: 0 2.0rem;
   position: relative;
   width: 100%
+}
+.shorter-column {
+  max-width: 44% !important;
 }
 select {
   width: auto;
@@ -85,10 +88,6 @@ header nav ul {
 }
 header nav a {
   display: block;
-}
-
-article {
-  width: 50% !important;
 }
 
 @media (min-width: 40.0rem) { /* Small devices (landscape phones, 576px and up) */

@@ -262,7 +262,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
              } == preconds
     end
 
-    test "refute to add a struct field's type to plan twice", %{plan_path: plan_path} do
+    test "overwrite existing struct field's type in plan (f.e. on fixing errors in type definitions and recompilation)", %{plan_path: plan_path} do
       ResolvePlanner.plan_types_resolving(
         plan_path,
         TwoFieldStruct,
@@ -270,15 +270,24 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
         quote(do: integer)
       )
 
-      res =
-        ResolvePlanner.plan_types_resolving(
-          plan_path,
-          TwoFieldStruct,
-          :first,
-          quote(do: atom)
-        )
+      atom_type = quote(do: atom)
 
-      assert {:error, :field_exists} == res
+      ResolvePlanner.plan_types_resolving(
+        plan_path,
+        TwoFieldStruct,
+        :first,
+        atom_type
+      )
+
+      assert :ok == ResolvePlanner.flush(plan_path)
+
+      plan =
+        plan_path
+        |> File.read!()
+        |> :erlang.binary_to_term()
+
+      expected_field_types = %{TwoFieldStruct => %{first: atom_type}}
+      assert %{filed_types_to_resolve: ^expected_field_types} = plan
     end
 
     @tag start_server: false

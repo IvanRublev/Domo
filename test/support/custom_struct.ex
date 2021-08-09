@@ -6,6 +6,13 @@ defmodule CustomStruct do
   def env, do: __ENV__
 end
 
+defmodule CustomStructWithAnyField do
+  defstruct([:title, :field])
+  @type t :: %__MODULE__{title: String.t(), field: any()}
+
+  def env, do: __ENV__
+end
+
 defmodule CustomStructWithEnsureOk do
   defstruct([:title])
   @type t :: %__MODULE__{title: String.t()}

@@ -145,16 +145,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   @impl true
   def handle_call({:plan, module, field, type_quoted}, _from, state) do
-    fields_by_module = state.plan.filed_types_to_resolve
+    updated_state =
+      put_in(
+        state,
+        [:plan, :filed_types_to_resolve, Access.key(module, %{}), field],
+        type_quoted
+      )
 
-    case Map.get_and_update(fields_by_module, module, &add_key(&1, field, type_quoted)) do
-      {:ok, fields_by_module} ->
-        updated_state = put_in(state, [:plan, :filed_types_to_resolve], fields_by_module)
-        {:reply, :ok, updated_state}
-
-      {error, _map} ->
-        {:reply, error, state}
-    end
+    {:reply, :ok, updated_state}
   end
 
   def handle_call({:plan_empty_struct, module}, _from, state) do
@@ -227,15 +225,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     else
       List.replace_at(list, idx, defaults)
     end
-  end
-
-  defp add_key(nil, field, type_quoted), do: {:ok, %{field => type_quoted}}
-
-  defp add_key(map, field, type_quoted) do
-    Map.get_and_update(map, field, fn
-      nil -> {:ok, type_quoted}
-      _ -> {{:error, :field_exists}, map}
-    end)
   end
 
   defp do_flush(state) do

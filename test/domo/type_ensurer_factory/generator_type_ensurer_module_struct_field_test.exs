@@ -65,6 +65,41 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
     end
   end
 
+  describe "TypeEnsurer module for field of struct type that does not use Domo and has filed of any() type" do
+    test "ensures field's value" do
+      any = {:any, [], []}
+
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: %CustomStructWithAnyField{title: <<_::_*8>>, field: unquote(any)})]
+      })
+
+      assert :ok == call_ensure_type({:first, %CustomStructWithAnyField{title: "one", field: :any_atom}})
+      assert {:error, _} = call_ensure_type({:first, %CustomStructWithAnyField{title: :one, field: :any_atom}})
+      assert {:error, _} = call_ensure_type({:first, %CustomStructWithAnyField{title: nil, field: :any_atom}})
+      assert {:error, _} = call_ensure_type({:first, %{}})
+      assert {:error, _} = call_ensure_type({:first, :not_a_struct})
+    end
+
+    test "ensures given keys and value types with preconditions" do
+      precondition = Precondition.new(module: UserTypes, type_name: :binary_6, description: "binary_6_func")
+      any = {:any, [], []}
+
+      load_type_ensurer_module(
+        {%{
+           first: [
+             {
+               quote(context: String, do: %CustomStructWithAnyField{title: {<<_::_*8>>, nil}, field: {unquote(any), unquote(precondition)}}),
+               nil
+             }
+           ]
+         }, nil}
+      )
+
+      assert :ok == call_ensure_type({:first, %CustomStructWithAnyField{title: "one", field: "anyany"}})
+      assert {:error, _} = call_ensure_type({:first, %CustomStructWithAnyField{title: "one", field: "any_string"}})
+    end
+  end
+
   describe "TypeEnsurer module for field of struct that use Domo" do
     test "ensures field's value by delegating to the struct's TypeEnsurer" do
       load_type_ensurer_module_with_no_preconds(%{

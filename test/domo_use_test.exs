@@ -137,13 +137,13 @@ defmodule DomoUseTest do
 
     test "raise CompileError when it's outside of the module scope" do
       assert_raise CompileError,
-                   "nofile: use Domo should be called in a module scope only. To have tagged tuple functions try use Domo.TaggedTuple instead.",
+                   "nofile: use Domo should be called in a module scope only.",
                    fn ->
                      Code.compile_quoted(quote(do: use(Domo)))
                    end
 
       assert_raise CompileError,
-                   "nofile: use Domo should be called in a module scope only. To have tagged tuple functions try use Domo.TaggedTuple instead.",
+                   "nofile: use Domo should be called in a module scope only.",
                    fn ->
                      Code.compile_quoted(
                        quote do

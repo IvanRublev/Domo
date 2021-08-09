@@ -2,8 +2,6 @@ defmodule DomoTest do
   use Domo.FileCase, async: false
   use Placebo
 
-  doctest Domo
-
   import ExUnit.CaptureIO
 
   alias Domo.MixProjectHelper
@@ -13,6 +11,7 @@ defmodule DomoTest do
   Code.compiler_options(
     no_warn_undefined: [
       Account,
+      AccountCustomizedMessages,
       AccountCustomErrors,
       Article,
       Money,
@@ -233,6 +232,131 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert {:error, name: :empty_name_string} = AccountCustomErrors.new_ok(id: "adk-47896", name: "", money: 2)
     end
 
+    test "returns list of precondition errors or single string message for each field given maybe_filter_precond_errors: true option for *_ok functions" do
+      compile_account_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert {:error, messages} = Account.new_ok([id: "ak47896", name: :john_smith, money: 0], maybe_filter_precond_errors: true)
+
+      [
+        name: [
+          "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
+        ],
+        money: [
+          """
+          Expected the value matching the integer() type. And a true value from \
+          the precondition function "&(&1 > 0 and &1 < 10000000)" defined for Account.money() type.\
+          """
+        ],
+        id: [
+          id_message
+        ]
+      ] = messages
+
+      assert id_message =~ "String.match?"
+
+      account = struct!(Account, id: "ak47896", name: :john_smith, money: 0)
+
+      assert {:error, messages} = Account.ensure_type_ok(account, maybe_filter_precond_errors: true)
+
+      [
+        name: [
+          "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
+        ],
+        money: [
+          """
+          Expected the value matching the integer() type. And a true value from \
+          the precondition function "&(&1 > 0 and &1 < 10000000)" defined for Account.money() type.\
+          """
+        ],
+        id: [
+          id_message
+        ]
+      ] = messages
+
+      assert id_message =~ "String.match?"
+
+      expected_messages = [
+        """
+        Expected the value matching the Account.t() type. And a true value from \
+        the precondition function \"&(&1.money >= 10)\" defined for Account.t() type.\
+        """
+      ]
+
+      assert Account.new_ok([id: "akz-47896", name: "John Smith", money: 1], maybe_filter_precond_errors: true) == {:error, t: expected_messages}
+
+      account = struct!(Account, id: "akz-47896", name: "John Smith", money: 1)
+
+      assert Account.ensure_type_ok(account, maybe_filter_precond_errors: true) == {:error, t: expected_messages}
+
+      compile_account_custom_errors_struct()
+
+      _ = DomoMixTask.run([])
+
+      expected_messages = ["Id should match format xxx-12345"]
+
+      assert AccountCustomErrors.new_ok([id: "ak47896", name: "John Smith", money: 2], maybe_filter_precond_errors: true) ==
+               {:error, id: expected_messages}
+
+      account = struct!(AccountCustomErrors, id: "ak47896", name: "John Smith", money: 2)
+
+      assert AccountCustomErrors.ensure_type_ok(account, maybe_filter_precond_errors: true) == {:error, id: expected_messages}
+
+      compile_money_struct()
+
+      _ = DomoMixTask.run([])
+
+      expected_messages = [
+        """
+        Expected the value matching the float() type. And a true value from the \
+        precondition function "&(&1 > 0.5)" defined for Money.float_amount() type.\
+        """
+      ]
+
+      assert Money.new_ok([amount: 0.3], maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
+
+      money = struct!(Money, amount: 0.3)
+
+      assert Money.ensure_type_ok(money, maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
+    end
+
+    test "custom error messages are bypassed as in shape given in precond functions" do
+      compile_account_customized_messages_struct()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      assert {:error, messages} = AccountCustomizedMessages.new_ok(id: "ak47896", money: 0)
+
+      assert messages == [
+               money: """
+               Invalid value 0 for field :money of %AccountCustomizedMessages{}. Expected the value matching \
+               the integer() type. And a true value from the precondition function \"&(&1 > 0 and &1 < 10000000)\" defined for AccountCustomizedMessages.money() type.\
+               """,
+               id: {:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}
+             ]
+
+      assert {:error, messages} = AccountCustomizedMessages.new_ok([id: "ak47896", money: 0], maybe_filter_precond_errors: true)
+
+      assert messages == [
+               money: [
+                 """
+                 Expected the value matching the integer() type. And a true value \
+                 from the precondition function \"&(&1 > 0 and &1 < 10000000)\" defined for AccountCustomizedMessages.money() type.\
+                 """
+               ],
+               id: [{:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}]
+             ]
+
+      assert {:error, messages} = AccountCustomizedMessages.new_ok(id: "aky-47896", money: 1)
+
+      assert messages == [t: {:overdraft, :overflow}]
+
+      assert {:error, messages} = AccountCustomizedMessages.new_ok([id: "aky-47896", money: 1], maybe_filter_precond_errors: true)
+
+      assert messages == [t: [{:overdraft, :overflow}]]
+    end
+
     test "recompiles type ensurer of depending struct when the type of dependent struct Not using Domo changes" do
       compile_airplane_and_seat_structs()
 
@@ -363,6 +487,30 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       refute File.exists?(types_file)
     end
 
+    test "skips ensurance of struct default values given ensure_struct_defaults: false option" do
+      Application.put_env(:domo, :ensure_struct_defaults, false)
+
+      compile_struct_with_defaults(":id, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
+
+      assert {:ok, []} = DomoMixTask.run([])
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      Application.put_env(:domo, :ensure_struct_defaults, true)
+
+      compile_struct_with_defaults(":id, field: :hello",
+        use_opts: "ensure_struct_defaults: false",
+        enforce_keys: nil,
+        t: "id: integer(), field: atom()"
+      )
+
+      assert {:ok, []} = DomoMixTask.run([])
+    after
+      Application.delete_env(:domo, :ensure_struct_defaults)
+    end
+
     test "recompile module that builds struct using Domo at compile time when the struct's type changes" do
       :code.purge(Elixir.Game.TypeEnsurer)
       :code.delete(Elixir.Game.TypeEnsurer)
@@ -401,27 +549,6 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert [path] == arena_paths
       assert message =~ expected_output
-    end
-
-    test "provides tagged tuple --- operator and helper functions" do
-      alias Domo.TaggedTuple
-      use TaggedTuple
-
-      autumn = :temperature --- :celcius --- 15
-
-      assert autumn === {:temperature, {:celcius, 15}}
-
-      assert :temperature --- measure --- value = autumn
-      assert measure == :celcius
-      assert value == 15
-
-      assert TaggedTuple.tag(15, :temperature --- :celcius) == autumn
-
-      assert TaggedTuple.untag!(autumn, :temperature) ==
-               :celcius --- 15
-
-      assert TaggedTuple.untag!(autumn, :temperature --- :celcius) ==
-               15
     end
   end
 
@@ -590,6 +717,31 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       @type t :: %__MODULE__{id: id(), name: name(), money: money()}
       precond t: &(&1.money >= 10)
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_account_customized_messages_struct do
+    path = src_path("/account_customized_messages.ex")
+
+    File.write!(path, """
+    defmodule AccountCustomizedMessages do
+      use Domo
+
+      @enforce_keys [:id, :money]
+      defstruct @enforce_keys
+
+      @type id :: String.t()
+      precond id: &if(String.match?(&1, ~r/[a-z]{3}-\\d{5}/), do: :ok, else: {:error, {:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}})
+
+      @type money :: integer()
+      precond money: &(&1 > 0 and &1 < 10_000_000)
+
+      @type t :: %__MODULE__{id: id(), money: money()}
+      precond t: &if(&1.money >= 10, do: :ok, else: {:error, {:overdraft, :overflow}})
     end
     """)
 
@@ -910,16 +1062,16 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     [path]
   end
 
-  defp compile_struct_with_defaults(fields, enforce_keys: enforce_keys, t: type_fields) do
+  defp compile_struct_with_defaults(fields, opts) do
     path = src_path("/valid_bar_default.ex")
 
     File.write!(path, """
     defmodule Bar do
-      use Domo
+      use Domo#{if opts[:use_opts], do: ", #{opts[:use_opts]}", else: ""}
 
-      #{if enforce_keys, do: enforce_keys, else: ""}
+      #{if opts[:enforce_keys], do: opts[:enforce_keys], else: ""}
       defstruct [#{fields}]
-      @type t :: %__MODULE__{#{type_fields}}
+      @type t :: %__MODULE__{#{opts[:t]}}
     end
     """)
 

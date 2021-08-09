@@ -329,7 +329,7 @@ defmodule DomoFuncTest do
   describe "ensure_type_ok/1" do
     setup [:build_sample_structs]
 
-    test "returns :ok if the strcut matches it's type", %{bob: bob} do
+    test "returns :ok if the struct matches it's type", %{bob: bob} do
       dr_bob = %{bob | title: :dr}
 
       assert {:ok, dr_bob} == Recipient.ensure_type_ok(dr_bob)
@@ -378,6 +378,35 @@ defmodule DomoFuncTest do
     end
   end
 
+  test "typed_fields/1 returns struct fields having specific (not any) type sorted alphabetically with/without meta fields" do
+    compile_meta_fields_struct("MetaDefaults")
+
+    DomoMixTask.run([])
+
+    assert apply(MetaDefaults, :typed_fields, []) == [:custom_struct, :title]
+    assert apply(MetaDefaults, :typed_fields, [[include_any_typed: true]]) == [:custom_struct, :placeholder, :title]
+
+    assert apply(MetaDefaults, :typed_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
+
+    assert apply(MetaDefaults, :typed_fields, [[include_meta: true, include_any_typed: true]]) == [
+             :__hidden_any__,
+             :__hidden_atom__,
+             :__meta__,
+             :custom_struct,
+             :placeholder,
+             :title
+           ]
+  end
+
+  test "required_fields/1 returns struct fields having not nil and not any type sorted alphabetically with/without meta fields" do
+    compile_meta_fields_struct("MetaDefaults")
+
+    DomoMixTask.run([])
+
+    assert apply(MetaDefaults, :required_fields, []) == [:custom_struct, :title]
+    assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
+  end
+
   defp compile_recipient_foreign_struct(module_name, use_arg \\ nil) do
     path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 
@@ -395,6 +424,30 @@ defmodule DomoFuncTest do
 
       @type t :: %__MODULE__{
               placeholder: EmptyStruct.t(),
+              custom_struct: CustomStructUsingDomo.t(),
+              title: Recipient.name()
+            }
+    end
+    """)
+
+    compile_with_elixir()
+  end
+
+  defp compile_meta_fields_struct(module_name) do
+    path = src_path("/meta_fields_#{Enum.random(100..100_000)}.ex")
+
+    File.write!(path, """
+    defmodule #{module_name} do
+      use Domo
+
+      @enforce_keys [:placeholder, :__hidden_any__, :__hidden_atom__, :__meta__, :custom_struct, :title]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{
+              placeholder: term(),
+              __hidden_any__: any(),
+              __hidden_atom__: atom(),
+              __meta__: String.t(),
               custom_struct: CustomStructUsingDomo.t(),
               title: Recipient.name()
             }

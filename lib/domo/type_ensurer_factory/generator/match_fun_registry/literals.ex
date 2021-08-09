@@ -5,13 +5,29 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
-  def match_spec_function_quoted(type_spec)
-      when type_spec in [quote(do: any()), quote(do: term())] do
-    type_spec_str = TypeSpec.to_atom(type_spec)
+  defguard is_any(type_spec) when type_spec in [quote(do: any()), quote(do: term())]
+
+  def match_spec_function_quoted(type_spec) when is_any(type_spec) do
+    type_spec_atom = TypeSpec.to_atom(type_spec)
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec(unquote(type_spec_str), _value, _spec_string), do: :ok
+        def do_match_spec({unquote(type_spec_atom), nil}, _value, _spec_string), do: :ok
+      end
+
+    {match_spec_functions_quoted, []}
+  end
+
+  def match_spec_function_quoted({type_spec, precond}) when is_any(type_spec) do
+    type_spec_atom = TypeSpec.to_atom(type_spec)
+    precond_atom = if precond, do: Precondition.to_atom(precond)
+    spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
+
+    match_spec_functions_quoted =
+      quote do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) do
+          unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
+        end
       end
 
     {match_spec_functions_quoted, []}

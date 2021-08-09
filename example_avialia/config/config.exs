@@ -7,12 +7,16 @@
 # General application configuration
 use Mix.Config
 
+config :example_avialia,
+  ecto_repos: [ExampleAvialia.BoardingsRepo, ExampleAvialia.CargosRepo]
+
 # Configures the endpoint
-config :avialia, AvialiaWeb.Endpoint,
+config :example_avialia, ExampleAvialiaWeb.Endpoint,
   url: [host: "localhost"],
-  secret_key_base: "MFgDpkQaUzCM8sBhGt9o71iIKo4Kz9xPZfGOJ0EtWiK7fXaoR8gWXuQHIxiUNVYh",
-  render_errors: [view: AvialiaWeb.ErrorView, accepts: ~w(html json), layout: false],
-  pubsub_server: Avialia.PubSub
+  secret_key_base: "+8HFIKSonS0sCSYGxWsCitG//mjSX+yGYO/OPJsnuusimWr0NP7AKk5ivn6PDb46",
+  render_errors: [view: ExampleAvialiaWeb.ErrorView, accepts: ~w(html json), layout: false],
+  pubsub_server: ExampleAvialia.PubSub,
+  live_view: [signing_salt: "sseZBpRJ"]
 
 # Configures Elixir's Logger
 config :logger, :console,

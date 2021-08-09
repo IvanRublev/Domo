@@ -1,12 +1,29 @@
 use Mix.Config
 
+# Configure your database
+config :example_avialia, ExampleAvialia.BoardingsRepo,
+  username: "postgres",
+  password: "postgres",
+  database: "example_avialia_boardings_dev",
+  hostname: "localhost",
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
+config :example_avialia, ExampleAvialia.CargosRepo,
+  username: "postgres",
+  password: "postgres",
+  database: "example_avialia_cargos_dev",
+  hostname: "localhost",
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we use it
 # with webpack to recompile .js and .css sources.
-config :avialia, AvialiaWeb.Endpoint,
+config :example_avialia, ExampleAvialiaWeb.Endpoint,
   http: [port: 4000],
   debug_errors: true,
   code_reloader: true,
@@ -47,12 +64,12 @@ config :avialia, AvialiaWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :avialia, AvialiaWeb.Endpoint,
+config :example_avialia, ExampleAvialiaWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"lib/avialia_web/(live|views)/.*(ex)$",
-      ~r"lib/avialia_web/templates/.*(eex)$"
+      ~r"lib/example_avialia_web/(live|views)/.*(ex)$",
+      ~r"lib/example_avialia_web/templates/.*(eex)$"
     ]
   ]
 
