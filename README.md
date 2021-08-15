@@ -6,6 +6,12 @@
 
 :warning: This library generates code for structures that can bring suboptimal compilation times increased to approx 20%
 
+:information_source: The usage example is in [/example_avialia](/example_avialia) directory.
+
+:information_source: Examples of integration with `TypedStruct` and `TypedEctoSchema` are in [/example_typed_integrations](/example_typed_integrations) directory.
+
+---
+
 [//]: # (Documentation)
 
 A library to ensure the consistency of structs modelling a business domain via
@@ -82,7 +88,7 @@ Then `PurchaseOrder` struct can be constructed consistently like that:
        Expected the value matching the pos_integer() type."
      ]}
 
-    iex> updated_po = %{po | items: [LineItem.new(amount: 150), LineItem.new(amount: 100)]}
+    iex> updated_po = %{po | items: [LineItem.new!(amount: 150), LineItem.new!(amount: 100)]}
     %PurchaseOrder{
       approved_limit: 200,
       id: 1000,
@@ -92,7 +98,7 @@ Then `PurchaseOrder` struct can be constructed consistently like that:
     iex> PurchaseOrder.ensure_type_ok(updated_po)
     {:error, [t: "Sum of line item amounts should be <= to approved limit"]}
     
-    iex> updated_po = %{po | items: [LineItem.new(amount: 150)]}
+    iex> updated_po = %{po | items: [LineItem.new!(amount: 150)]}
     %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}
     
     iex> PurchaseOrder.ensure_type_ok(updated_po)
@@ -105,9 +111,9 @@ See the [Callbacks](#callbacks) section for more details about functions added t
 At the project's compile-time, Domo can perform the following checks:
 
   * It automatically validates that the default values given with `defstruct/1`
-    conform to struct's type and fulfil preconditions.
+    conform to struct's type and fulfill preconditions.
 
-  * It ensures that the struct using Domo built with `new/1` function
+  * It ensures that the struct using Domo built with `new!/1` function
     to be a function's default argument or a struct field's default value
     matches its type and preconditions.
 
@@ -168,15 +174,18 @@ in the `/example_avialia` folder of this repository.
 Domo is compatible with most libraries that generate `t()` type for a struct
 or an Ecto schema. Just `use Domo` in the module, and that's it.
 
+An advanced example is in the `/example_typed_integrations` folder 
+of this repository.
+
 [//]: # (Documentation)
 
 ## <a name="callbacks"></a>Constructor, validation, and reflection functions added to the current module
 
-### new/1/0
+### new!/1/0
 
 <blockquote>
 
-[//]: # (new/1)
+[//]: # (new!/1)
 
 Creates a struct validating type conformance and preconditions.
 
@@ -192,7 +201,7 @@ Raises an `ArgumentError` if conditions described above are not fulfilled.
 This function will check if every given key-value belongs to the struct
 and raise `KeyError` otherwise.
 
-[//]: # (new/1)
+[//]: # (new!/1)
 
 </blockquote>
 
@@ -385,16 +394,16 @@ with correct states at every update that is valid in many business contexts.
     inputs: none specified
     Estimated total run time: 14 s
 
-    Benchmarking __MODULE__.new(arg)...
+    Benchmarking __MODULE__.new!(arg)...
     Benchmarking struct!(__MODULE__, arg)...
 
     Name                               ips        average  deviation         median         99th %
     struct!(__MODULE__, arg)       14.10 K       70.93 μs    ±64.12%       71.99 μs      154.99 μs
-    __MODULE__.new(arg)            11.17 K       89.50 μs    ±48.90%       92.99 μs      171.99 μs
+    __MODULE__.new!(arg)            11.17 K       89.50 μs    ±48.90%       92.99 μs      171.99 μs
 
     Comparison: 
     struct!(__MODULE__, arg)       14.10 K
-    __MODULE__.new(arg)            11.17 K - 1.26x slower +18.57 μs
+    __MODULE__.new!(arg)            11.17 K - 1.26x slower +18.57 μs
 
     A struct's field modification
     =========================================
@@ -441,6 +450,16 @@ with correct states at every update that is valid in many business contexts.
 4. Make a PR to this repository
 
 ## Changelog
+
+### 1.3.0 
+* Change the default name of the constructor function to `new!` to follow Elixir naming convention.
+  You can always change the name with the `config :domo, :name_of_new_function, :new_func_name_here` app configuration.
+
+* Fix bug to validate defaults for every required field in a struct except `__underscored__` fields at compile-time.
+
+* Check whether the precondition function associated with `t()` type returns `true` at compile time regarding defaults correctness check.
+
+* Add examples of integrations with `TypedStruct` and `TypedEctoSchema`.
 
 ### 1.2.9
 * Fix bug to acknowledge that type has been changed after a failed compilation.
@@ -526,8 +545,6 @@ with correct states at every update that is valid in many business contexts.
 
 * [x] Support `precond/1` macro to specify a struct field value's contract 
       with a boolean function.
-
-* [ ] Make a plugin for `TypedStruct` to specify a contract in the filed definition
 
 * [ ] Evaluate full recompilation time for 1000 structs using Domo.
 

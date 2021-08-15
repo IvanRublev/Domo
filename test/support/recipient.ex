@@ -1,6 +1,6 @@
 # credo:disable-for-this-file
 defmodule Recipient do
-  use Domo
+  use Domo, ensure_struct_defaults: false
 
   @enforce_keys [:title, :name]
   defstruct [:title, :name, age: 0]
@@ -12,7 +12,7 @@ defmodule Recipient do
 end
 
 defmodule RecipientWarnOverriden do
-  use Domo, unexpected_type_error_as_warning: true
+  use Domo, ensure_struct_defaults: false, unexpected_type_error_as_warning: true
 
   @enforce_keys [:title, :name]
   defstruct [:title, :name, age: 0]
@@ -24,7 +24,7 @@ defmodule RecipientWarnOverriden do
 end
 
 defmodule RecipientNewOverriden do
-  use Domo, name_of_new_function: :locally_set_new!
+  use Domo, ensure_struct_defaults: false, name_of_new_function: :locally_set_new!
 
   @enforce_keys [:title, :name]
   defstruct [:title, :name, age: 0]
@@ -36,7 +36,7 @@ defmodule RecipientNewOverriden do
 end
 
 defmodule RecipientNestedOrTypes do
-  use Domo
+  use Domo, ensure_struct_defaults: false
 
   @enforce_keys [:title]
   defstruct @enforce_keys

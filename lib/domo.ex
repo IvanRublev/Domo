@@ -1,16 +1,16 @@
 defmodule Domo do
   @moduledoc Domo.Doc.readme_doc("[//]: # (Documentation)")
 
-  @new_doc Domo.Doc.readme_doc("[//]: # (new/1)")
+  @new_doc Domo.Doc.readme_doc("[//]: # (new!/1)")
   @new_ok_doc Domo.Doc.readme_doc("[//]: # (new_ok/2)")
   @ensure_type_doc Domo.Doc.readme_doc("[//]: # (ensure_type!/1)")
   @ensure_type_ok_doc Domo.Doc.readme_doc("[//]: # (ensure_type_ok/2)")
   @typed_fields_doc Domo.Doc.readme_doc("[//]: # (typed_fields/1)")
   @required_fields_doc Domo.Doc.readme_doc("[//]: # (required_fields/1)")
 
-  @callback new() :: struct()
+  @callback new!() :: struct()
   @doc @new_doc
-  @callback new(enumerable :: Enumerable.t()) :: struct()
+  @callback new!(enumerable :: Enumerable.t()) :: struct()
   @callback new_ok() :: {:ok, struct()} | {:error, any()}
   @callback new_ok(enumerable :: Enumerable.t()) :: {:ok, struct()} | {:error, any()}
   @doc @new_ok_doc
@@ -45,7 +45,7 @@ defmodule Domo do
         @type t :: %__MODULE__{first_field: atom() | nil, second_field: any() | nil}
 
         # have added:
-        # new/1
+        # new!/1
         # new_ok/2
         # ensure_type!/1
         # ensure_type_ok/2
@@ -71,7 +71,7 @@ defmodule Domo do
 
   The macro adds the following functions to the current module, that are the
   facade for the generated `TypeEnsurer` module:
-  `new/1`, `new_ok/2`, `ensure_type!/1`, `ensure_type_ok/2`, `typed_fields/1`,
+  `new!/1`, `new_ok/2`, `ensure_type!/1`, `ensure_type_ok/2`, `typed_fields/1`,
   `required_fields/1`.
 
   ## Options
@@ -83,7 +83,7 @@ defmodule Domo do
     * `name_of_new_function` - the name of the constructor function added
       to the module. The ok function name is generated automatically from
       the given one by omitting trailing `!` if any, and appending `_ok`.
-      Defaults are `new` and `new_ok` appropriately.
+      Defaults are `new!` and `new_ok` appropriately.
 
     * `unexpected_type_error_as_warning` - if set to `true`, prints warning
       instead of throwing an error for field type mismatch in the raising
@@ -110,7 +110,7 @@ defmodule Domo do
       collect_types_to_treat_as_any(__CALLER__.module, global_anys, local_anys)
     end
 
-    global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new)
+    global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new!)
     new_fun_name = Keyword.get(opts, :name_of_new_function, global_new_func_name)
 
     new_ok_fun_name =

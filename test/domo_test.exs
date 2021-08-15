@@ -54,7 +54,7 @@ defmodule DomoTest do
 
       _ = DomoMixTask.run([])
 
-      assert Kernel.function_exported?(Receiver, :new, 1)
+      assert Kernel.function_exported?(Receiver, :new!, 1)
       assert Kernel.function_exported?(Receiver, :new_ok, 1)
       assert Kernel.function_exported?(Receiver, :ensure_type!, 1)
       assert Kernel.function_exported?(Receiver, :ensure_type_ok, 1)
@@ -65,7 +65,7 @@ defmodule DomoTest do
 
       _ = DomoMixTask.run([])
 
-      bob = Receiver.new(title: :mr, name: "Bob", age: 27)
+      bob = Receiver.new!(title: :mr, name: "Bob", age: 27)
       assert %{__struct__: Receiver, title: :mr, name: "Bob", age: 27} = bob
 
       assert_raise ArgumentError,
@@ -75,7 +75,7 @@ defmodule DomoTest do
                    the integer() type.\
                    """,
                    fn ->
-                     _ = Receiver.new(title: :mr, name: "Bob", age: 27.5)
+                     _ = Receiver.new!(title: :mr, name: "Bob", age: 27.5)
                    end
 
       assert %{__struct__: Receiver, title: :dr, age: 33} = Receiver.ensure_type!(%{bob | title: :dr, age: 33})
@@ -90,7 +90,7 @@ defmodule DomoTest do
 
       _ = DomoMixTask.run([])
 
-      bob = ReceiverUserTypeAfterT.new(title: :mr, name: "Bob", age: 27)
+      bob = ReceiverUserTypeAfterT.new!(title: :mr, name: "Bob", age: 27)
       assert %{__struct__: ReceiverUserTypeAfterT, title: :mr, name: "Bob", age: 27} = bob
 
       assert_raise ArgumentError,
@@ -100,7 +100,7 @@ defmodule DomoTest do
                    the integer() type.\
                    """,
                    fn ->
-                     _ = ReceiverUserTypeAfterT.new(title: :mr, name: "Bob", age: 27.5)
+                     _ = ReceiverUserTypeAfterT.new!(title: :mr, name: "Bob", age: 27.5)
                    end
 
       assert %{__struct__: ReceiverUserTypeAfterT, title: :dr, age: 33} = ReceiverUserTypeAfterT.ensure_type!(%{bob | title: :dr, age: 33})
@@ -116,10 +116,10 @@ defmodule DomoTest do
       _ = DomoMixTask.run([])
 
       assert_raise ArgumentError, ~r/Invalid value nil for field :status/s, fn ->
-        _ = Game.new(status: nil)
+        _ = Game.new!(status: nil)
       end
 
-      game = Game.new(status: :not_started)
+      game = Game.new!(status: :not_started)
       assert %{__struct__: Game} = game
 
       assert_raise ArgumentError, ~r/Invalid value :in_progress for field :status/s, fn ->
@@ -150,7 +150,7 @@ defmodule DomoTest do
       address = struct!(Address, %{country: "DE", city: "HH", line1: "Rathausmarkt, 1"})
       delivery_info = struct!(DeliveryInfo, %{address: address})
 
-      assert %{__struct__: Customer} = Customer.new(delivery_info: delivery_info)
+      assert %{__struct__: Customer} = Customer.new!(delivery_info: delivery_info)
 
       assert_raise ArgumentError,
                    ~r/Invalid value.*for field :delivery_info.*Value of field :address.*is invalid/s,
@@ -164,7 +164,7 @@ defmodule DomoTest do
 
                      delivery_info = struct!(DeliveryInfo, %{address: malformed_address})
 
-                     _ = Customer.new(delivery_info: delivery_info)
+                     _ = Customer.new!(delivery_info: delivery_info)
                    end
     end
 
@@ -173,7 +173,7 @@ defmodule DomoTest do
 
       {:ok, []} = DomoMixTask.run([])
 
-      account = Account.new(id: "adk-47896", name: "John Smith", money: 2578)
+      account = Account.new!(id: "adk-47896", name: "John Smith", money: 2578)
       assert %{__struct__: Account} = account
 
       message_regex = ~r/the following values should have types defined for fields of the Account struct:
@@ -181,12 +181,12 @@ defmodule DomoTest do
 And a true value from the precondition function "\&\(String.match\?\(\&1, ~r\/\[a-z\]\{3\}-.*d\{5\}\/\)\)" defined for Account.id\(\) type./
 
       assert_raise ArgumentError, message_regex, fn ->
-        _ = Account.new(id: "ak47896", name: "John Smith", money: 2578)
+        _ = Account.new!(id: "ak47896", name: "John Smith", money: 2578)
       end
 
       assert_raise ArgumentError, ~r/Invalid value %Account{id: \"adk-47896\", money: 2, name: \"John Smith\"}.*\
 a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
-        _ = Account.new(id: "adk-47896", name: "John Smith", money: 2)
+        _ = Account.new!(id: "adk-47896", name: "John Smith", money: 2)
       end
 
       assert %{__struct__: Account} = %{account | money: 3500} |> Account.ensure_type!()
@@ -206,19 +206,19 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       {:ok, []} = DomoMixTask.run([])
 
-      account = AccountCustomErrors.new(id: "adk-47896", name: "John Smith", money: 2)
+      account = AccountCustomErrors.new!(id: "adk-47896", name: "John Smith", money: 2)
       assert %{__struct__: AccountCustomErrors} = account
 
       assert_raise RuntimeError,
                    "precond function defined for AccountCustomErrors.money\(\) type should return true | false | :ok | {:error, any()} value",
                    fn ->
-                     _ = AccountCustomErrors.new(id: "adk-47896", name: "John Smith", money: 1)
+                     _ = AccountCustomErrors.new!(id: "adk-47896", name: "John Smith", money: 1)
                    end
 
       assert_raise ArgumentError,
                    "the following values should have types defined for fields of the AccountCustomErrors struct:\n * Id should match format xxx-12345",
                    fn ->
-                     _ = AccountCustomErrors.new(id: "ak47896", name: "John Smith", money: 2)
+                     _ = AccountCustomErrors.new!(id: "ak47896", name: "John Smith", money: 2)
                    end
 
       assert {:error, id: "Id should match format xxx-12345"} = AccountCustomErrors.new_ok(id: "ak47896", name: "John Smith", money: 2)
@@ -226,7 +226,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert_raise ArgumentError,
                    "the following values should have types defined for fields of the AccountCustomErrors struct:\n * :empty_name_string",
                    fn ->
-                     _ = AccountCustomErrors.new(id: "adk-47896", name: "", money: 2)
+                     _ = AccountCustomErrors.new!(id: "adk-47896", name: "", money: 2)
                    end
 
       assert {:error, name: :empty_name_string} = AccountCustomErrors.new_ok(id: "adk-47896", name: "", money: 2)
@@ -363,7 +363,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       {:ok, []} = DomoMixTask.run([])
 
       seat = struct!(Airplane.Seat, id: "A2")
-      assert _ = Airplane.new(seats: [seat])
+      assert _ = Airplane.new!(seats: [seat])
 
       :code.purge(Airplane.Seat)
       :code.delete(Airplane.Seat)
@@ -376,12 +376,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                    ~r/Invalid value.*for field :seats.*The field with key :id.*is invalid/s,
                    fn ->
                      seat = struct!(Airplane.Seat, id: "A2")
-                     _ = Airplane.new(seats: [seat])
+                     _ = Airplane.new!(seats: [seat])
                    end
     end
 
     for {fun, correct_fun_call, wrong_fun_call} <- [
-          {"new/1", "Foo.new(title: \"hello\")", "Foo.new(title: :hello)"},
+          {"new/1", "Foo.new!(title: \"hello\")", "Foo.new!(title: :hello)"},
           {"new_ok/1", "Foo.new_ok(title: \"hello\")", "Foo.new_ok(title: :hello)"},
           {"ensure_type!/1", "Foo.ensure_type!(%Foo{title: \"hello\"})", "Foo.ensure_type!(%Foo{title: :hello})"},
           {"ensure_type_ok/1", "Foo.ensure_type_ok(%Foo{title: \"hello\"})", "Foo.ensure_type_ok(%Foo{title: :hello})"}
@@ -480,6 +480,37 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
       assert msg =~ "Invalid value :hello for field :field of %Bar{}. Expected the value matching the integer() type."
 
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      [path] =
+        compile_struct_with_defaults("id: 1, field: :hello",
+          enforce_keys: nil,
+          t: "id: integer(), field: atom()",
+          precond_t: "precond t: &(&1.id > 10)"
+        )
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: ^path,
+        position: 1,
+        message: "A default value given via defstruct/1 in Bar module mismatches the type." <> _,
+        severity: :error
+      }
+
+      assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
+      assert msg =~ "And a true value from the precondition function"
+      assert msg =~ "&(&1.id > 10)"
+
       plan_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :plan)
       refute File.exists?(plan_file)
 
@@ -565,7 +596,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                    matching the :mr | :ms | :dr type.\
                    """,
                    fn ->
-                     _ = Receiver.new(title: nil, name: "ok")
+                     _ = Receiver.new!(title: nil, name: "ok")
                    end
     end
 
@@ -584,7 +615,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                    precondition function "&(&1 > 0.5)" defined for Money.float_amount() type.\
                    """,
                    fn ->
-                     _ = Money.new(amount: 0.3)
+                     _ = Money.new!(amount: 0.3)
                    end
     end
 
@@ -612,7 +643,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                         - Expected the value matching the <<_::_*8>> type.\
                    """,
                    fn ->
-                     _ = Article.new(metadata: {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}})
+                     _ = Article.new!(metadata: {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}})
                    end
     end
 
@@ -643,23 +674,23 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                      alias Library.Book.Author
 
                      _ =
-                       Library.new(
+                       Library.new!(
                          name: 1,
                          shelves: [
-                           Shelve.new(
+                           Shelve.new!(
                              address: "A5",
-                             books: [Book.new(title: "On the Road", author: Author.new(first_name: "Jack", second_name: "Kerouac"))]
+                             books: [Book.new!(title: "On the Road", author: Author.new!(first_name: "Jack", second_name: "Kerouac"))]
                            ),
                            %{
-                             Shelve.new(
+                             Shelve.new!(
                                address: "B1",
                                books: []
                              )
                              | books: [
-                                 Book.new(title: "Naked Lunch", author: Author.new(first_name: "William S.", second_name: "Burroughs")),
+                                 Book.new!(title: "Naked Lunch", author: Author.new!(first_name: "William S.", second_name: "Burroughs")),
                                  %{
-                                   Book.new(title: "Howl and Other Poems", author: Author.new(first_name: "-", second_name: "-"))
-                                   | author: %{Author.new(first_name: "Allen", second_name: "") | second_name: :ginsberg}
+                                   Book.new!(title: "Howl and Other Poems", author: Author.new!(first_name: "-", second_name: "-"))
+                                   | author: %{Author.new!(first_name: "Allen", second_name: "") | second_name: :ginsberg}
                                  }
                                ]
                            }
@@ -674,7 +705,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountCustomErrors do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:id, :name, :money]
       defstruct @enforce_keys
@@ -701,7 +732,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Account do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:id, :name, :money]
       defstruct @enforce_keys
@@ -729,7 +760,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountCustomizedMessages do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:id, :money]
       defstruct @enforce_keys
@@ -754,7 +785,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Money do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:amount]
       defstruct @enforce_keys
@@ -778,7 +809,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Article do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:metadata]
       defstruct @enforce_keys
@@ -799,7 +830,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Library do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       alias Library.Shelve
 
@@ -810,7 +841,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Shelve do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       alias Library.Book
 
@@ -821,7 +852,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Book do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       alias Library.Book.Author
 
@@ -832,7 +863,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Book.Author do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:first_name, :second_name]
       defstruct @enforce_keys
@@ -850,7 +881,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Receiver do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:title, :name]
       defstruct [:title, :name, age: 0]
@@ -871,7 +902,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule ReceiverUserTypeAfterT do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:title, :name]
       defstruct [:title, :name, age: 0]
@@ -892,7 +923,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Game do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:status]
       defstruct [:status]
@@ -913,7 +944,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Game do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:status]
       defstruct [:status]
@@ -931,7 +962,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Arena do
-      defstruct [game: Game.new(status: :not_started)]
+      defstruct [game: Game.new!(status: :not_started)]
 
       @type t :: %__MODULE__{game: Game.t()}
     end
@@ -946,7 +977,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(address_path, """
     defmodule Customer.Address do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:country, :city, :line1]
       defstruct [:country, :city, :line1, :line2]
@@ -964,7 +995,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(delivery_path, """
     defmodule Customer.DeliveryInfo do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       alias Customer.Address
 
@@ -979,7 +1010,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(customer_path, """
     defmodule Customer do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       alias Customer.DeliveryInfo
 
@@ -999,7 +1030,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(airplane_path, """
     defmodule Airplane do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:seats]
       defstruct [:seats]
@@ -1072,6 +1103,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       #{if opts[:enforce_keys], do: opts[:enforce_keys], else: ""}
       defstruct [#{fields}]
       @type t :: %__MODULE__{#{opts[:t]}}
+
+      #{opts[:precond_t]}
     end
     """)
 

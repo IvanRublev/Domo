@@ -1,6 +1,6 @@
 # credo:disable-for-this-file
 defmodule RecipientWithPrecond do
-  use Domo
+  use Domo, ensure_struct_defaults: false
 
   @enforce_keys [:title, :name]
   defstruct [:title, :name, age: 0]

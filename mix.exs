@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.2.9"
+  @version "1.3.0"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -31,7 +31,7 @@ defmodule Domo.MixProject do
       # Package
       package: package(),
       description:
-        "A library to ensure the consistency of structs modelling a business domain via their `t()` types and associated precondition functions."
+        "A library to ensure the consistency of structs modeling a business domain via their `t()` types and associated precondition functions."
     ]
   end
 

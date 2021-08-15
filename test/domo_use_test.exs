@@ -57,7 +57,7 @@ defmodule DomoUseTest do
           @type t :: %__MODULE__{title: String.t()}
         end
 
-        defstruct field: Submodule.new(title: "string")
+        defstruct field: Submodule.new!(title: "string")
         @type t :: %__MODULE__{field: Submodule.t()}
       end
   end
@@ -261,7 +261,7 @@ defmodule DomoUseTest do
       end
 
       err_regex = @no_domo_compiler_error_regex
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new, [%{}]) end
+      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new!, [%{}]) end
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :new_ok, [%{}]) end
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type!, [%{__struct__: Module}]) end
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type_ok, [%{__struct__: Module}]) end

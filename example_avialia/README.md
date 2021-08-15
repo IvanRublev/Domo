@@ -1,32 +1,35 @@
 # ExampleAvialia
 
-This example demonstrates how Domo can be used to validate model invariants 
-of an air carrier company domain.
+This example demonstrates keeping the consistency of the domain model with Domo. 
+The domain model is for an air carrier company.
 
 It has two contexts board passengers and cargo shipments backed 
-by two database repositories respectfully. That is to demonstrate how Domo 
-can be applied in microservices setup when these two context are extracted
-to two apps.
+by two Ecto repositories, respectfully. That demonstrates how Domo can 
+be applied in microservices setup if these two contexts are extracted 
+into separate apps.
 
-The application persists the changeset validated by Domo if it matches
+The application persists the changeset validated by Domo if it matches 
 appropriate schema `t()` type definition and associated preconditions. 
-It shows changeset's errors prepared by Domo to user otherwise.
+Otherwise, it shows the changeset's errors prepared by Domo to the user.
 
-To open application start server and visit [`localhost:4000`](http://localhost:4000) 
+To open the application, start the Phoenix server and visit [`localhost:4000`](http://localhost:4000) 
 from your browser. You can enter some data, see errors, persist or delete records.
 
 Domo can be applied to build and validate any struct defined with `t()` type by itself.
-Because each struct with `use Domo` automatically gets `new/1`, `ensure_type!/1/2` 
+Because each struct that `use Domo` automatically gets `new/1`, `ensure_type!/1/2` 
 functions and their `*_ok` versions.
 
-You can build and validate `Passenger` struct directly with Domo with the following:
+Domo works with any struct defined with `defstruct/1` and `t()` type. 
+It adds `new/1`, `ensure_type!/1/2` functions and their `*_ok` versions to the struct.
+
+You can build and validate the `Passenger` struct directly with Domo with the following:
 
 `iex -S mix`
 
 ```
 alias ExampleAvialia.Boardings.Passenger
 
-p = Passenger.new(flight: "ALA-1215", first_name: "John", last_name: "Smith", seat: "5C")
+p = Passenger.new!(flight: "ALA-1215", first_name: "John", last_name: "Smith", seat: "5C")
 
 Passenger.ensure_type!(%{p | flight: "invalid"})
 

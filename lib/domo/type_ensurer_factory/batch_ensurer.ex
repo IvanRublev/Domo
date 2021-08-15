@@ -6,7 +6,8 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   alias Domo.TypeEnsurerFactory.Error
 
   def ensure_struct_integrity(plan_path) do
-    with {:ok, structs_to_ensure} <- read_plan(plan_path, :structs_to_ensure),
+    with {:ok, plan_map} <- read_plan(plan_path),
+         {:ok, structs_to_ensure} <- read_field(plan_map, plan_path, :structs_to_ensure),
          :ok <- do_ensure_structs_integrity(structs_to_ensure) do
       :ok
     else
@@ -18,11 +19,10 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     end
   end
 
-  defp read_plan(plan_path, field) do
+  defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->
-        map = :erlang.binary_to_term(binary)
-        read_field(map, plan_path, field)
+        {:ok, :erlang.binary_to_term(binary)}
 
       _err ->
         {:error, %Error{file: plan_path, message: :no_plan}}
@@ -80,7 +80,8 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   end
 
   def ensure_struct_defaults(plan_path) do
-    with {:ok, defaults_to_ensure} <- read_plan(plan_path, :struct_defaults_to_ensure),
+    with {:ok, plan_map} <- read_plan(plan_path),
+         {:ok, defaults_to_ensure} <- read_field(plan_map, plan_path, :struct_defaults_to_ensure),
          :ok <- do_ensure_struct_defaults(defaults_to_ensure) do
       :ok
     else
@@ -93,10 +94,10 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   end
 
   defp do_ensure_struct_defaults([{module, fields, file, line} | tail]) do
-    case validate_fields(module, fields) do
-      :ok ->
-        do_ensure_struct_defaults(tail)
-
+    with :ok <- validate_fields(module, fields),
+         :ok <- validate_struct_value(module, fields) do
+      do_ensure_struct_defaults(tail)
+    else
       {:error, error} ->
         touch_files([file | Enum.map(tail, fn {_module, _fields, file, _line} -> file end)])
         {:module_error, {module, file, line, error}}
@@ -110,12 +111,26 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp validate_fields(module, fields) do
     type_ensurer = Module.concat(module, TypeEnsurer)
 
-    Enum.reduce_while(fields, :ok, fn key_value, ok ->
+    required_fields = apply(type_ensurer, :fields, [:required_no_meta])
+
+    Enum.reduce_while(required_fields, :ok, fn key, ok ->
+      key_value = {key, fields[key]}
+
       case apply(type_ensurer, :ensure_field_type, [key_value]) do
         {:error, _} = error -> {:halt, {:error, ErrorBuilder.pretty_error(error)}}
         _ -> {:cont, ok}
       end
     end)
+  end
+
+  defp validate_struct_value(module, fields) do
+    type_ensurer = Module.concat(module, TypeEnsurer)
+    value = struct(module, fields)
+
+    case apply(type_ensurer, :t_precondition, [value]) do
+      :ok -> :ok
+      {:error, _} = error -> {:error, ErrorBuilder.pretty_error(error)}
+    end
   end
 
   defp build_defaults_error_message(module_error) do

@@ -138,28 +138,6 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
     end
 
-    test "return error with a first struct field's default value not matching its type", %{
-      planner: planner,
-      plan_file: plan_file
-    } do
-      file = Path.join(@source_dir, "/some_caller_module.ex")
-
-      plan_struct_defaults_ensurance(
-        planner,
-        CustomStructUsingDomo,
-        [title: :hello],
-        file,
-        2
-      )
-
-      flush(planner)
-
-      assert {:error, {^file, 2, message}} = BatchEnsurer.ensure_struct_defaults(plan_file)
-
-      assert message =~ "A default value given via defstruct/1 in CustomStructUsingDomo module mismatches the type."
-      assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
-    end
-
     @first_path Path.join(@source_dir, "/some_caller_module.ex")
     @second_path Path.join(@source_dir, "/other_caller_module.ex")
     @third_path Path.join(@source_dir, "/third_caller_module.ex")

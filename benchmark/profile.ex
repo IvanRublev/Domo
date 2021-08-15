@@ -18,7 +18,7 @@ defmodule Benchmark.Profile do
       Task.start(fn ->
         _ =
           Enum.map(list, fn user_map ->
-            Tweet.User.new(user_map)
+            Tweet.User.new!(user_map)
           end)
       end)
 

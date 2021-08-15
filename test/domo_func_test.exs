@@ -47,9 +47,9 @@ defmodule DomoFuncTest do
   describe "new/1 constructor" do
     test "makes a struct" do
       assert %Recipient{title: :mr, name: "Bob", age: 27} ==
-               Recipient.new(title: :mr, name: "Bob", age: 27)
+               Recipient.new!(title: :mr, name: "Bob", age: 27)
 
-      assert %EmptyStruct{} == EmptyStruct.new()
+      assert %EmptyStruct{} == EmptyStruct.new!()
     end
 
     test "raises an error for arguments mismatching struct's field types" do
@@ -62,7 +62,7 @@ defmodule DomoFuncTest do
                    the integer() type.\
                    """,
                    fn ->
-                     _ = Recipient.new(title: "mr", name: "Bob", age: 27.5)
+                     _ = Recipient.new!(title: "mr", name: "Bob", age: 27.5)
                    end
     end
 
@@ -77,7 +77,7 @@ defmodule DomoFuncTest do
                    Expected the value matching the :mr | :ms | :dr type.\
                    """,
                    fn ->
-                     _ = RecipientNestedOrTypes.new(title: %Recipient{title: "mr", name: "Bob", age: 27})
+                     _ = RecipientNestedOrTypes.new!(title: %Recipient{title: "mr", name: "Bob", age: 27})
                    end
     end
 
@@ -89,7 +89,7 @@ defmodule DomoFuncTest do
                    And a true value from the precondition function "&(&1 < 300)" defined for RecipientWithPrecond.age() type.\
                    """,
                    fn ->
-                     _ = RecipientWithPrecond.new(title: :mr, name: "Bob", age: 370)
+                     _ = RecipientWithPrecond.new!(title: :mr, name: "Bob", age: 370)
                    end
     end
 
@@ -101,7 +101,7 @@ defmodule DomoFuncTest do
                    function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
                    """,
                    fn ->
-                     _ = RecipientWithPrecond.new(title: :mr, name: "Bob Thornton", age: 37)
+                     _ = RecipientWithPrecond.new!(title: :mr, name: "Bob Thornton", age: 37)
                    end
     end
 
@@ -109,13 +109,13 @@ defmodule DomoFuncTest do
       Application.put_env(:domo, :unexpected_type_error_as_warning, true)
 
       assert capture_io(:stderr, fn ->
-               _ = Recipient.new(title: "mr", name: "Bob", age: 27.5)
+               _ = Recipient.new!(title: "mr", name: "Bob", age: 27.5)
              end) =~ "Invalid value \"mr\" for field :title of %Recipient{}."
 
       Application.put_env(:domo, :unexpected_type_error_as_warning, false)
 
       assert capture_io(:stderr, fn ->
-               _ = RecipientWarnOverriden.new(title: "mr", name: "Bob", age: 27.5)
+               _ = RecipientWarnOverriden.new!(title: "mr", name: "Bob", age: 27.5)
              end) =~ "Invalid value \"mr\" for field :title of %RecipientWarnOverriden{}."
     after
       Application.delete_env(:domo, :unexpected_type_error_as_warning)
@@ -128,10 +128,10 @@ defmodule DomoFuncTest do
 
       DomoMixTask.run([])
 
-      assert _ = apply(RecipientForeignStructs, :new, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
+      assert _ = apply(RecipientForeignStructs, :new!, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
 
       assert_raise ArgumentError, ~r/Invalid value :hello for field :title of %RecipientForeignStructs{}./, fn ->
-        apply(RecipientForeignStructs, :new, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: :hello]])
+        apply(RecipientForeignStructs, :new!, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: :hello]])
       end
 
       Application.put_env(:domo, :remote_types_as_any, CustomStructUsingDomo: :t)
@@ -144,14 +144,14 @@ defmodule DomoFuncTest do
       DomoMixTask.run([])
 
       assert _ =
-               apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new, [
-                 [placeholder: EmptyStruct.new(), custom_struct: :not_custom_struct, title: :not_a_string]
+               apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new!, [
+                 [placeholder: EmptyStruct.new!(), custom_struct: :not_custom_struct, title: :not_a_string]
                ])
 
       assert_raise ArgumentError,
                    ~r/Invalid value :not_empty_struct for field :placeholder of %RecipientForeignStructsRemoteTypesAsAnyOverriden{}./,
                    fn ->
-                     apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new, [
+                     apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new!, [
                        [
                          placeholder: :not_empty_struct,
                          custom_struct: :not_custom_struct,
@@ -170,11 +170,11 @@ defmodule DomoFuncTest do
                    struct Recipient: [:title]\
                    """,
                    fn ->
-                     _ = Recipient.new(name: "Bob", age: 27)
+                     _ = Recipient.new!(name: "Bob", age: 27)
                    end
 
       assert_raise KeyError, ~r/key :extra_key not found in: %Recipient/, fn ->
-        _ = Recipient.new(title: :mr, name: "Bob", age: 27, extra_key: true)
+        _ = Recipient.new!(title: :mr, name: "Bob", age: 27, extra_key: true)
       end
     end
   end
@@ -411,7 +411,7 @@ defmodule DomoFuncTest do
     path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 
     use_domo =
-      ["use Domo", use_arg]
+      ["use Domo", use_arg, "ensure_struct_defaults: false"]
       |> Enum.reject(&is_nil/1)
       |> Enum.join(", ")
 
@@ -438,7 +438,7 @@ defmodule DomoFuncTest do
 
     File.write!(path, """
     defmodule #{module_name} do
-      use Domo
+      use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:placeholder, :__hidden_any__, :__hidden_atom__, :__meta__, :custom_struct, :title]
       defstruct @enforce_keys

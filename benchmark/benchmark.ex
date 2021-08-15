@@ -37,9 +37,9 @@ defmodule Benchmark do
 
   defp bench_construction(pid) do
     Benchee.run(%{
-      "__MODULE__.new(arg)" => fn ->
+      "__MODULE__.new!(arg)" => fn ->
         {tweet_map, user_map} = Inputs.next_input(pid)
-        Tweet.new(Map.merge(tweet_map, %{user: Tweet.User.new(user_map)}))
+        Tweet.new!(Map.merge(tweet_map, %{user: Tweet.User.new!(user_map)}))
       end,
       "struct!(__MODULE__, arg)" => fn ->
         {tweet_map, user_map} = Inputs.next_input(pid)
