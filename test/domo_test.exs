@@ -459,7 +459,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       :code.delete(Elixir.Bar.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
 
-      [path] = compile_struct_with_defaults(":id, field: :hello", enforce_keys: ":id", t: "id: integer(), field: integer()")
+      [path] =
+        compile_struct_with_defaults(":id, field: :hello",
+          enforce_keys: ":id",
+          t: "id: integer(), field: integer()"
+        )
 
       me = self()
 
@@ -479,6 +483,35 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
       assert msg =~ "Invalid value :hello for field :field of %Bar{}. Expected the value matching the integer() type."
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      [path] =
+        compile_struct_with_defaults("id: 1, field: :hello",
+          enforce_keys: nil,
+          t: "id: integer(), field: String.t() | nil"
+        )
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Elixir",
+        file: ^path,
+        position: 1,
+        message: "A default value given via defstruct/1 in Bar module mismatches the type." <> _,
+        severity: :error
+      }
+
+      assert msg =~ "== Compilation error in file #{path}:1 ==\n** A default value given via defstruct/1 in Bar module mismatches the type."
+      assert msg =~ "Invalid value :hello for field :field of %Bar{}. Expected the value matching the <<_::_*8>> | nil type."
 
       :code.purge(Elixir.Bar.TypeEnsurer)
       :code.delete(Elixir.Bar.TypeEnsurer)

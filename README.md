@@ -451,6 +451,9 @@ with correct states at every update that is valid in many business contexts.
 
 ## Changelog
 
+### 1.3.1
+* Fix bug to validate defaults having | nil type.
+
 ### 1.3.0 
 * Change the default name of the constructor function to `new!` to follow Elixir naming convention.
   You can always change the name with the `config :domo, :name_of_new_function, :new_func_name_here` app configuration.

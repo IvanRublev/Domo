@@ -111,7 +111,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp validate_fields(module, fields) do
     type_ensurer = Module.concat(module, TypeEnsurer)
 
-    required_fields = apply(type_ensurer, :fields, [:required_no_meta])
+    required_fields = apply(type_ensurer, :fields, [:typed_no_meta_no_any])
 
     Enum.reduce_while(required_fields, :ok, fn key, ok ->
       key_value = {key, fields[key]}
