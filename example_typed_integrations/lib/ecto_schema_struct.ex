@@ -37,7 +37,7 @@ defmodule EctoSchemaStruct do
 
   typed_schema "people" do
     field(:name, :string, default: "Joe", null: false)
-    field(:last_name, :string)
+    field(:last_name, :string) :: last_name() | nil
     field(:age, :integer) :: non_neg_integer() | nil
     field(:happy, :boolean, default: true, null: false)
     field(:phone, :string)
@@ -46,7 +46,7 @@ defmodule EctoSchemaStruct do
 
   precond t: &validate_full_name/1
 
-  defp validate_required(name) when byte_size(name) == 0, do: {:error, "can't be empty"}
+  defp validate_required(name) when byte_size(name) == 0, do: {:error, "can't be empty string"}
   defp validate_required(_name), do: :ok
 
   defp validate_full_name(struct) do

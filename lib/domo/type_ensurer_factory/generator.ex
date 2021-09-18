@@ -1,11 +1,12 @@
 defmodule Domo.TypeEnsurerFactory.Generator do
   @moduledoc false
 
-  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Error
-  alias __MODULE__.MatchFunRegistry
-  alias __MODULE__.TypeSpec
+  alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry
+  alias Domo.TypeEnsurerFactory.Generator.TypeSpec
+  alias Domo.TypeEnsurerFactory.ModuleInspector
+  alias Domo.TypeEnsurerFactory.Precondition
   alias Kernel.ParallelCompiler
 
   def generate(types_path, output_folder, file_module \\ File) do
@@ -94,7 +95,6 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   # credo:disable-for-lines:118
-
   def do_type_ensurer_module(parent_module, fields_spec_t_precond) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
@@ -118,7 +118,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     MatchFunRegistry.stop(pid)
 
     {:__aliases__, [alias: false], parent_module_parts} = Alias.atom_to_alias(parent_module)
-    type_ensurer_alias = {:__aliases__, [alias: false], parent_module_parts ++ [:TypeEnsurer]}
+    type_ensurer_alias = {:__aliases__, [alias: false], parent_module_parts ++ [ModuleInspector.type_ensurer_atom()]}
 
     quote do
       defmodule unquote(type_ensurer_alias) do

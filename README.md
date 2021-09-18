@@ -10,6 +10,8 @@
 
 :information_source: Examples of integration with `TypedStruct` and `TypedEctoSchema` are in [/example_typed_integrations](/example_typed_integrations) directory.
 
+:information_source: JSON parsing and validation example is in [/example_json_parse](/example_json_parse) directory.
+
 ---
 
 [//]: # (Documentation)
@@ -127,10 +129,10 @@ more details.
 Suppose the given structure field's type depends on a type defined in
 another module. When the latter type or its precondition changes,
 Domo recompiles the former module automatically to update its
-`TypeEnsurer` to keep type validation correct.
+`TypeEnsurer` to keep type validation in current state.
 
 That works similarly for any number of intermediate modules
-that can be between module defining the struct and module defining the type.
+between module defining the struct's field and module defining the field's final type.
 
 ## Setup
 
@@ -331,9 +333,10 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 ## Limitations
 
 The recursive types like `@type t :: :end | {integer, t()}` are not supported. 
-Because of that `Macro.t()` is not supported.
+Because of that types like `Macro.t()` or `Path.t()` are not supported.
 
-Parametrized types are not supported. Library returns `{:type_not_found, :key}` error for `@type dict(key, value) :: [{key, value}]` type definition.
+Parametrized types are not supported. Library returns `{:type_not_found, :key}` 
+error for `@type dict(key, value) :: [{key, value}]` type definition.
 
 `MapSet.t(value)` just checks that the struct is of `MapSet`. Precondition
 can be used to verify set values.
@@ -374,6 +377,8 @@ It's not that. The library ensures the correctness of data types at runtime and
 it comes with the price of computation. As the result users get the application 
 with correct states at every update that is valid in many business contexts.
 
+Please, find the output of `mix benchmark` command below.
+
     Generate 10000 inputs, may take a while.
     =========================================
 
@@ -383,7 +388,7 @@ with correct states at every update that is valid in many business contexts.
     CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
     Number of Available Cores: 8
     Available memory: 16 GB
-    Elixir 1.12.1
+    Elixir 1.12.3
     Erlang 24.0.1
 
     Benchmark suite executing with the following configuration:
@@ -398,12 +403,12 @@ with correct states at every update that is valid in many business contexts.
     Benchmarking struct!(__MODULE__, arg)...
 
     Name                               ips        average  deviation         median         99th %
-    struct!(__MODULE__, arg)       14.10 K       70.93 μs    ±64.12%       71.99 μs      154.99 μs
-    __MODULE__.new!(arg)            11.17 K       89.50 μs    ±48.90%       92.99 μs      171.99 μs
+    struct!(__MODULE__, arg)       14.35 K       69.69 μs    ±62.62%          70 μs         151 μs
+    __MODULE__.new!(arg)           12.04 K       83.05 μs    ±51.32%          84 μs         157 μs
 
     Comparison: 
-    struct!(__MODULE__, arg)       14.10 K
-    __MODULE__.new!(arg)            11.17 K - 1.26x slower +18.57 μs
+    struct!(__MODULE__, arg)       14.35 K
+    __MODULE__.new!(arg)           12.04 K - 1.19x slower +13.36 μs
 
     A struct's field modification
     =========================================
@@ -411,7 +416,7 @@ with correct states at every update that is valid in many business contexts.
     CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
     Number of Available Cores: 8
     Available memory: 16 GB
-    Elixir 1.12.1
+    Elixir 1.12.3
     Erlang 24.0.1
 
     Benchmark suite executing with the following configuration:
@@ -426,12 +431,12 @@ with correct states at every update that is valid in many business contexts.
     Benchmarking struct!(tweet, user: arg)...
 
     Name                                                        ips        average  deviation         median         99th %
-    struct!(tweet, user: arg)                               15.60 K       64.12 μs    ±68.42%          65 μs         142 μs
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       12.65 K       79.08 μs    ±56.48%          81 μs         161 μs
+    struct!(tweet, user: arg)                               15.45 K       64.71 μs    ±68.57%          67 μs         142 μs
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.64 K       73.34 μs    ±60.02%          73 μs         149 μs
 
     Comparison: 
-    struct!(tweet, user: arg)                               15.60 K
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       12.65 K - 1.23x slower +14.96 μs
+    struct!(tweet, user: arg)                               15.45 K
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.64 K - 1.13x slower +8.63 μs
 
 ## Contributing
 
@@ -450,6 +455,25 @@ with correct states at every update that is valid in many business contexts.
 4. Make a PR to this repository
 
 ## Changelog
+
+### 1.3.2
+* Support remote types in erlang modules like `:inet.port_number()`
+
+* Shorten the invalid value output in the error message
+
+* Increase validation speed by skipping fields that are not in `t()` type spec or have the `any()` type
+
+* Fix bug to skip validation of struct's enforced keys default value because they are ignored during the construction anyway
+
+* Increase validation speed by generating `TypeEnsurer` modules for `Date`, `Date.Range`, `DateTime`, `File.Stat`, `File.Stream`, `GenEvent.Stream`, `IO.Stream`, `Macro.Env`, `NaiveDateTime`, `Range`, `Regex`, `Task`, `Time`, `URI`, and `Version` structs from the standard library at the first project compilation
+
+* Fix bug to call the `precond` function of the user type pointing to a struct
+
+* Increase validation speed by encouraging to use Domo or to make a `precond` function for struct referenced by a user type
+
+* Add `Domo.has_type_ensurer?/1` that checks whether a `TypeEnsurer` module was generated for the given struct.
+
+* Add example of parsing with validating of the Contentful JSON reply via `Jason` + `ExJSONPath` + `Domo`
 
 ### 1.3.1
 * Fix bug to validate defaults having | nil type.

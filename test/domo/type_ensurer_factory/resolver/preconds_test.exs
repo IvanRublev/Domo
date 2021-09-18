@@ -36,11 +36,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       preconds_file: preconds_file,
       deps_file: deps_file
     } do
-      plan(planner, TwoFieldStruct, :first, quote(do: %AllDefaultsStruct{field: atom()}))
+      plan(planner, TwoFieldStruct, :first, quote(do: %Recipient{field: atom()}))
       keep_env(planner, TwoFieldStruct, __ENV__)
-      keep_env(planner, AllDefaultsStruct, __ENV__)
+      keep_env(planner, Recipient, __ENV__)
       plan_precond_checks(planner, TwoFieldStruct, t: "func_body1")
-      plan_precond_checks(planner, AllDefaultsStruct, t: "func_body2")
+      plan_precond_checks(planner, Recipient, t: "func_body2")
       flush(planner)
 
       :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
@@ -50,44 +50,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                  %{
                    first: [
                      {
-                       quote(do: %AllDefaultsStruct{field: {atom(), nil}}),
-                       Precondition.new(module: AllDefaultsStruct, type_name: :t, description: "func_body2")
+                       quote(do: %Recipient{}),
+                       Precondition.new(module: Recipient, type_name: :t, description: "func_body2")
                      }
                    ]
                  },
                  Precondition.new(module: TwoFieldStruct, type_name: :t, description: "func_body1")
-               }
-             } == read_types(types_file)
-    end
-
-    test "register preconditions for struct's field types", %{
-      planner: planner,
-      plan_file: plan_file,
-      types_file: types_file,
-      preconds_file: preconds_file,
-      deps_file: deps_file
-    } do
-      plan(planner, TwoFieldStruct, :first, quote(do: %AllDefaultsStruct{field: UserTypes.strings()}))
-      keep_env(planner, TwoFieldStruct, __ENV__)
-      keep_env(planner, AllDefaultsStruct, __ENV__)
-      plan_precond_checks(planner, UserTypes, strings: "func_body1")
-      flush(planner)
-
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
-
-      precondition = Precondition.new(module: UserTypes, type_name: :strings, description: "func_body1")
-
-      assert %{
-               TwoFieldStruct => {
-                 %{
-                   first: [
-                     {
-                       quote(context: String, do: %AllDefaultsStruct{field: {<<_::_*8>>, unquote(precondition)}}),
-                       nil
-                     }
-                   ]
-                 },
-                 nil
                }
              } == read_types(types_file)
     end

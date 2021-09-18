@@ -9,4 +9,4 @@ before_script:
   - mix deps.compile
   - MIX_ENV=test mix deps.compile
 script:
-  - mix check
+  - mix check || mix check --retry

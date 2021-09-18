@@ -1,9 +1,15 @@
 defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   @moduledoc false
 
+  @type_ensurer_atom :TypeEnsurer
+
   def module_context?(env) do
     not is_nil(env.module) and is_nil(env.function)
   end
+
+  def type_ensurer_atom, do: @type_ensurer_atom
+
+  def type_ensurer(module), do: Module.concat(module, @type_ensurer_atom)
 
   def beam_types_hash(module) do
     case beam_types(module) do
@@ -12,18 +18,22 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     end
   end
 
+  def has_type_ensurer?(module) do
+    type_ensurer = type_ensurer(module)
+    Code.ensure_loaded?(type_ensurer)
+  end
+
   def beam_types(module, load_module \\ &Code.ensure_loaded/1, fetch_types \\ &Code.Typespec.fetch_types/1) do
     with {:module, module} <- load_module.(module),
          {:ok, type_list} <- fetch_types.(module) do
-      only_direct_type_list =
-        type_list
-        |> Enum.reject(&parametrized_type?/1)
-        |> Enum.into([])
-
-      {:ok, only_direct_type_list}
+      {:ok, filter_direct_types(type_list)}
     else
       _ -> {:error, {:no_beam_file, module}}
     end
+  end
+
+  def filter_direct_types(type_list) do
+    Enum.reject(type_list, &parametrized_type?/1)
   end
 
   defp parametrized_type?({:type, {_name, _definition, [_ | _] = _arg_list}}) do

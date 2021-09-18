@@ -84,33 +84,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       assert %{RemoteUserType => expected} == read_types(types_file)
     end
 
-    test "resolve user remote struct type with local type to primitive type", %{
-      planner: planner,
-      plan_file: plan_file,
-      preconds_file: preconds_file,
-      types_file: types_file,
-      deps_file: deps_file
-    } do
-      plan(
-        planner,
-        RemoteUserType,
-        :field,
-        {{:., [], [{:__aliases__, [], [:OneField]}, :t]}, [], []}
-      )
-
-      keep_env(planner, RemoteUserType, RemoteUserType.env())
-      flush(planner)
-
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
-
-      expected =
-        add_empty_precond_to_spec(%{
-          field: [quote(context: ModuleNested.Module.OneField, do: %ModuleNested.Module.OneField{field: atom()})]
-        })
-
-      assert %{RemoteUserType => expected} == read_types(types_file)
-    end
-
     test "resolve several user types each referring next one in context of a remote module to the primitive type",
          %{
            planner: planner,

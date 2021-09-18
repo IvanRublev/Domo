@@ -3,6 +3,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
 
   alias Domo.ErrorBuilder
   alias Domo.TypeEnsurerFactory.Alias
+  alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Error
 
   def ensure_struct_integrity(plan_path) do
@@ -93,9 +94,9 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     end
   end
 
-  defp do_ensure_struct_defaults([{module, fields, file, line} | tail]) do
-    with :ok <- validate_fields(module, fields),
-         :ok <- validate_struct_value(module, fields) do
+  defp do_ensure_struct_defaults([{module, fields_values, file, line} | tail]) do
+    with :ok <- validate_fields(module, fields_values),
+         :ok <- validate_struct_value(module, fields_values) do
       do_ensure_struct_defaults(tail)
     else
       {:error, error} ->
@@ -108,24 +109,25 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     :ok
   end
 
-  defp validate_fields(module, fields) do
-    type_ensurer = Module.concat(module, TypeEnsurer)
+  defp validate_fields(module, fields_values) do
+    type_ensurer = ModuleInspector.type_ensurer(module)
+    fields_no_enforced = Keyword.keys(fields_values)
+    typed_no_any_fields = apply(type_ensurer, :fields, [:typed_with_meta_no_any])
+    fields_list = MapSet.intersection(MapSet.new(fields_no_enforced), MapSet.new(typed_no_any_fields))
 
-    required_fields = apply(type_ensurer, :fields, [:typed_no_meta_no_any])
+    Enum.reduce_while(fields_list, :ok, fn field, ok ->
+      field_value = {field, fields_values[field]}
 
-    Enum.reduce_while(required_fields, :ok, fn key, ok ->
-      key_value = {key, fields[key]}
-
-      case apply(type_ensurer, :ensure_field_type, [key_value]) do
+      case apply(type_ensurer, :ensure_field_type, [field_value]) do
         {:error, _} = error -> {:halt, {:error, ErrorBuilder.pretty_error(error)}}
         _ -> {:cont, ok}
       end
     end)
   end
 
-  defp validate_struct_value(module, fields) do
-    type_ensurer = Module.concat(module, TypeEnsurer)
-    value = struct(module, fields)
+  defp validate_struct_value(module, fields_values) do
+    type_ensurer = ModuleInspector.type_ensurer(module)
+    value = struct(module, fields_values)
 
     case apply(type_ensurer, :t_precondition, [value]) do
       :ok -> :ok

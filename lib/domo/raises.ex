@@ -6,12 +6,18 @@ defmodule Domo.Raises do
   alias Domo.MixProjectHelper
 
   @add_domo_compiler_message """
-  Domo compiler is expected to do a second-pass of the compilation \
+  Domo compiler is expected to do a second-pass compilation \
   to resolve remote types that are in the project's BEAM files \
   and generate TypeEnsurer modules.
-  Please, ensure that :domo_compiler is included after the :elixir \
-  in the compilers list in the project/0 function in mix.exs file. \
-  Like [compilers: Mix.compilers() ++ [:domo_compiler], ...]\
+  More details are in https://hexdocs.pm/domo/Domo.html#module-setup
+  Please, add :domo_compiler after the :elixir in mix.exs file like the following:
+
+    def project do
+      [
+        compilers: ... Mix.compilers() ++ [:domo_compiler],
+        ...
+      ]
+    end
   """
 
   @precond_arguments """
@@ -88,7 +94,7 @@ defmodule Domo.Raises do
   end
 
   def maybe_raise_add_domo_compiler(module) do
-    unless Code.ensure_loaded?(Module.concat(module, TypeEnsurer)) do
+    unless ModuleInspector.has_type_ensurer?(module) do
       raise @add_domo_compiler_message
     end
   end

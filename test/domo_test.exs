@@ -11,20 +11,27 @@ defmodule DomoTest do
   Code.compiler_options(
     no_warn_undefined: [
       Account,
-      AccountCustomizedMessages,
       AccountCustomErrors,
+      AccountCustomizedMessages,
+      Airplane,
+      Airplane.Seat,
       Article,
-      Money,
+      Arena,
+      Customer,
+      Game,
       Library,
-      Library.Shelve,
       Library.Book,
       Library.Book.Author,
+      Library.Shelve,
+      Money,
+      PostFieldAndNestedPrecond,
+      PostFieldPrecond,
+      PostFieldPrecond.CommentNoTPrecond,
+      PostNestedPecond,
+      PostNestedPecond.CommentTPrecond,
       Receiver,
       ReceiverUserTypeAfterT,
-      Game,
-      Customer,
-      Airplane,
-      Airplane.Seat
+      WebService
     ]
   )
 
@@ -58,6 +65,41 @@ defmodule DomoTest do
       assert Kernel.function_exported?(Receiver, :new_ok, 1)
       assert Kernel.function_exported?(Receiver, :ensure_type!, 1)
       assert Kernel.function_exported?(Receiver, :ensure_type_ok, 1)
+    end
+
+    test "generates TypeEnsurer modules for Elixir structs from standard library" do
+      _ = DomoMixTask.run([])
+
+      for elixir_module <- [
+            MapSet,
+            Macro.Env,
+            IO.Stream,
+            GenEvent.Stream,
+            Date.Range,
+            Range,
+            Regex,
+            Task,
+            URI,
+            Version,
+            Date,
+            DateTime,
+            NaiveDateTime,
+            Time,
+            File.Stat,
+            File.Stream
+          ] do
+        type_ensurer = Module.concat(elixir_module, TypeEnsurer)
+        assert Code.ensure_loaded?(type_ensurer) == true, "#{elixir_module} has no TypeEnsurer"
+      end
+    end
+
+    test "tells whether struct module has TypeEnsurer" do
+      compile_receiver_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert Domo.has_type_ensurer?(Receiver) == true
+      assert Domo.has_type_ensurer?(CustomStruct) == false
     end
 
     test "ensures data integrity of a struct by matching to it's type" do
@@ -137,6 +179,19 @@ defmodule DomoTest do
       assert %{__struct__: Game} = %{game | status: {:wining_player, "player2"}} |> Game.ensure_type!()
     end
 
+    test "ensures data integrity of a struct with a field referencing erlang type" do
+      compile_web_service_struct()
+
+      _ = DomoMixTask.run([])
+
+      assert_raise ArgumentError, ~r/Invalid value nil for field :port/s, fn ->
+        _ = WebService.new!(port: nil)
+      end
+
+      game = WebService.new!(port: 8080)
+      assert %{__struct__: WebService} = game
+    end
+
     test "ensures data integrity of composed structs" do
       compile_customer_structs()
 
@@ -199,6 +254,49 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         _ = %{account | money: 3} |> Account.ensure_type!()
       end
+    end
+
+    test "ensures data integrity with either field precondition or t() type precondition for field's struct value" do
+      compile_post_comment_structs()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      assert %{__struct__: PostFieldPrecond} = PostFieldPrecond.new!(comment: struct!(PostFieldPrecond.CommentNoTPrecond, id: 1))
+
+      assert_raise ArgumentError, ~r/&1.id > 0/, fn ->
+        _ = PostFieldPrecond.new!(comment: struct!(PostFieldPrecond.CommentNoTPrecond, id: 0))
+      end
+
+      assert %{__struct__: PostNestedPecond} = PostNestedPecond.new!(comment: struct!(PostNestedPecond.CommentTPrecond, id: 2))
+
+      assert_raise ArgumentError, ~r/&1.id > 1/, fn ->
+        _ = PostNestedPecond.new!(comment: struct!(PostNestedPecond.CommentTPrecond, id: 1))
+      end
+
+      [path] = compile_post_field_and_nested_precond_struct()
+
+      me = self()
+
+      msg =
+        capture_io(fn ->
+          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          send(me, diagnostic)
+        end)
+
+      assert_receive %Diagnostic{
+        compiler_name: "Domo",
+        file: ^path,
+        position: 1,
+        message:
+          "Domo.TypeEnsurerFactory.Resolver failed to resolve fields type of the PostFieldAndNestedPrecond struct due to \"Precondition conflict " <>
+            _,
+        severity: :error
+      }
+
+      assert msg =~ "== Type ensurer compilation error in file #{path}"
+
+      assert msg =~
+               "Domo.TypeEnsurerFactory.Resolver failed to resolve fields type of the PostFieldAndNestedPrecond struct due to \"Precondition conflict"
     end
 
     test "return custom error from preconditions" do
@@ -373,7 +471,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       {:ok, []} = DomoMixTask.run([])
 
       assert_raise ArgumentError,
-                   ~r/Invalid value.*for field :seats.*The field with key :id.*is invalid/s,
+                   ~r/Invalid value.*for field :seats.*Value of field :id is invalid/s,
                    fn ->
                      seat = struct!(Airplane.Seat, id: "A2")
                      _ = Airplane.new!(seats: [seat])
@@ -551,6 +649,18 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       refute File.exists?(types_file)
     end
 
+    test "skips enforced keys during the struct defaults values ensurance" do
+      compile_struct_with_defaults(":id, field: :hello", enforce_keys: ":id", t: "id: integer(), field: atom()")
+
+      assert {:ok, []} = DomoMixTask.run([])
+    end
+
+    test "skip keys that are not in t() type during defaults ensurance" do
+      compile_struct_with_defaults(":id, :leaf, field: :hello", enforce_keys: nil, t: "field: atom()")
+
+      assert {:ok, []} = DomoMixTask.run([])
+    end
+
     test "skips ensurance of struct default values given ensure_struct_defaults: false option" do
       Application.put_env(:domo, :ensure_struct_defaults, false)
 
@@ -663,14 +773,14 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                     * Invalid value {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}} \
                    for field :metadata of %Article{}. Expected the value matching the \
                    :none \
-                   | {:simple, %{author: <<_::_*8>>, published: %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()}}} \
+                   | {:simple, %{author: <<_::_*8>>, published: <<_::_*8>>}} \
                    | {:detail, <<_::_*8>>} \
-                   | {:detail, %{author: <<_::_*8>>, published_updated: %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()}}} \
+                   | {:detail, %{author: <<_::_*8>>, published_updated: :never}} \
                    | {:detail, %{author: <<_::_*8>>, published_updated: <<_::_*8>>}} type.
                    Underlying errors:
                       - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
                         - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
-                        - Expected the value matching the %Date{calendar: atom(), day: pos_integer(), month: pos_integer(), year: integer()} type.
+                        - Expected the value matching the :never type.
                       - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
                         - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
                         - Expected the value matching the <<_::_*8>> type.\
@@ -788,6 +898,82 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     [path]
   end
 
+  defp compile_post_comment_structs do
+    path = src_path("/post_comment.ex")
+
+    File.write!(path, """
+    defmodule PostFieldPrecond.CommentNoTPrecond do
+      use Domo, ensure_struct_defaults: false
+
+      @enforce_keys [:id]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{id: integer()}
+    end
+
+    defmodule PostFieldPrecond do
+      use Domo, ensure_struct_defaults: false
+
+      alias PostFieldPrecond.CommentNoTPrecond
+
+      @enforce_keys [:comment]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{comment: comment_positive_id()}
+
+      @type comment_positive_id :: CommentNoTPrecond.t()
+      precond comment_positive_id: &(&1.id > 0)
+    end
+
+    defmodule PostNestedPecond.CommentTPrecond do
+      use Domo, ensure_struct_defaults: false
+
+      @enforce_keys [:id]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{id: integer()}
+      precond t: &(&1.id > 1)
+    end
+
+    defmodule PostNestedPecond do
+      use Domo, ensure_struct_defaults: false
+
+      alias PostNestedPecond.CommentTPrecond
+
+      @enforce_keys [:comment]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{comment: CommentTPrecond.t()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_post_field_and_nested_precond_struct do
+    path = src_path("/post_field_and_nested_precond.ex")
+
+    File.write!(path, """
+    defmodule PostFieldAndNestedPrecond do
+      use Domo, ensure_struct_defaults: false
+
+      alias PostNestedPecond.CommentTPrecond
+
+      @enforce_keys [:comment]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{comment: comment_positive_id()}
+
+      @type comment_positive_id :: CommentTPrecond.t()
+      precond comment_positive_id: &(&1 > 2)
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
   defp compile_account_customized_messages_struct do
     path = src_path("/account_customized_messages.ex")
 
@@ -849,8 +1035,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       @type t :: %__MODULE__{metadata: :none | simple_metadata() | detail_metadata()}
 
-      @type simple_metadata :: {:simple, %{author: String.t(), published: Date.t()}}
-      @type detail_metadata :: {:detail, String.t() | %{author: String.t(), published_updated: Date.t() | String.t()}}
+      @type simple_metadata :: {:simple, %{author: String.t(), published: String.t()}}
+      @type detail_metadata :: {:detail, String.t() | %{author: String.t(), published_updated: :never | String.t()}}
     end
     """)
 
@@ -1005,6 +1191,24 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     [path]
   end
 
+  defp compile_web_service_struct do
+    path = src_path("/web_service.ex")
+
+    File.write!(path, """
+    defmodule WebService do
+      use Domo, ensure_struct_defaults: false
+
+      @enforce_keys [:port]
+      defstruct @enforce_keys
+
+      @type t :: %__MODULE__{port: :inet.port_number()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
   defp compile_customer_structs do
     address_path = src_path("/address.ex")
 
@@ -1076,6 +1280,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
+      use Domo, ensure_struct_defaults: false
+
       @enforce_keys [:id]
       defstruct [:id]
 
@@ -1093,6 +1299,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
+      use Domo, ensure_struct_defaults: false
+
       @enforce_keys [:id]
       defstruct [:id]
 
@@ -1133,7 +1341,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     defmodule Bar do
       use Domo#{if opts[:use_opts], do: ", #{opts[:use_opts]}", else: ""}
 
-      #{if opts[:enforce_keys], do: opts[:enforce_keys], else: ""}
+      #{if opts[:enforce_keys], do: "@enforce_keys [" <> opts[:enforce_keys] <> "]", else: ""}
       defstruct [#{fields}]
       @type t :: %__MODULE__{#{opts[:t]}}
 

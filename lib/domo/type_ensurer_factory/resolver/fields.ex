@@ -3,7 +3,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
-  alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs
   alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
   alias Domo.TypeEnsurerFactory.ModuleInspector
 
@@ -100,7 +99,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {env, preconds_map, remote_types_as_any, _resolvables} = env_preconds_anys_resolvables
 
     rem_module_alias =
-      if is_atom(rem_module) do
+      if is_atom(rem_module) and not Alias.erlang_module_atom?(rem_module) do
         {:__aliases__, [], [Alias.atom_drop_elixir_prefix(rem_module)]}
       else
         rem_module
@@ -445,15 +444,16 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp resolve_type(
-         {:%, _meta, [struct_alias, {:%{}, _kvm, [{_key, _value} | _] = kv_list}]},
+         {:%, _meta, [struct_alias, {:%{}, _kvm, [{_key, _value} | _]}]},
          module,
-         _precond,
+         field_precond,
          env_preconds_anys_resolvables,
-         {types, errs, deps} = acc
+         {types, errs, deps}
        ) do
     {_env, preconds, _remote_types_as_any, resovable_structs} = env_preconds_anys_resolvables
     struct_module = Alias.alias_to_atom(struct_alias)
-    precond = get_precondition(preconds, struct_module, :t)
+    t_precond = get_precondition(preconds, struct_module, :t)
+    precond = t_precond || field_precond
 
     if ensurable_struct?(struct_module, resovable_structs) do
       joint_type = {
@@ -463,22 +463,25 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
       {[joint_type | types], errs, deps}
     else
-      combine_or_args(
-        kv_list,
-        module,
-        env_preconds_anys_resolvables,
-        &drop_kv_precond/1,
-        fn kv_pairs ->
-          {
-            quote(
-              context: module,
-              do: %unquote(Alias.atom_to_alias(struct_alias)){unquote_splicing(kv_pairs)}
-            ),
-            precond
-          }
-        end,
-        acc
-      )
+      struct_module_name = Alias.atom_to_string(struct_module)
+
+      error = """
+      Consider to use Domo in #{struct_module_name} struct for validation speed.
+      If you don't own the struct you can define custom user type and validate fields \
+      in the precondition function attached like the following:
+
+          @type unowned_struct :: term()
+          precond unowned_struct: &validate_unowned_struct/1
+
+          def validate_unowned_struct(value) do
+            case value do
+              %#{struct_module_name}{} -> ...validate fields here...
+              _ -> {:error, "expected #{struct_module_name} struct value."}
+            end
+          end
+      """
+
+      {types, [error | errs], deps}
     end
   end
 
@@ -642,6 +645,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {[joint_type | types], errs, deps}
   end
 
+  defp resolve_type({:"::", _, [_var_name, type]}, module, precond, env_preconds_anys_resolvables, acc) do
+    resolve_type(type, module, precond, env_preconds_anys_resolvables, acc)
+  end
+
   defp resolve_type({type_name, _, _}, module, precond, env_preconds_anys_resolvables, {types, errs, deps} = acc) do
     {_env, preconds_map, remote_types_as_any, _resolvables} = env_preconds_anys_resolvables
     type_precond = get_precondition(preconds_map, module, type_name)
@@ -755,6 +762,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp ensurable_struct?(module, resolvable_structs) do
-    MapSet.member?(resolvable_structs, module) or Structs.ensurable_struct?(module)
+    MapSet.member?(resolvable_structs, module) or ModuleInspector.has_type_ensurer?(module)
   end
 end

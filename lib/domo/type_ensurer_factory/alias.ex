@@ -1,6 +1,12 @@
 defmodule Domo.TypeEnsurerFactory.Alias do
   @moduledoc false
 
+  def erlang_module_atom?(module_atom) do
+    module_string = Atom.to_string(module_atom)
+    first_letter = String.slice(module_string, 0..0)
+    String.downcase(first_letter) == first_letter
+  end
+
   def string_by_concat(atom_or_alias, atom) do
     atom_or_alias
     |> alias_to_atom()

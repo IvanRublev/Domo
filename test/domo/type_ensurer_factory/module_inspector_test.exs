@@ -3,14 +3,23 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
   alias Domo.TypeEnsurerFactory.ModuleInspector
 
-  describe "ModuleInspector should" do
-    test "detect module environment" do
-      assert ModuleInspector.module_context?(%{module: Module, function: nil})
-      refute ModuleInspector.module_context?(%{module: nil, function: nil})
-      refute ModuleInspector.module_context?(%{module: Module, function: :function})
-      refute ModuleInspector.module_context?(%{module: nil, function: :function})
-    end
+  test "ModuleInspector detects module environment" do
+    assert ModuleInspector.module_context?(%{module: Module, function: nil})
+    refute ModuleInspector.module_context?(%{module: nil, function: nil})
+    refute ModuleInspector.module_context?(%{module: Module, function: :function})
+    refute ModuleInspector.module_context?(%{module: nil, function: :function})
+  end
 
+  test "ModuleInspector returns type ensurer module name for the given module" do
+    assert ModuleInspector.type_ensurer(Module) == Module.TypeEnsurer
+  end
+
+  test "ModuleInspector returns whether the given module has type ensurer" do
+    assert ModuleInspector.has_type_ensurer?(CustomStructUsingDomo) == true
+    assert ModuleInspector.has_type_ensurer?(CustomStruct) == false
+  end
+
+  describe "ModuleInspector for types should" do
     test "load empty list when there are no types in a module" do
       assert {:ok, []} = ModuleInspector.beam_types(NoTypesModule)
     end
@@ -65,6 +74,16 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
       assert {:ok, {{:., [], [String, :t]}, [], []}, []} ==
                ModuleInspector.find_type_quoted(:rem_str, type_list)
+    end
+
+    test "find remote Elixir type referenced by private local type and return it in the quoted form" do
+      type_list = [
+        typep: {:rem_str, {:remote_type, 16, [{:atom, 0, String}, {:atom, 0, :t}, []]}, []},
+        type: {:ut, {:user_type, 17, :rem_str, []}, ''}
+      ]
+
+      assert {:ok, {{:., [], [String, :t]}, [], []}, [:rem_str]} ==
+               ModuleInspector.find_type_quoted(:ut, type_list)
     end
 
     test "find remote user type by name and return it in the quoted form" do

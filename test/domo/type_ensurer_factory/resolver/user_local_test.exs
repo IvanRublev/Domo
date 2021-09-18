@@ -51,9 +51,37 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       assert %{
                LocalUserType =>
                  add_empty_precond_to_spec(%{
-                   remote_field: [quote(context: LocalUserType, do: [%RemoteUserType{field: atom()}])]
+                   remote_field: [quote(context: LocalUserType, do: [float()])]
                  })
              } == read_types(types_file)
+    end
+
+    test "resolve user type that is a tuple having element types defined with variables", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan(
+        planner,
+        LocalUserType,
+        :remote_field,
+        quote(context: LocalUserType, do: remote_tuple_vars())
+      )
+
+      keep_env(planner, LocalUserType, LocalUserType.env())
+      flush(planner)
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      assert %{
+               LocalUserType => {
+                 %{remote_field: [{{:{}, [], [{{:float, [], []}, nil}, {{:integer, [], []}, nil}]}, nil}]},
+                 nil
+               }
+             } ==
+               read_types(types_file)
     end
   end
 end

@@ -6,3 +6,11 @@ defmodule EmptyStruct do
 
   @type t :: %__MODULE__{}
 end
+
+defmodule EmptyStructIdField do
+  use Domo
+
+  defstruct [:id]
+
+  @type t :: %__MODULE__{}
+end

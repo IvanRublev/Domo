@@ -437,37 +437,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.OrTest do
               ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
     end
 
-    test "resolve | within structs to list of structs", %{
-      planner: planner,
-      plan_file: plan_file,
-      preconds_file: preconds_file,
-      types_file: types_file,
-      deps_file: deps_file
-    } do
-      plan_types(
-        [
-          quote(
-            context: CustomStruct,
-            do: %CustomStruct{fist: integer() | nil, second: float() | atom()}
-          )
-        ],
-        planner
-      )
-
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
-
-      expected = [
-        [
-          quote(context: CustomStruct, do: %CustomStruct{fist: integer(), second: float()}),
-          quote(context: CustomStruct, do: %CustomStruct{fist: integer(), second: atom()}),
-          quote(context: CustomStruct, do: %CustomStruct{fist: nil, second: float()}),
-          quote(context: CustomStruct, do: %CustomStruct{fist: nil, second: atom()})
-        ]
-      ]
-
-      assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
-    end
-
     test "resolve | within ensurable struct to struct with any fields", %{
       planner: planner,
       plan_file: plan_file,

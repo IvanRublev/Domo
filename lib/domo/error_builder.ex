@@ -142,11 +142,21 @@ defmodule Domo.ErrorBuilder do
   end
 
   defp invalid_value_message(value, nil = _field, _struct_module) do
-    "Invalid value #{inspect(value)}."
+    "Invalid value #{short_inspect(value)}."
   end
 
   defp invalid_value_message(value, field, struct_module) do
-    "Invalid value #{inspect(value)} for field #{inspect(field)} of %#{inspect(struct_module)}{}."
+    "Invalid value #{short_inspect(value)} for field #{inspect(field)} of %#{inspect(struct_module)}{}."
+  end
+
+  defp short_inspect(value) do
+    inspect_value = inspect(value)
+
+    if byte_size(inspect_value) > 500 do
+      String.slice(inspect_value, 0..499) <> "..."
+    else
+      inspect_value
+    end
   end
 
   defp general_error_message({template, args} = _error) do

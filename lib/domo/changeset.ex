@@ -57,6 +57,7 @@ defmodule Domo.Changeset do
 
   alias Domo.ErrorBuilder
   alias Domo.Raises
+  alias Domo.TypeEnsurerFactory
 
   @doc """
   Validates changeset changes to conform to the schema's `t()` type and fulfil
@@ -115,17 +116,16 @@ defmodule Domo.Changeset do
       |> validate_schemaless_type(User)
   """
   def validate_schemaless_type(changeset, struct, opts \\ []) when is_atom(struct) do
-    type_ensurer = Module.concat(struct, TypeEnsurer)
-
     unless Code.ensure_loaded?(Ecto.Changeset) do
       Raises.raise_no_ecto_module(Ecto.Changeset)
     end
 
-    unless Code.ensure_loaded?(type_ensurer) do
+    unless TypeEnsurerFactory.has_type_ensurer?(struct) do
       Raises.raise_no_type_ensurer_for_schema_module(struct)
     end
 
     {opts_fields, opts} = Keyword.pop(opts, :fields)
+    type_ensurer = TypeEnsurerFactory.type_ensurer(struct)
 
     if opts_fields do
       all_fields_set =

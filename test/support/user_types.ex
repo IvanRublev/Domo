@@ -47,6 +47,7 @@ defmodule RemoteUserType do
   @type sub_float :: Submodule.sub_float()
   @type tof :: %__MODULE__{field: OneField.t()}
   @type local_int :: integer()
+  @type tuple_vars :: {first :: float(), second :: local_int()}
 
   def env, do: __ENV__
 end
@@ -58,7 +59,8 @@ defmodule LocalUserType do
   @typep i :: int()
   @opaque indirect_int :: i()
 
-  @type list_remote_user_type :: [RemoteUserType.t()]
+  @type list_remote_user_type :: [RemoteUserType.sub_float()]
+  @type remote_tuple_vars :: RemoteUserType.tuple_vars()
   @type some_atom :: Submodule.t()
 
   defstruct [

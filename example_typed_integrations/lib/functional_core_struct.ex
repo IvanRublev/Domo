@@ -32,7 +32,7 @@ defmodule FunctionalCoreStruct do
 
   precond t: &validate_full_name/1
 
-  defp validate_required(name) when byte_size(name) == 0, do: {:error, "can't be empty"}
+  defp validate_required(name) when byte_size(name) == 0, do: {:error, "can't be empty string"}
   defp validate_required(_name), do: :ok
 
   defp validate_full_name(struct) do

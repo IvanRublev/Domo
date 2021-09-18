@@ -8,12 +8,9 @@ defmodule DomoUseTest do
   alias ModuleTypes
 
   @no_domo_compiler_error_regex Regex.compile!("""
-                                Domo compiler is expected to do a second-pass of the compilation \
+                                Domo compiler is expected to do a second-pass compilation \
                                 to resolve remote types that are in the project's BEAM files \
                                 and generate TypeEnsurer modules.
-                                Please, ensure that :domo_compiler is included after the :elixir \
-                                in the compilers list in the project/0 function in mix.exs file. \
-                                Like \\[compilers: Mix.compilers\\(\\) \\+\\+ \\[:domo_compiler\\], ...\\]\
                                 """)
 
   def env, do: __ENV__
@@ -335,7 +332,7 @@ defmodule DomoUseTest do
     test "plan struct defaults ensurance" do
       module_two_fields()
 
-      call_line = 33
+      call_line = 30
 
       assert_called ResolvePlanner.plan_struct_defaults_ensurance(
                       any(),
@@ -350,7 +347,7 @@ defmodule DomoUseTest do
     test "plan struct integrity ensurance" do
       module_custom_struct_as_default_value()
 
-      call_line = 60
+      call_line = 57
 
       assert_called ResolvePlanner.plan_struct_integrity_ensurance(
                       any(),

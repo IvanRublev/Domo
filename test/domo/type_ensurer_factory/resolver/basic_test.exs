@@ -100,6 +100,32 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
               ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, FailingFile, false)
     end
 
+    test "return error encouraging to use domo for struct not using it yet", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan_types(
+        [
+          quote(
+            context: CustomStruct,
+            do: %CustomStruct{fist: integer() | nil, second: float() | atom()}
+          )
+        ],
+        planner
+      )
+
+      assert {:error, [message]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      assert %Error{
+               compiler_module: Resolver,
+               message: "Consider to use Domo in CustomStruct struct for validation speed." <> _,
+               struct_module: TwoFieldStruct
+             } = message
+    end
+
     test "write all types for all modules from the plan to a types file", %{
       planner: planner,
       plan_file: plan_file,
@@ -180,35 +206,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                read_types(types_file)
     end
 
-    test "map Range.t() to Elixir version specific structure", %{
-      planner: planner,
-      plan_file: plan_file,
-      preconds_file: preconds_file,
-      types_file: types_file,
-      deps_file: deps_file
-    } do
-      plan_types([quote(context: TwoFieldStruct, do: Range.t())], planner)
-
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
-
-      expected = [
-        case ElixirVersion.version() do
-          [1, minor, _] when minor < 12 ->
-            [
-              quote(context: Range, do: %Range{first: integer(), last: integer()})
-            ]
-
-          [1, minor, _] when minor >= 12 ->
-            [
-              quote(context: Range, do: %Range{first: integer(), last: integer(), step: pos_integer()}),
-              quote(context: Range, do: %Range{first: integer(), last: integer(), step: neg_integer()})
-            ]
-        end
-      ]
-
-      assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
-    end
-
     test "map MapSet.t(value) to struct", %{
       planner: planner,
       plan_file: plan_file,
@@ -221,6 +218,22 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
       expected = [[quote(context: MapSet, do: %MapSet{})]]
+
+      assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
+    end
+
+    test "map Enum.t() to any()", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file
+    } do
+      plan_types([quote(context: TwoFieldStruct, do: Enum.t())], planner)
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      expected = [[quote(do: any())]]
 
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
@@ -257,14 +270,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                  required(unquote(&1)) => atom(),
                  optional(integer()) => unquote(&1)
                }
-             )
-           ]},
-          {"struct",
-           &[
-             quote(context: TwoFieldStruct, do: %NoFieldsStruct{key: unquote(&1)}),
-             quote(
-               context: TwoFieldStruct,
-               do: %NoFieldsStruct{key: unquote(&1), key11: unquote(&1)}
              )
            ]},
           {"tuple",

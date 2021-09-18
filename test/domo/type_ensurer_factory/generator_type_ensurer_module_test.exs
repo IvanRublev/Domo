@@ -113,7 +113,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       call_t_precondition(%{first: 1, second: 2})
     end
 
-    test "has No ensure_type function matching unspecified field" do
+    test "has No ensure_type function for unspecified field" do
       load_type_ensurer_module_with_no_preconds(%{first: [quote(do: integer())]})
 
       assert_raise FunctionClauseError, ~r/no function/, fn ->
@@ -853,10 +853,18 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       assert {:error, _} = call_ensure_field_type({:first, %{}})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_struct})
     end
+
+    test "empty struct typespec and field defined" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: %EmptyStructIdField{})]
+      })
+
+      assert :ok == call_ensure_field_type({:first, %EmptyStructIdField{id: 1}})
+    end
   end
 
   describe "Generated TypeEnsurer module verifies Kernel struct type" do
-    test "MapSet with no precondition" do
+    test "MapSet.t() with no precondition" do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: %MapSet{})]
       })
@@ -869,7 +877,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       assert {:error, _} = call_ensure_field_type({:first, :not_a_map_set})
     end
 
-    test "MapSet with precondition" do
+    test "MapSet.t() with precondition" do
       precondition = Precondition.new(module: UserTypes, type_name: :map_set_only_floats, description: "map_set_only_floats")
 
       load_type_ensurer_module({%{first: [{quote(do: %MapSet{}), precondition}]}, nil})

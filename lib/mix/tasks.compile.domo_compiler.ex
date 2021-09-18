@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   use Mix.Task.Compiler
 
+  alias Domo.TypeEnsurerFactory
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.BatchEnsurer
   alias Domo.TypeEnsurerFactory.Cleaner
@@ -20,6 +21,24 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   @preconds_manifest "preconds.domo"
   @deps_manifest "modules_deps.domo"
   @generated_code_directory "/domo_generated_code"
+  @standard_lib_modules [
+    Date,
+    Date.Range,
+    DateTime,
+    File.Stat,
+    File.Stream,
+    GenEvent.Stream,
+    IO.Stream,
+    Macro.Env,
+    NaiveDateTime,
+    Range,
+    Regex,
+    Task,
+    Time,
+    URI,
+    Version
+  ]
+  @empty_struct_standard_lib_modules [MapSet]
 
   @impl true
   def run(args) do
@@ -51,6 +70,8 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp build_ensurer_modules(paths, verbose?) do
     {plan_path, preconds_path, types_path, deps_path, code_path} = paths
 
+    maybe_collect_types_for_standard_lib_structs(plan_path, preconds_path)
+    maybe_plan_standard_lib_structs_as_empty_structs(plan_path, preconds_path)
     stop_and_flush_planner(plan_path, verbose?)
 
     with {:ok, deps_warns} <- recompile_depending_structs(deps_path, preconds_path, verbose?),
@@ -85,6 +106,51 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
           error -> {:error, [diagnostic(error)]}
         end
     end
+  end
+
+  defp maybe_collect_types_for_standard_lib_structs(plan_path, preconds_path) do
+    modules = @standard_lib_modules ++ if Code.ensure_loaded?(Ecto.Schema.Metadata), do: [Ecto.Schema.Metadata], else: []
+    collectable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
+
+    unless Enum.empty?(collectable_modules) do
+      {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+
+      modules_string = collectable_modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
+
+      IO.write("""
+      Domo makes type ensures for standard lib modules #{modules_string}.
+      """)
+
+      Enum.each(collectable_modules, fn module ->
+        env = simulated_env(module)
+        {_module, bytecode, _path} = :code.get_object_code(module)
+        TypeEnsurerFactory.collect_types_for_domo_compiler(plan_path, env, bytecode)
+      end)
+    end
+  end
+
+  defp maybe_plan_standard_lib_structs_as_empty_structs(plan_path, preconds_path) do
+    modules = @empty_struct_standard_lib_modules
+    plannable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
+
+    unless Enum.empty?(plannable_modules) do
+      {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+
+      modules_string = plannable_modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
+
+      IO.write("""
+      Domo makes type ensures validating by name the following standard lib modules #{modules_string}.
+      """)
+
+      Enum.each(plannable_modules, fn module ->
+        env = simulated_env(module)
+        TypeEnsurerFactory.plan_empty_struct(plan_path, env)
+      end)
+    end
+  end
+
+  defp simulated_env(module) do
+    %{__ENV__ | module: module}
   end
 
   defp stop_and_flush_planner(plan_path, verbose?) do
@@ -246,15 +312,19 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp print_error(%Diagnostic{compiler_name: "Domo"} = diagnostic) do
     IO.write([
       "\n== Type ensurer compilation error in file #{Path.relative_to_cwd(diagnostic.file)} ==\n",
-      ["** ", diagnostic.message, ?\n]
+      ["** ", unescape_newlines(diagnostic.message), ?\n]
     ])
   end
 
   defp print_error(%Diagnostic{compiler_name: "Elixir"} = diagnostic) do
     IO.write([
       "\n== Compilation error in file #{Path.relative_to_cwd(diagnostic.file)}:#{inspect(diagnostic.position)} ==\n",
-      ["** ", diagnostic.message, ?\n]
+      ["** ", unescape_newlines(diagnostic.message), ?\n]
     ])
+  end
+
+  defp unescape_newlines(message) do
+    String.replace(message, "\\n", "\n")
   end
 
   @impl true
