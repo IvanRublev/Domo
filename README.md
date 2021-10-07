@@ -12,6 +12,8 @@
 
 :information_source: JSON parsing and validation example is in [/example_json_parse](/example_json_parse) directory.
 
+:information_source: Commanded + Domo combo used in Event Sourcing and CQRS example app is in https://github.com/IvanRublev/bank-commanded-domo repo.
+
 ---
 
 [//]: # (Documentation)
@@ -456,6 +458,11 @@ Please, find the output of `mix benchmark` command below.
 
 ## Changelog
 
+### 1.3.3
+* Support validation of `Decimal.t()`
+
+* Fix bug to define precondition function for user type referencing any() or term()
+
 ### 1.3.2
 * Support remote types in erlang modules like `:inet.port_number()`
 
@@ -478,7 +485,7 @@ Please, find the output of `mix benchmark` command below.
 ### 1.3.1
 * Fix bug to validate defaults having | nil type.
 
-### 1.3.0 
+### 1.3.0
 * Change the default name of the constructor function to `new!` to follow Elixir naming convention.
   You can always change the name with the `config :domo, :name_of_new_function, :new_func_name_here` app configuration.
 

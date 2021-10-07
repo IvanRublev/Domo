@@ -385,8 +385,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       preconds_file: preconds_file,
       deps_file: deps_file
     } do
-      plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
-      plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
+      # plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
+      # plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
       plan(planner, UserTypes, :field3, quote(context: UserTypes, do: number_one()))
       plan(planner, UserTypes, :field4, quote(context: UserTypes, do: atom_hello()))
       plan(planner, UserTypes, :field5, quote(context: UserTypes, do: a_boolean()))
@@ -403,8 +403,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       keep_env(planner, UserTypes, UserTypes.env())
 
       plan_precond_checks(planner, UserTypes,
-        an_any: "func_body",
-        a_term: "func_body",
         number_one: "func_body",
         atom_hello: "func_body",
         a_boolean: "func_body",
@@ -430,14 +428,41 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                 %Error{struct_module: UserTypes, message: "Precondition for value of boolean() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of :hello type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of 1 type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of term() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of reference() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of port() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of pid() type is not allowed."},
                 %Error{struct_module: UserTypes, message: "Precondition for value of no_return() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of none() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of any() type is not allowed."}
+                %Error{struct_module: UserTypes, message: "Precondition for value of none() type is not allowed."}
               ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+    end
+
+    test "register precondition for any/term type", %{
+      planner: planner,
+      plan_file: plan_file,
+      types_file: types_file,
+      preconds_file: preconds_file,
+      deps_file: deps_file
+    } do
+      plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
+      plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
+      keep_env(planner, UserTypes, UserTypes.env())
+      plan_precond_checks(planner, UserTypes, an_any: "func_body1", a_term: "func_body2")
+      flush(planner)
+
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+
+      precond1 = Precondition.new(module: UserTypes, type_name: :an_any, description: "func_body1")
+      precond2 = Precondition.new(module: UserTypes, type_name: :a_term, description: "func_body2")
+
+      assert %{
+               UserTypes => {
+                 %{
+                   field1: [{quote(do: any()), precond1}],
+                   field2: [{quote(do: any()), precond2}]
+                 },
+                 nil
+               }
+             } == read_types(types_file)
     end
   end
 end

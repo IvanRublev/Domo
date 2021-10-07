@@ -44,7 +44,7 @@ defmodule DomoFuncTest do
     {:ok, bob: struct!(Recipient, %{title: :mr, name: "Bob", age: 27}), joe: struct!(RecipientWithPrecond, %{title: :mr, name: "Bob", age: 37})}
   end
 
-  describe "new/1 constructor" do
+  describe "new!/1 constructor" do
     test "makes a struct" do
       assert %Recipient{title: :mr, name: "Bob", age: 27} ==
                Recipient.new!(title: :mr, name: "Bob", age: 27)

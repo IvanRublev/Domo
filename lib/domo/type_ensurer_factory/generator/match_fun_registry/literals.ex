@@ -5,7 +5,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
 
-  defguard is_any(type_spec) when type_spec in [quote(do: any()), quote(do: term())]
+  defguard is_any(type_spec) when type_spec == quote(do: any())
 
   def match_spec_function_quoted(type_spec) when is_any(type_spec) do
     type_spec_atom = TypeSpec.to_atom(type_spec)

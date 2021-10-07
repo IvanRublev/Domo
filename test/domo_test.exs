@@ -11,6 +11,7 @@ defmodule DomoTest do
   Code.compiler_options(
     no_warn_undefined: [
       Account,
+      AccountAnyPrecond,
       AccountCustomErrors,
       AccountCustomizedMessages,
       Airplane,
@@ -299,6 +300,19 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                "Domo.TypeEnsurerFactory.Resolver failed to resolve fields type of the PostFieldAndNestedPrecond struct due to \"Precondition conflict"
     end
 
+    test "ensures data integrity with struct field type referencing any and having precondition" do
+      compile_account_any_precond_struct()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      account = AccountAnyPrecond.new!(id: 1)
+      assert %{__struct__: AccountAnyPrecond} = account
+
+      assert_raise ArgumentError, ~r/Expected the value matching the any\(\) type. And a true value from the precondition function/s, fn ->
+        _ = AccountAnyPrecond.new!(id: "adk-47896")
+      end
+    end
+
     test "return custom error from preconditions" do
       compile_account_custom_errors_struct()
 
@@ -479,7 +493,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     for {fun, correct_fun_call, wrong_fun_call} <- [
-          {"new/1", "Foo.new!(title: \"hello\")", "Foo.new!(title: :hello)"},
+          {"new!/1", "Foo.new!(title: \"hello\")", "Foo.new!(title: :hello)"},
           {"new_ok/1", "Foo.new_ok(title: \"hello\")", "Foo.new_ok(title: :hello)"},
           {"ensure_type!/1", "Foo.ensure_type!(%Foo{title: \"hello\"})", "Foo.ensure_type!(%Foo{title: :hello})"},
           {"ensure_type_ok/1", "Foo.ensure_type_ok(%Foo{title: \"hello\"})", "Foo.ensure_type_ok(%Foo{title: :hello})"}
@@ -843,6 +857,27 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
   end
 
+  defp compile_account_any_precond_struct do
+    path = src_path("/account_any_precond.ex")
+
+    File.write!(path, """
+    defmodule AccountAnyPrecond do
+      use Domo, ensure_struct_defaults: false
+
+      @enforce_keys [:id]
+      defstruct @enforce_keys
+
+      @type any_number :: term()
+      precond any_number: &is_number(&1)
+
+      @type t :: %__MODULE__{id: any_number()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
   defp compile_account_custom_errors_struct do
     path = src_path("/account_custom_errors.ex")
 
@@ -852,6 +887,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       @enforce_keys [:id, :name, :money]
       defstruct @enforce_keys
+
+      @type any_number :: term()
+      precond any_number: &is_number(&1)
 
       @type name :: String.t()
       precond name: &(if byte_size(&1) > 0, do: :ok, else: {:error, :empty_name_string})

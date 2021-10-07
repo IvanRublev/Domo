@@ -573,14 +573,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     )
   end
 
-  defp resolve_type({kind_any, _meta, args}, _module, precond, _env_preconds, {types, errs, deps})
+  defp resolve_type({kind_any, _meta, args}, _module, precond, _env_preconds, {_types, errs, deps})
        when kind_any in [:term, :any] do
-    if is_nil(precond) do
-      {[{:any, [], args}], errs, deps}
-    else
-      error = {:error, precondition_not_supported_message(kind_any)}
-      {types, [error | errs], deps}
-    end
+    type = if is_nil(precond), do: {:any, [], args}, else: {{:any, [], args}, precond}
+    {[type], errs, deps}
   end
 
   defp resolve_type(_type, _module, _precond, _env_preconds, {[{:any, _, _}], _errs, _deps} = acc) do

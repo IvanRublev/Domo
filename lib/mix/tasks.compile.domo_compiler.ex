@@ -109,7 +109,10 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   end
 
   defp maybe_collect_types_for_standard_lib_structs(plan_path, preconds_path) do
-    modules = @standard_lib_modules ++ if Code.ensure_loaded?(Ecto.Schema.Metadata), do: [Ecto.Schema.Metadata], else: []
+    modules =
+      @standard_lib_modules ++
+        Enum.reduce([Ecto.Schema.Metadata, Decimal], [], &if(Code.ensure_loaded?(&1), do: [&1 | &2], else: &2))
+
     collectable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
 
     unless Enum.empty?(collectable_modules) do
@@ -312,19 +315,21 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp print_error(%Diagnostic{compiler_name: "Domo"} = diagnostic) do
     IO.write([
       "\n== Type ensurer compilation error in file #{Path.relative_to_cwd(diagnostic.file)} ==\n",
-      ["** ", unescape_newlines(diagnostic.message), ?\n]
+      ["** ", unescape_characters(diagnostic.message), ?\n]
     ])
   end
 
   defp print_error(%Diagnostic{compiler_name: "Elixir"} = diagnostic) do
     IO.write([
       "\n== Compilation error in file #{Path.relative_to_cwd(diagnostic.file)}:#{inspect(diagnostic.position)} ==\n",
-      ["** ", unescape_newlines(diagnostic.message), ?\n]
+      ["** ", unescape_characters(diagnostic.message), ?\n]
     ])
   end
 
-  defp unescape_newlines(message) do
-    String.replace(message, "\\n", "\n")
+  defp unescape_characters(message) do
+    message
+    |> String.replace("\\n", "\n")
+    |> String.replace("\\\"", "\"")
   end
 
   @impl true

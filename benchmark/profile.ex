@@ -12,7 +12,7 @@ defmodule Benchmark.Profile do
     Benchmark.puts_title("Generate #{count} inputs, may take a while.")
     list = Enum.take(Samples.user_map(), count)
 
-    Benchmark.puts_title("Profile new/1")
+    Benchmark.puts_title("Profile new!/1")
 
     {:ok, pid} =
       Task.start(fn ->

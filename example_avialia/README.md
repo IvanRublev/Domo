@@ -16,11 +16,11 @@ To open the application, start the Phoenix server and visit [`localhost:4000`](h
 from your browser. You can enter some data, see errors, persist or delete records.
 
 Domo can be applied to build and validate any struct defined with `t()` type by itself.
-Because each struct that `use Domo` automatically gets `new/1`, `ensure_type!/1/2` 
+Because each struct that `use Domo` automatically gets `new!/1`, `ensure_type!/1/2` 
 functions and their `*_ok` versions.
 
 Domo works with any struct defined with `defstruct/1` and `t()` type. 
-It adds `new/1`, `ensure_type!/1/2` functions and their `*_ok` versions to the struct.
+It adds `new!/1`, `ensure_type!/1/2` functions and their `*_ok` versions to the struct.
 
 You can build and validate the `Passenger` struct directly with Domo with the following:
 
