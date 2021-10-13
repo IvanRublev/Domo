@@ -42,71 +42,75 @@ Let's say that we have a `PurchaseOrder` and `LineItem` structs with relating
 invariant that is the sum of line item amounts should be less then order's
 approved limit. That can be expressed like the following:
 
-    defmodule PurchaseOrder do
-      use Domo
+```elixir
+defmodule PurchaseOrder do
+  use Domo
 
-      defstruct [id: 1000, approved_limit: 200, items: []]
+  defstruct [id: 1000, approved_limit: 200, items: []]
 
-      @type id :: non_neg_integer()
-      precond id: &(1000 <= &1 and &1 <= 5000)
+  @type id :: non_neg_integer()
+  precond id: &(1000 <= &1 and &1 <= 5000)
 
-      @type t :: %__MODULE__{
-        id: id(),
-        approved_limit: pos_integer(),
-        items: [LineItem.t()]
-      }
-      precond t: &validate_invariants/1
+  @type t :: %__MODULE__{
+    id: id(),
+    approved_limit: pos_integer(),
+    items: [LineItem.t()]
+  }
+  precond t: &validate_invariants/1
 
-      defp validate_invariants(po) do
-        cond do
-          po.items |> Enum.map(& &1.amount) |> Enum.sum() > po.approved_limit ->
-            {:error, "Sum of line item amounts should be <= to approved limit"}
+  defp validate_invariants(po) do
+    cond do
+      po.items |> Enum.map(& &1.amount) |> Enum.sum() > po.approved_limit ->
+        {:error, "Sum of line item amounts should be <= to approved limit"}
 
-          true ->
-            :ok
-        end
-      end
+      true ->
+        :ok
     end
+  end
+end
 
-    defmodule LineItem do
-      use Domo
+defmodule LineItem do
+  use Domo
 
-      defstruct [amount: 0]
+  defstruct [amount: 0]
 
-      @type t :: %__MODULE__{amount: non_neg_integer()}
-    end
+  @type t :: %__MODULE__{amount: non_neg_integer()}
+end
+```
 
 Then `PurchaseOrder` struct can be constructed consistently like that:
 
-    iex> {:ok, po} = PurchaseOrder.new_ok()
-    {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: []}}
+```elixir
+iex> {:ok, po} = PurchaseOrder.new_ok()
+{:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: []}}
 
-    iex> PurchaseOrder.new_ok(id: 500, approved_limit: 0)
-    {:error,
-     [
-       id: "Invalid value 500 for field :id of %PurchaseOrder{}. Expected the 
-       value matching the non_neg_integer() type. And a true value from 
-       the precondition function \"&(1000 <= &1 and &1 <= 5000)\" 
-       defined for PurchaseOrder.id() type.",
-       approved_limit: "Invalid value 0 for field :approved_limit of %PurchaseOrder{}. 
-       Expected the value matching the pos_integer() type."
-     ]}
+iex> PurchaseOrder.new_ok(id: 500, approved_limit: 0)
+{:error,
+  [
+    id: "Invalid value 500 for field :id of %PurchaseOrder{}. Expected the 
+    value matching the non_neg_integer() type. And a true value from 
+    the precondition function \"&(1000 <= &1 and &1 <= 5000)\" 
+    defined for PurchaseOrder.id() type.",
+    approved_limit: "Invalid value 0 for field :approved_limit of %PurchaseOrder{}. 
+    Expected the value matching the pos_integer() type."
+  ]}
 
-    iex> updated_po = %{po | items: [LineItem.new!(amount: 150), LineItem.new!(amount: 100)]}
-    %PurchaseOrder{
-      approved_limit: 200,
-      id: 1000,
-      items: [%LineItem{amount: 150}, %LineItem{amount: 100}]
-    }
+iex> updated_po = %{po | items: [LineItem.new!(amount: 150), LineItem.new!(amount: 100)]}
+%PurchaseOrder{
+  approved_limit: 200,
+  id: 1000,
+  items: [%LineItem{amount: 150}, %LineItem{amount: 100}]
+}
 
-    iex> PurchaseOrder.ensure_type_ok(updated_po)
-    {:error, [t: "Sum of line item amounts should be <= to approved limit"]}
-    
-    iex> updated_po = %{po | items: [LineItem.new!(amount: 150)]}
-    %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}
-    
-    iex> PurchaseOrder.ensure_type_ok(updated_po)
-    {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}}
+iex> PurchaseOrder.ensure_type_ok(updated_po)
+{:error, [t: "Sum of line item amounts should be <= to approved limit"]}
+
+iex> updated_po = %{po | items: [LineItem.new!(amount: 150)]}
+%PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}
+
+iex> PurchaseOrder.ensure_type_ok(updated_po)
+{:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}}
+```
 
 See the [Callbacks](#callbacks) section for more details about functions added to the struct.
 
@@ -140,26 +144,34 @@ between module defining the struct's field and module defining the field's final
 
 To use Domo in a project, add the following line to `mix.exs` dependencies:
 
-    {:domo, "~> 1.2.0"}
+```elixir
+{:domo, "~> 1.2.0"}
+```
 
 And the following line to the compilers:
 
-    compilers: Mix.compilers() ++ [:domo_compiler],
+```elixir
+compilers: Mix.compilers() ++ [:domo_compiler]
+```
 
 To avoid `mix format` putting extra parentheses around `precond/1` macro call,
 add the following import to the `.formatter.exs`:
 
-    [
-      import_deps: [:domo]
-    ]
+```elixir
+[
+  import_deps: [:domo]
+]
+```
 
 ## Usage with Phoenix hot reload
 
 To call functions added by Domo from a Phoenix controller, add the following 
 line to the endpoint's configuration in the `config.exs` file:
 
-    config :my_app, MyApp.Endpoint,
-      reloadable_compilers: [:phoenix] ++ Mix.compilers() ++ [:domo_compiler],
+```elixir
+config :my_app, MyApp.Endpoint,
+  reloadable_compilers: [:phoenix] ++ Mix.compilers() ++ [:domo_compiler]
+```
 
 Otherwise, type changes wouldn't be hot-reloaded by Phoenix.
 
