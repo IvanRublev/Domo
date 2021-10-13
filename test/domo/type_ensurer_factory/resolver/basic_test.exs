@@ -206,22 +206,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                read_types(types_file)
     end
 
-    test "map MapSet.t(value) to struct", %{
-      planner: planner,
-      plan_file: plan_file,
-      preconds_file: preconds_file,
-      types_file: types_file,
-      deps_file: deps_file
-    } do
-      plan_types([quote(context: TwoFieldStruct, do: MapSet.t(integer()))], planner)
-
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
-
-      expected = [[quote(context: MapSet, do: %MapSet{})]]
-
-      assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
-    end
-
     test "map Enum.t() to any()", %{
       planner: planner,
       plan_file: plan_file,

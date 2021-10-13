@@ -23,8 +23,13 @@ defmodule Domo.Raises do
   @precond_arguments """
   precond/1 expects [key: value] argument where the key is a type name \
   atom and the value is an anonymous boolean function with one argument \
-  returning wheither the precondition is fullfiled \
+  returning whether the precondition is fulfilled \
   for a value of the given type.\
+  """
+
+  @correct_format_remote_types_as_any_message """
+  :remote_types_as_any option value must be of the following shape \
+  [{:module, :type}, {:module, [:type1, :type2]}].\
   """
 
   def raise_struct_should_be_passed(module_should, instead_of: module_instead) do
@@ -93,6 +98,26 @@ defmodule Domo.Raises do
     end
   end
 
+  def raise_incorrect_remote_types_as_any_format!([_ | _] = list) do
+    unless Enum.all?(list, &valid_type_as_any_option_item?/1) do
+      raise ArgumentError, @correct_format_remote_types_as_any_message
+    end
+  end
+
+  def raise_incorrect_remote_types_as_any_format!(_) do
+    raise ArgumentError, @correct_format_remote_types_as_any_message
+  end
+
+  defp valid_type_as_any_option_item?(item) do
+    case item do
+      {module, type} when is_atom(module) and is_atom(type) -> true
+      {module, [_ | _] = types_list} when is_atom(module) -> Enum.all?(types_list, &is_atom/1)
+      {{:__aliases__, _, _}, type} when is_atom(type) -> true
+      {{:__aliases__, _, _}, [_ | _] = types_list} -> Enum.all?(types_list, &is_atom/1)
+      _ -> false
+    end
+  end
+
   def maybe_raise_add_domo_compiler(module) do
     unless ModuleInspector.has_type_ensurer?(module) do
       raise @add_domo_compiler_message
@@ -129,7 +154,8 @@ defmodule Domo.Raises do
         file: caller_env.file,
         line: caller_env.line,
         description: """
-        Type t() should be defined for the struct #{inspect(caller_env.module)}, \
+        Type @type t :: %__MODULE__{...} should be defined in the \
+        #{inspect(caller_env.module)} struct's module, \
         that enables Domo to generate type ensurer module for the struct's data.\
         """
       )
@@ -166,9 +192,8 @@ defmodule Domo.Raises do
     raise "No type ensurer for the schema module found. Please, use Domo in #{module_string} schema module."
   end
 
-  def raise_no_ecto_module(module) do
-    module_string = Alias.atom_to_string(module)
-    raise "No #{module_string} module loaded. Please, add https://hex.pm/packages/ecto package to the dependencies section in mix.exs file."
+  def raise_no_ecto_module() do
+    raise "No Ecto.Changeset module is compiled. Please, add https://hex.pm/packages/ecto package to the dependencies section in the mix.exs file of the project."
   end
 
   def raise_not_defined_fields(extra_fields, module) do

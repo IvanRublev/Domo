@@ -61,7 +61,7 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %{data: %CustomStructUsingDomo{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %CustomStructUsingDomo{title: "hello"}}
 
       Changeset.validate_type(changeset)
 
@@ -87,7 +87,7 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %{data: %CustomStructUsingDomoMetaField{__meta__: :some, title: "hello"}}
+      changeset = %Ecto.Changeset{data: %CustomStructUsingDomoMetaField{__meta__: :some, title: "hello"}}
 
       Changeset.validate_type(changeset)
 
@@ -117,10 +117,15 @@ defmodule Domo.ChangesetTest do
         meck_options: [:passthrough],
         exec: fn changeset, key, message ->
           send(me, {:add_error_was_called, changeset, key, message})
-          changeset
+          :meck.passthrough([changeset, key, message])
         end
 
-      changeset = %{data: %RecipientWithPrecond{title: "hello", name: "name", age: 12}}
+      changeset = %Ecto.Changeset{
+        valid?: true,
+        types: %{title: :string, name: :string, age: :integer},
+        data: %RecipientWithPrecond{title: "hello", name: "name", age: 12}
+      }
+
       Changeset.validate_type(changeset)
 
       assert_receive {:apply_changes_was_called, ^changeset}
@@ -130,7 +135,12 @@ defmodule Domo.ChangesetTest do
 
       refute_receive {:add_error_was_called, _, _, _}
 
-      changeset = %{data: %RecipientWithPrecond{title: "hello", name: "longer then 10 characters name", age: 12}}
+      changeset = %Ecto.Changeset{
+        valid?: true,
+        types: %{title: :string, name: :string, age: :integer},
+        data: %RecipientWithPrecond{title: "hello", name: "longer then 10 characters name", age: 12}
+      }
+
       Changeset.validate_type(changeset)
 
       assert_receive {:apply_changes_was_called, ^changeset}
@@ -153,13 +163,13 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      changeset = %{data: %CustomStructUsingDomo{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %CustomStructUsingDomo{title: "hello"}}
 
       Changeset.validate_type(changeset)
 
       assert_receive {:validate_change_got_value, []}
 
-      changeset = %{data: %CustomStructUsingDomo{title: :hello}}
+      changeset = %Ecto.Changeset{data: %CustomStructUsingDomo{title: :hello}}
 
       Changeset.validate_type(changeset)
 
@@ -176,7 +186,7 @@ defmodule Domo.ChangesetTest do
   describe "validate_type/1 for fields given with :fields option" do
     test "raises if given fields are not in the type t()" do
       assert_raise RuntimeError, "No fields [:one, :two] are defined in the CustomStructUsingDomoOptionalField.t() type.", fn ->
-        changeset = %{data: %CustomStructUsingDomoOptionalField{title: "some_title", subtitle: "    ", age: nil}}
+        changeset = %Ecto.Changeset{data: %CustomStructUsingDomoOptionalField{title: "some_title", subtitle: "    ", age: nil}}
         Changeset.validate_type(changeset, fields: [:one, :title, :subtitle, :age, :two])
       end
     end
@@ -199,7 +209,7 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %{data: %CustomStructUsingDomoOptionalField{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %CustomStructUsingDomoOptionalField{title: "hello"}}
 
       Changeset.validate_type(changeset, fields: [:title, :subtitle])
 
@@ -235,7 +245,7 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %{data: %{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %{title: "hello"}}
 
       Changeset.validate_schemaless_type(changeset, CustomStructUsingDomo)
 
@@ -254,13 +264,13 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      changeset = %{data: %{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %{title: "hello"}}
 
       Changeset.validate_schemaless_type(changeset, CustomStructUsingDomo)
 
       assert_receive {:validate_change_got_value, []}
 
-      changeset = %{data: %{title: :hello}}
+      changeset = %Ecto.Changeset{data: %{title: :hello}}
 
       Changeset.validate_schemaless_type(changeset, CustomStructUsingDomo)
 
@@ -277,7 +287,7 @@ defmodule Domo.ChangesetTest do
   describe "validate_schemaless_type/2 for fields given with :fields option" do
     test "raises if given fields are not in the type t()" do
       assert_raise RuntimeError, "No fields [:one, :two] are defined in the CustomStructUsingDomoOptionalField.t() type.", fn ->
-        changeset = %{data: %{title: "some_title", subtitle: "    ", age: nil}}
+        changeset = %Ecto.Changeset{data: %{title: "some_title", subtitle: "    ", age: nil}}
         Changeset.validate_schemaless_type(changeset, CustomStructUsingDomoOptionalField, fields: [:one, :title, :subtitle, :age, :two])
       end
     end
@@ -300,7 +310,7 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %{data: %{title: "hello"}}
+      changeset = %Ecto.Changeset{data: %{title: "hello"}}
 
       Changeset.validate_schemaless_type(changeset, CustomStructUsingDomo, fields: [:title])
 
@@ -327,7 +337,7 @@ defmodule Domo.ChangesetTest do
         changeset
       end
 
-    changeset = %{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
+    changeset = %Ecto.Changeset{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
 
     Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
 
@@ -336,7 +346,7 @@ defmodule Domo.ChangesetTest do
     assert_receive {:validate_change_got_value, [age: message]}
     assert message =~ "&(&1 < 300)"
 
-    changeset = %{valid?: true, data: %RecipientWithPrecond{title: :mr, name: "Bob bob bob", age: 20}}
+    changeset = %Ecto.Changeset{valid?: true, data: %RecipientWithPrecond{title: :mr, name: "Bob bob bob", age: 20}}
 
     Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
 
@@ -362,7 +372,7 @@ defmodule Domo.ChangesetTest do
         changeset
       end
 
-    changeset = %{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
+    changeset = %Ecto.Changeset{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
 
     Changeset.validate_type(changeset, maybe_filter_precond_errors: true, take_error_fun: &String.length(List.first(&1)))
 

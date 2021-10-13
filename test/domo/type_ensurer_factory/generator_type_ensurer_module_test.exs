@@ -864,29 +864,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   describe "Generated TypeEnsurer module verifies Kernel struct type" do
-    test "MapSet.t() with no precondition" do
-      load_type_ensurer_module_with_no_preconds(%{
-        first: [quote(do: %MapSet{})]
-      })
-
-      assert :ok == call_ensure_field_type({:first, MapSet.new()})
-      assert :ok == call_ensure_field_type({:first, MapSet.new([:one])})
-      assert :ok == call_ensure_field_type({:first, MapSet.new([:one, :two, :three])})
-      assert {:error, _} = call_ensure_field_type({:first, [:one]})
-      assert {:error, _} = call_ensure_field_type({:first, %{one: 1}})
-      assert {:error, _} = call_ensure_field_type({:first, :not_a_map_set})
-    end
-
-    test "MapSet.t() with precondition" do
-      precondition = Precondition.new(module: UserTypes, type_name: :map_set_only_floats, description: "map_set_only_floats")
-
-      load_type_ensurer_module({%{first: [{quote(do: %MapSet{}), precondition}]}, nil})
-
-      assert :ok == call_ensure_field_type({:first, MapSet.new([3.2, 0.0, 1.0])})
-      assert {:error, _} = call_ensure_field_type({:first, MapSet.new([3.2, 1])})
-      assert {:error, _} = call_ensure_field_type({:first, "h"})
-    end
-
     test "Range.t() with no precondition" do
       load_type_ensurer_module_with_no_preconds(
         case ElixirVersion.version() do

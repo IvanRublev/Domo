@@ -59,7 +59,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   end
 
   defp do_ensure_structs_integrity([{module, fields, file, line} | tail]) do
-    case apply(module, :new_ok, [fields]) do
+    case module.new_ok(fields) do
       {:ok, _struct} ->
         do_ensure_structs_integrity(tail)
 
@@ -112,13 +112,13 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp validate_fields(module, fields_values) do
     type_ensurer = ModuleInspector.type_ensurer(module)
     fields_no_enforced = Keyword.keys(fields_values)
-    typed_no_any_fields = apply(type_ensurer, :fields, [:typed_with_meta_no_any])
+    typed_no_any_fields = type_ensurer.fields(:typed_with_meta_no_any)
     fields_list = MapSet.intersection(MapSet.new(fields_no_enforced), MapSet.new(typed_no_any_fields))
 
     Enum.reduce_while(fields_list, :ok, fn field, ok ->
       field_value = {field, fields_values[field]}
 
-      case apply(type_ensurer, :ensure_field_type, [field_value]) do
+      case type_ensurer.ensure_field_type(field_value) do
         {:error, _} = error -> {:halt, {:error, ErrorBuilder.pretty_error(error)}}
         _ -> {:cont, ok}
       end
@@ -129,7 +129,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     type_ensurer = ModuleInspector.type_ensurer(module)
     value = struct(module, fields_values)
 
-    case apply(type_ensurer, :t_precondition, [value]) do
+    case type_ensurer.t_precondition(value) do
       :ok -> :ok
       {:error, _} = error -> {:error, ErrorBuilder.pretty_error(error)}
     end

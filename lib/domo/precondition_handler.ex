@@ -12,11 +12,11 @@ defmodule Domo.PreconditionHandler do
         :ok
 
       false ->
-        message = apply(ErrorBuilder, :build_precond_field_error, [opts])
+        message = ErrorBuilder.build_precond_field_error(opts)
         {:error, opts[:value], [message]}
 
       {:error, message} ->
-        wraped_message = apply(ErrorBuilder, :build_precond_type_error, [message])
+        wraped_message = ErrorBuilder.build_precond_type_error(message)
         {:error, opts[:value], [wraped_message]}
 
       _ ->

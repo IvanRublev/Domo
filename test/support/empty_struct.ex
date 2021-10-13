@@ -7,6 +7,14 @@ defmodule EmptyStruct do
   @type t :: %__MODULE__{}
 end
 
+defmodule The.Nested.EmptyStruct do
+  use Domo
+
+  defstruct []
+
+  @type t :: %__MODULE__{}
+end
+
 defmodule EmptyStructIdField do
   use Domo
 

@@ -458,6 +458,19 @@ Please, find the output of `mix benchmark` command below.
 
 ## Changelog
 
+### 1.3.4
+* Make error messages to be more informative
+
+* Improve compatibility with `Ecto` 3.7.x    
+
+* Explicitly define `:ecto` and `:decimal` as optional dependencies
+
+* Fix bug to pass `:remote_types_as_any` option with `use Domo`
+
+* Explicitly define that `MapSet` should be validated with `precond` function for custom user type, because parametrized `t(value)` types are not supported
+
+* Replace `apply()` with Module.function calls to run faster
+
 ### 1.3.3
 * Support validation of `Decimal.t()`
 

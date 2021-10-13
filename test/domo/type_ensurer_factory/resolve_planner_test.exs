@@ -232,7 +232,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                  {TwoFieldStruct, [title: "Hello"], "/module_path.ex", 2}
                ],
                remote_types_as_any_by_module: %{
-                 :global => %{Module => [:title]},
+                 :global => %{Module => [:title, :t]},
                  TwoFieldStruct => %{Module => [:name], Module1 => [:type1, :type2]},
                  IncorrectDefault => %{Module2 => [:name]}
                }
@@ -355,7 +355,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       ResolvePlanner.keep_global_remote_types_to_treat_as_any(
         plan_path,
-        %{Module => [:title]}
+        %{Module => [:title], Module1 => [:t]}
       )
 
       ResolvePlanner.keep_remote_types_to_treat_as_any(
@@ -390,7 +390,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                  {Module1, [id: 5], "/module_path1.ex", 2}
                ],
                remote_types_as_any_by_module: %{
-                 :global => %{Module => [:title]},
+                 :global => %{Module => [:title, :t], Module1 => [:t]},
                  TwoFieldStruct => %{Module => [:name, :number], Module1 => [:type1, :type2]}
                }
              } == plan

@@ -107,35 +107,25 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
     rem_module = Macro.expand_once(rem_module_alias, env)
 
-    cond do
-      Enum.member?(remote_types_as_any[rem_module] || [], rem_type) ->
-        joint_type = {:any, [], []}
-        {[joint_type | types], errs, deps}
+    if Enum.member?(remote_types_as_any[rem_module] || [], rem_type) do
+      joint_type = {:any, [], []}
+      {[joint_type | types], errs, deps}
+    else
+      rem_type_precond = get_precondition(preconds_map, rem_module, rem_type)
 
-      rem_module == MapSet ->
-        joint_type = {
-          quote(context: MapSet, do: %MapSet{}),
-          precond
-        }
+      with {:ok, type_list} <- ModuleInspector.beam_types(rem_module),
+           {:ok, type, dereferenced_types} <- ModuleInspector.find_type_quoted(rem_type, type_list),
+           dereferenced_preconds = Enum.map(dereferenced_types, &get_precondition(preconds_map, rem_module, &1)),
+           {:ok, precond} <- get_valid_precondition([precond, rem_type_precond | dereferenced_preconds]) do
+        resolve_type(type, rem_module, precond, env_preconds_anys_resolvables, {types, errs, [rem_module | deps]})
+      else
+        {:error, {:type_not_found, missing_type}} ->
+          err = {:error, {:type_not_found, {rem_module, missing_type, Alias.string_by_concat(rem_module, rem_type) <> "()"}}}
+          {types, [err | errs], deps}
 
-        {[joint_type | types], errs, deps}
-
-      true ->
-        rem_type_precond = get_precondition(preconds_map, rem_module, rem_type)
-
-        with {:ok, type_list} <- ModuleInspector.beam_types(rem_module),
-             {:ok, type, dereferenced_types} <- ModuleInspector.find_type_quoted(rem_type, type_list),
-             dereferenced_preconds = Enum.map(dereferenced_types, &get_precondition(preconds_map, rem_module, &1)),
-             {:ok, precond} <- get_valid_precondition([precond, rem_type_precond | dereferenced_preconds]) do
-          resolve_type(type, rem_module, precond, env_preconds_anys_resolvables, {types, errs, [rem_module | deps]})
-        else
-          {:error, {:type_not_found, missing_type}} ->
-            err = {:error, {:type_not_found, {rem_module, missing_type, Alias.string_by_concat(rem_module, rem_type) <> "()"}}}
-            {types, [err | errs], deps}
-
-          {:error, _} = err ->
-            {types, [err | errs], deps}
-        end
+        {:error, _} = err ->
+          {types, [err | errs], deps}
+      end
     end
   end
 
@@ -475,10 +465,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
           def validate_unowned_struct(value) do
             case value do
-              %#{struct_module_name}{} -> ...validate fields here...
+              %#{struct_module_name}{} -> if ...validate fields here..., do: :ok, else: {:error, "expected valid fields in #{struct_module_name} struct."}
               _ -> {:error, "expected #{struct_module_name} struct value."}
             end
           end
+
+      Alternatively you can instruct Domo to treat #{struct_module_name}.t() as any() \
+      by specifying `remote_types_as_any: [{#{struct_module_name}, :t}]` \
+      as global `config :domo` or as `use Domo` option. \
+      More details are in docs for `__using__/1` macro.
       """
 
       {types, [error | errs], deps}

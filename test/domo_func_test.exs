@@ -122,7 +122,18 @@ defmodule DomoFuncTest do
     end
 
     test "ensures remote types as any type listing them in `remote_types_as_any` option or overridden with use Domo" do
-      Application.put_env(:domo, :remote_types_as_any, EmptyStruct: :t, CustomStructUsingDomo: [:t])
+      compile_recipient_foreign_struct(
+        "RecipientForeignStructsAsAnyInUsing",
+        "remote_types_as_any: [{EmptyStruct, :t}, {CustomStructUsingDomo, [:t]}]",
+        "alias The.Nested.EmptyStruct"
+      )
+
+      DomoMixTask.run([])
+
+      assert _ =
+               apply(RecipientForeignStructsAsAnyInUsing, :new!, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
+
+      Application.put_env(:domo, :remote_types_as_any, [{The.Nested.EmptyStruct, :t}, CustomStructUsingDomo: [:t]])
 
       compile_recipient_foreign_struct("RecipientForeignStructs")
 
@@ -145,7 +156,7 @@ defmodule DomoFuncTest do
 
       assert _ =
                apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new!, [
-                 [placeholder: EmptyStruct.new!(), custom_struct: :not_custom_struct, title: :not_a_string]
+                 [placeholder: The.Nested.EmptyStruct.new!(), custom_struct: :not_custom_struct, title: :not_a_string]
                ])
 
       assert_raise ArgumentError,
@@ -159,6 +170,25 @@ defmodule DomoFuncTest do
                        ]
                      ])
                    end
+    after
+      Application.delete_env(:domo, :remote_types_as_any)
+    end
+
+    test "raises error for wrong formatted `remote_types_as_any` option" do
+      Application.put_env(:domo, :remote_types_as_any, [The.Nested.EmptyStruct, CustomStructUsingDomo: [:t]])
+
+      assert {:error, [%{message: message}]} = compile_recipient_foreign_struct("RecipientForeignStructs")
+      assert message =~ ":remote_types_as_any option value must be of the following shape"
+
+      Application.delete_env(:domo, :remote_types_as_any)
+
+      assert {:error, [%{message: message}]} =
+               compile_recipient_foreign_struct(
+                 "RecipientForeignStructsRemoteTypesAsAnyOverriden",
+                 "remote_types_as_any: [{Recipient, :name}, CustomStructUsingDomo: [1]]"
+               )
+
+      assert message =~ ":remote_types_as_any option value must be of the following shape"
     after
       Application.delete_env(:domo, :remote_types_as_any)
     end
@@ -407,7 +437,7 @@ defmodule DomoFuncTest do
     assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
   end
 
-  defp compile_recipient_foreign_struct(module_name, use_arg \\ nil) do
+  defp compile_recipient_foreign_struct(module_name, use_arg \\ nil, pre_use \\ "") do
     path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 
     use_domo =
@@ -417,13 +447,14 @@ defmodule DomoFuncTest do
 
     File.write!(path, """
     defmodule #{module_name} do
+      #{pre_use}
       #{use_domo}
 
       @enforce_keys [:placeholder, :custom_struct, :title]
       defstruct @enforce_keys
 
       @type t :: %__MODULE__{
-              placeholder: EmptyStruct.t(),
+              placeholder: The.Nested.EmptyStruct.t(),
               custom_struct: CustomStructUsingDomo.t(),
               title: Recipient.name()
             }

@@ -89,7 +89,7 @@ defmodule Domo do
       functions. Default is `false`.
 
     * `remote_types_as_any` - keyword list of type lists by modules that should
-      be treated as `any()`. F.e. `[ExternalModule: [:t, :name], OtherModule: :t]`
+      be treated as `any()`. F.e. `[{ExternalModule, [:t, :name]}, {OtherModule, :t}]`
       Default is `nil`.
 
   The option value given to the macro overrides one set globally in the
@@ -102,8 +102,17 @@ defmodule Domo do
 
     start_resolve_planner()
 
-    global_anys = Application.get_env(:domo, :remote_types_as_any)
-    local_anys = Keyword.get(opts, :remote_types_as_any)
+    global_anys =
+      if global_anys = Application.get_env(:domo, :remote_types_as_any) do
+        Raises.raise_incorrect_remote_types_as_any_format!(global_anys)
+        global_anys
+      end
+
+    local_anys =
+      if local_anys = Keyword.get(opts, :remote_types_as_any) do
+        Raises.raise_incorrect_remote_types_as_any_format!(local_anys)
+        Enum.map(local_anys, fn {module, types} -> {Macro.expand_once(module, __CALLER__), types} end)
+      end
 
     unless is_nil(global_anys) and is_nil(local_anys) do
       plan_path = get_plan_path()

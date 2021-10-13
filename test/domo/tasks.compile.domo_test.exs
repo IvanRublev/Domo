@@ -33,7 +33,8 @@ defmodule Domo.MixTasksCompileDomoTest do
     File.Stat,
     File.Stream
   ]
-  @empty_struct_standard_lib_modules [MapSet]
+  @collectable_optional_lib_modules [Decimal]
+  @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
 
   def env, do: __ENV__
 
@@ -97,11 +98,12 @@ defmodule Domo.MixTasksCompileDomoTest do
     end
 
     test "return {:noop, []} when no plan file exists that is domo is not used" do
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
       allow TypeEnsurerFactory.has_type_ensurer?(any()), return: true
       assert {:noop, []} = DomoMixTask.run([])
     end
 
-    test "start planner and plan Elixir standard library structs having no TypeEnsurer modules for them", %{
+    test "start planner and plan t types of Elixir standard library struct having no TypeEnsurer modules", %{
       plan_file: plan_file,
       preconds_file: preconds_file
     } do
@@ -110,6 +112,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       allow ResolvePlanner.stop(any()), return: :ok
       allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
       allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
       allow TypeEnsurerFactory.has_type_ensurer?(any()), exec: fn module -> module not in @collectable_standard_lib_modules end
 
       _ = DomoMixTask.run([])
@@ -122,11 +125,34 @@ defmodule Domo.MixTasksCompileDomoTest do
       end
     end
 
+    test "start planner and plan t types of loaded optional library struct having no TypeEnsurer modules", %{
+      plan_file: plan_file,
+      preconds_file: preconds_file
+    } do
+      allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
+      allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
+      allow ResolvePlanner.stop(any()), return: :ok
+      allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
+      allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), exec: fn module -> module in @collectable_optional_lib_modules end
+      allow TypeEnsurerFactory.has_type_ensurer?(any()), exec: fn module -> module not in @collectable_optional_lib_modules end
+
+      _ = DomoMixTask.run([])
+
+      assert_called ResolvePlanner.ensure_started(plan_file, preconds_file)
+
+      for module_name <- @collectable_optional_lib_modules do
+        {_module, bytecode, _path} = :code.get_object_code(module_name)
+        assert_called TypeEnsurerFactory.collect_types_for_domo_compiler(plan_file, is(&match?(%Macro.Env{module: ^module_name}, &1)), bytecode)
+      end
+    end
+
     test "only plan Elixir standard library structs missing TypeEnsurer module", %{plan_file: plan_file, preconds_file: preconds_file} do
       allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
       allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
       allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
       allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
 
       allow TypeEnsurerFactory.has_type_ensurer?(any()),
@@ -145,30 +171,75 @@ defmodule Domo.MixTasksCompileDomoTest do
       end
     end
 
-    test "plan Elixir standard library structs having t(var) types as empty structs", %{
+    test "plan some lib struct t() types to treat as any (like Ecto.Schema.Metadata.t)", %{
       plan_file: plan_file,
       preconds_file: preconds_file
     } do
+      ResolverTestHelper.write_empty_plan(plan_file, preconds_file)
+      on_exit(fn -> File.rm(plan_file) end)
+
       allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
       allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
-      allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
+      allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
       allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
-      allow TypeEnsurerFactory.has_type_ensurer?(any()), exec: fn module -> module not in @empty_struct_standard_lib_modules end
+      allow TypeEnsurerFactory.collect_types_to_treat_as_any(any(), any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), exec: fn module -> module in @treat_as_any_optional_lib_modules end
+      allow TypeEnsurerFactory.has_type_ensurer?(any()), return: false
 
       _ = DomoMixTask.run([])
 
       assert_called ResolvePlanner.ensure_started(plan_file, preconds_file)
 
-      for module_name <- @empty_struct_standard_lib_modules do
-        assert_called TypeEnsurerFactory.plan_empty_struct(plan_file, is(&match?(%Macro.Env{module: ^module_name}, &1)))
-      end
+      expected_types = Enum.map(@treat_as_any_optional_lib_modules, &{&1, [:t]})
+      assert_called TypeEnsurerFactory.collect_types_to_treat_as_any(plan_file, nil, is(&(&1 == expected_types)), nil)
+      assert_called ResolvePlanner.ensure_flushed_and_stopped(plan_file, any()), times(3)
     end
 
-    test "Not start planner when no type ensurers missing for standard lib modules", %{plan_file: plan_file, preconds_file: preconds_file} do
+    test "only plan some lib struct to treat as any having loaded modules", %{
+      plan_file: plan_file,
+      preconds_file: preconds_file
+    } do
+      ResolverTestHelper.write_empty_plan(plan_file, preconds_file)
+      on_exit(fn -> File.rm(plan_file) end)
+
       allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
       allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
+      allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
+      allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.collect_types_to_treat_as_any(any(), any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
+      allow TypeEnsurerFactory.has_type_ensurer?(any()), return: true
+
+      _ = DomoMixTask.run([])
+
+      refute_called(TypeEnsurerFactory.collect_types_to_treat_as_any(any(), any(), any(), any()))
+    end
+
+    test "add some lib struct to treat as any only to existing plan" do
+      allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
+      allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
+      allow ResolvePlanner.stop(any()), return: :ok
+      allow TypeEnsurerFactory.plan_empty_struct(any(), any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
+      allow TypeEnsurerFactory.collect_types_for_domo_compiler(any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.collect_types_to_treat_as_any(any(), any(), any(), any()), return: :ok
+      allow TypeEnsurerFactory.has_type_ensurer?(any()), return: true
+
+      _ = DomoMixTask.run([])
+
+      refute_called(TypeEnsurerFactory.collect_types_to_treat_as_any(any(), any(), any(), any()))
+    end
+
+    test "Not start planner when no type ensurers missing for standard lib modules and no modules to treat as any are loaded", %{
+      plan_file: plan_file,
+      preconds_file: preconds_file
+    } do
+      allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
+      allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
+      allow ResolvePlanner.stop(any()), return: :ok
+      allow TypeEnsurerFactory.ensure_loaded?(any()), return: false
       allow TypeEnsurerFactory.has_type_ensurer?(any()), return: true
 
       _ = DomoMixTask.run([])
@@ -180,6 +251,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
       allow ResolvePlanner.ensure_flushed_and_stopped(any(), any()), return: :ok
+      allow ResolvePlanner.keep_global_remote_types_to_treat_as_any(any(), any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
 
       _ = DomoMixTask.run([])

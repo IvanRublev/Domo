@@ -38,7 +38,8 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     URI,
     Version
   ]
-  @empty_struct_standard_lib_modules [MapSet]
+  @optional_lib_modules [Decimal]
+  @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
 
   @impl true
   def run(args) do
@@ -70,9 +71,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp build_ensurer_modules(paths, verbose?) do
     {plan_path, preconds_path, types_path, deps_path, code_path} = paths
 
-    maybe_collect_types_for_standard_lib_structs(plan_path, preconds_path)
-    maybe_plan_standard_lib_structs_as_empty_structs(plan_path, preconds_path)
+    maybe_collect_types_for_lib_structs(plan_path, preconds_path)
     stop_and_flush_planner(plan_path, verbose?)
+
+    if File.exists?(plan_path) do
+      maybe_collect_lib_structs_to_treat_as_any(plan_path, preconds_path)
+      stop_and_flush_planner(plan_path, verbose?)
+    end
 
     with {:ok, deps_warns} <- recompile_depending_structs(deps_path, preconds_path, verbose?),
          stop_and_flush_planner(plan_path, verbose?),
@@ -108,10 +113,8 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     end
   end
 
-  defp maybe_collect_types_for_standard_lib_structs(plan_path, preconds_path) do
-    modules =
-      @standard_lib_modules ++
-        Enum.reduce([Ecto.Schema.Metadata, Decimal], [], &if(Code.ensure_loaded?(&1), do: [&1 | &2], else: &2))
+  defp maybe_collect_types_for_lib_structs(plan_path, preconds_path) do
+    modules = @standard_lib_modules ++ Enum.reduce(@optional_lib_modules, [], &if(TypeEnsurerFactory.ensure_loaded?(&1), do: [&1 | &2], else: &2))
 
     collectable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
 
@@ -132,23 +135,21 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     end
   end
 
-  defp maybe_plan_standard_lib_structs_as_empty_structs(plan_path, preconds_path) do
-    modules = @empty_struct_standard_lib_modules
-    plannable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
+  defp maybe_collect_lib_structs_to_treat_as_any(plan_path, preconds_path) do
+    modules = Enum.reduce(@treat_as_any_optional_lib_modules, [], &if(TypeEnsurerFactory.ensure_loaded?(&1), do: [&1 | &2], else: &2))
 
-    unless Enum.empty?(plannable_modules) do
+    unless Enum.empty?(modules) do
       {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
 
-      modules_string = plannable_modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
+      modules_string = modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
 
       IO.write("""
-      Domo makes type ensures validating by name the following standard lib modules #{modules_string}.
+      Domo will treat the following modules t() type as any() #{modules_string}
       """)
 
-      Enum.each(plannable_modules, fn module ->
-        env = simulated_env(module)
-        TypeEnsurerFactory.plan_empty_struct(plan_path, env)
-      end)
+      module_t_types = Enum.map(modules, &{&1, [:t]})
+
+      TypeEnsurerFactory.collect_types_to_treat_as_any(plan_path, nil, module_t_types, nil)
     end
   end
 

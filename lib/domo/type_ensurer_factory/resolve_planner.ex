@@ -168,22 +168,13 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   end
 
   def handle_call({:keep_global_types_as_any, remote_types_as_any}, _from, state) do
-    updated_remotes_as_any_by_module = Map.put(state.plan.remote_types_as_any_by_module, :global, remote_types_as_any)
+    updated_remotes_as_any_by_module = map_update_merge(state.plan.remote_types_as_any_by_module, :global, remote_types_as_any)
     updated_state = put_in(state, [:plan, :remote_types_as_any_by_module], updated_remotes_as_any_by_module)
     {:reply, :ok, updated_state}
   end
 
   def handle_call({:keep_types_as_any, module, remote_types_as_any}, _from, state) do
-    updated_remotes_as_any_by_module =
-      Map.update(
-        state.plan.remote_types_as_any_by_module,
-        module,
-        remote_types_as_any,
-        &Map.merge(&1, remote_types_as_any, fn _key, types_lhs, types_rhs ->
-          [types_rhs | types_lhs] |> List.flatten() |> Enum.uniq()
-        end)
-      )
-
+    updated_remotes_as_any_by_module = map_update_merge(state.plan.remote_types_as_any_by_module, module, remote_types_as_any)
     updated_state = put_in(state, [:plan, :remote_types_as_any_by_module], updated_remotes_as_any_by_module)
     {:reply, :ok, updated_state}
   end
@@ -214,6 +205,15 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   def handle_call({:flush_and_stop, verbose?}, _from, state) do
     updated_state = %{state | verbose?: verbose?}
     {:stop, :normal, do_flush(updated_state), updated_state}
+  end
+
+  defp map_update_merge(map, key, value_list) do
+    merge_fn =
+      &Map.merge(&1, value_list, fn _key, types_lhs, types_rhs ->
+        [types_rhs | types_lhs] |> List.flatten() |> Enum.uniq()
+      end)
+
+    Map.update(map, key, value_list, merge_fn)
   end
 
   defp replace_or_append_defaults(list, defaults) do

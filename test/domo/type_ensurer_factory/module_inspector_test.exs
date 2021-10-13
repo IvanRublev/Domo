@@ -52,6 +52,16 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       assert {:error, {:type_not_found, :t}} == ModuleInspector.find_type_quoted(:t, [])
     end
 
+    test "return parametrized_type_not_supported giving parametrized type to find" do
+      type_list = [
+        type: {:t, {:user_type, 50, :t, [{:type, 50, :module, []}]}, []},
+        type: {:context, {:type, 40, :any, []}, []},
+        type: {:state, {:type, 38, :union, [{:atom, 0, :built}, {:atom, 0, :loaded}, {:atom, 0, :deleted}]}, []}
+      ]
+
+      assert {:error, {:parametrized_type_not_supported, :t}} == ModuleInspector.find_type_quoted(:t, type_list)
+    end
+
     test "return hash of module types giving loadable module" do
       assert <<165, 63, 215, 58, 173, 14, 220, 157, 192, 81, 20, 19, 68, 90, 147, 171>> ==
                ModuleInspector.beam_types_hash(EmptyStruct)

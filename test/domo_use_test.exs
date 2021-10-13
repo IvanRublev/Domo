@@ -167,11 +167,11 @@ defmodule DomoUseTest do
                    end
     end
 
-    test "raise the error for missing t() of struct type for the module" do
+    test "raise the error for missing or unsupported t() for the struct" do
       message =
         Regex.compile!("""
-        Type t\\(\\) should be defined for the struct \
-        #{inspect(__MODULE__)}.Module, that enables Domo \
+        Type @type t :: %__MODULE__{...} should be defined in the \
+        #{inspect(__MODULE__)}.Module struct's module, that enables Domo \
         to generate type ensurer module for the struct's data.\
         """)
 
@@ -197,6 +197,43 @@ defmodule DomoUseTest do
           end
       end
 
+      assert_raise CompileError, message, fn ->
+        {:module, _, _bytecode, _} =
+          defmodule Module do
+            use Domo
+
+            @enforce_keys [:name, :title]
+            defstruct [:name, :title]
+
+            @type t(a) :: a
+          end
+      end
+
+      assert_raise CompileError, message, fn ->
+        {:module, _, _bytecode, _} =
+          defmodule Module do
+            use Domo
+
+            @enforce_keys [:name, :title]
+            defstruct [:name, :title]
+
+            @type t(kind) :: %Module{name: kind, title: String.t()}
+            @type t :: t(integer())
+          end
+      end
+
+      assert_raise CompileError, message, fn ->
+        {:module, _, _bytecode, _} =
+          defmodule Module do
+            use Domo
+
+            @enforce_keys [:name, :title]
+            defstruct [:name, :title]
+
+            @type t(kind) :: %Module{name: kind, title: String.t()}
+          end
+      end
+
       module1_one_field()
 
       assert_raise CompileError, message, fn ->
@@ -207,6 +244,7 @@ defmodule DomoUseTest do
             @enforce_keys [:name, :title]
             defstruct [:name, :title]
 
+            @type t(kind) :: %Module{name: kind, title: String.t()}
             @type t :: %Module1{}
           end
       end
@@ -379,7 +417,7 @@ defmodule DomoUseTest do
       message = """
       precond/1 expects [key: value] argument where the key is a type name \
       atom and the value is an anonymous boolean function with one argument \
-      returning wheither the precondition is fullfiled \
+      returning whether the precondition is fulfilled \
       for a value of the given type.\
       """
 

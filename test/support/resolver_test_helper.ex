@@ -35,6 +35,13 @@ defmodule ResolverTestHelper do
     ResolvePlanner.stop(plan_file)
   end
 
+  def write_empty_plan(plan_file, preconds_file) do
+    {:ok, _pid} = ResolvePlanner.start(plan_file, preconds_file)
+    keep_env(plan_file, TwoFieldStruct, __ENV__)
+    flush(plan_file)
+    stop_project_palnner()
+  end
+
   def preconds_hash(descriptions) when is_list(descriptions) do
     descriptions |> :erlang.term_to_binary() |> :erlang.md5()
   end

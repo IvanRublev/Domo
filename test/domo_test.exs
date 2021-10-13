@@ -19,6 +19,7 @@ defmodule DomoTest do
       Article,
       Arena,
       Customer,
+      EctoPassenger,
       Game,
       Library,
       Library.Book,
@@ -72,7 +73,6 @@ defmodule DomoTest do
       _ = DomoMixTask.run([])
 
       for elixir_module <- [
-            MapSet,
             Macro.Env,
             IO.Stream,
             GenEvent.Stream,
@@ -92,6 +92,13 @@ defmodule DomoTest do
         type_ensurer = Module.concat(elixir_module, TypeEnsurer)
         assert Code.ensure_loaded?(type_ensurer) == true, "#{elixir_module} has no TypeEnsurer"
       end
+    end
+
+    test "returns error for MapSet due to unsupport of t(value) types" do
+      compile_mapset_holder_struct()
+
+      assert {:error, [%{message: message}]} = DomoMixTask.run([])
+      assert message =~ "MapSet.t"
     end
 
     test "tells whether struct module has TypeEnsurer" do
@@ -193,7 +200,7 @@ defmodule DomoTest do
       assert %{__struct__: WebService} = game
     end
 
-    test "ensures data integrity of composed structs" do
+    test "ensures data integrity of nested structs" do
       compile_customer_structs()
 
       {:ok, []} = DomoMixTask.run([])
@@ -221,6 +228,20 @@ defmodule DomoTest do
                      delivery_info = struct!(DeliveryInfo, %{address: malformed_address})
 
                      _ = Customer.new!(delivery_info: delivery_info)
+                   end
+    end
+
+    test "ensures Ecto schema" do
+      compile_ecto_passenger_struct()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      assert %{__struct__: EctoPassenger, __meta__: _} = EctoPassenger.new!(first_name: "John", last_name: "Smith")
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :first_name/s,
+                   fn ->
+                     _ = EctoPassenger.new!(first_name: :john, last_name: "Smith")
                    end
     end
 
@@ -1141,12 +1162,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       use Domo, ensure_struct_defaults: false
 
       @enforce_keys [:title, :name]
-      defstruct [:title, :name, age: 0]
+      defstruct [:title, :name, age: 0, module: Atom]
 
       @type title :: :mr | :ms | :dr
       @type name :: String.t()
       @type age :: integer
-      @type t :: %__MODULE__{title: title(), name: name(), age: age()}
+      @type t :: %__MODULE__{title: title(), name: name(), age: age(), module: module()}
     end
     """)
 
@@ -1240,6 +1261,49 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       defstruct @enforce_keys
 
       @type t :: %__MODULE__{port: :inet.port_number()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_mapset_holder_struct do
+    path = src_path("/mapset_holder.ex")
+
+    File.write!(path, """
+    defmodule MapSetHolder do
+      use Domo
+
+      defstruct [:set]
+
+      @type t :: %__MODULE__{set: MapSet.t() | nil}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_ecto_passenger_struct do
+    path = src_path("/ecto_passenger.ex")
+
+    File.write!(path, """
+    defmodule EctoPassenger do
+      use Ecto.Schema
+      use Domo, ensure_struct_defaults: false
+
+      schema "passengers" do
+        field :first_name, :string
+        field :last_name, :string
+
+        timestamps()
+      end
+
+      @type t :: %__MODULE__{
+              first_name: String.t(),
+              last_name: String.t(),
+            }
     end
     """)
 

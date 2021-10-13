@@ -11,6 +11,7 @@ defmodule Domo.TypeEnsurerFactory do
   defdelegate start_resolve_planner(plan_path, preconds_path), to: ResolvePlanner, as: :ensure_started
   defdelegate type_ensurer(module), to: ModuleInspector
   defdelegate has_type_ensurer?(module), to: ModuleInspector
+  defdelegate ensure_loaded?(module), to: Code
 
   def collect_types_to_treat_as_any(plan_path, module, global_anys, local_anys) do
     unless is_nil(global_anys) do

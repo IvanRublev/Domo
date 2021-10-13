@@ -46,8 +46,12 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
 
   def find_type_quoted(name, type_list, dereferenced_types \\ []) do
     notfound = {:error, {:type_not_found, name}}
+    notsupported = {:error, {:parametrized_type_not_supported, name}}
 
     case Enum.find_value(type_list, notfound, &having_name(name, &1)) do
+      {:ok, :user_type, _target_name, {_, {:user_type, _, _, [_ | _] = _args}, _}} ->
+        notsupported
+
       {:ok, :user_type, target_name, _type} ->
         find_type_quoted(target_name, type_list, [target_name | dereferenced_types])
 

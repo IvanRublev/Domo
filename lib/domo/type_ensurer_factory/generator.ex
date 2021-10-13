@@ -133,7 +133,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
         unquote_splicing(match_spec_functions)
 
         def do_match_spec({_spec_atom, _precond_atom}, value, spec_string) do
-          message = apply(Domo.ErrorBuilder, :build_field_error, [spec_string])
+          message = Domo.ErrorBuilder.build_field_error(spec_string)
           {:error, value, [message]}
         end
       end

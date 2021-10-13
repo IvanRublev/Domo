@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.3.3"
+  @version "1.3.4"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -58,6 +58,8 @@ defmodule Domo.MixProject do
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
       {:placebo, "~> 1.2", only: :test},
+      {:ecto, ">= 0.0.0", optional: true},
+      {:decimal, ">= 0.0.0", optional: true},
 
       # Documentation dependencies
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
