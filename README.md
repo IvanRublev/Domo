@@ -10,7 +10,7 @@
 
 :information_source: Examples of integration with `TypedStruct` and `TypedEctoSchema` are in [/example_typed_integrations](/example_typed_integrations) directory.
 
-:information_source: JSON parsing and validation example is in [/example_json_parse](/example_json_parse) directory.
+:information_source: JSON parsing and validation example is in [contentful-elixir-parse-example-nestru-domo](https://github.com/IvanRublev/contentful-elixir-parse-example-nestru-domo) repo.
 
 :information_source: Commanded + Domo combo used in Event Sourcing and CQRS example app is in https://github.com/IvanRublev/bank-commanded-domo repo.
 
