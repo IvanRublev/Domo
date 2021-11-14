@@ -4,6 +4,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   import GeneratorTestHelper
 
   alias Domo.ErrorBuilder
+  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.Precondition
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
@@ -24,6 +25,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   setup do
+    MixProjectHelper.disable_raise_in_test_env()
+
     on_exit(fn ->
       :code.purge(TypeEnsurer)
       :code.delete(TypeEnsurer)
@@ -54,6 +57,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "Generated TypeEnsurer module" do
     setup do
+      MixProjectHelper.disable_raise_in_test_env()
+
       load_type_ensurer_module_with_no_preconds(%{
         __example_meta_field__: [quote(do: atom())],
         __any_meta_field__: [quote(do: term())],

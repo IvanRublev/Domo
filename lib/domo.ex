@@ -1,25 +1,25 @@
 defmodule Domo do
   @moduledoc Domo.Doc.readme_doc("[//]: # (Documentation)")
 
-  @new_doc Domo.Doc.readme_doc("[//]: # (new!/1)")
-  @new_ok_doc Domo.Doc.readme_doc("[//]: # (new_ok/2)")
-  @ensure_type_doc Domo.Doc.readme_doc("[//]: # (ensure_type!/1)")
-  @ensure_type_ok_doc Domo.Doc.readme_doc("[//]: # (ensure_type_ok/2)")
+  @new_raise_doc Domo.Doc.readme_doc("[//]: # (new!/1)")
+  @new_ok_doc Domo.Doc.readme_doc("[//]: # (new/2)")
+  @ensure_type_raise_doc Domo.Doc.readme_doc("[//]: # (ensure_type!/1)")
+  @ensure_type_ok_doc Domo.Doc.readme_doc("[//]: # (ensure_type/2)")
   @typed_fields_doc Domo.Doc.readme_doc("[//]: # (typed_fields/1)")
   @required_fields_doc Domo.Doc.readme_doc("[//]: # (required_fields/1)")
 
   @callback new!() :: struct()
-  @doc @new_doc
+  @doc @new_raise_doc
   @callback new!(enumerable :: Enumerable.t()) :: struct()
-  @callback new_ok() :: {:ok, struct()} | {:error, any()}
-  @callback new_ok(enumerable :: Enumerable.t()) :: {:ok, struct()} | {:error, any()}
+  @callback new() :: {:ok, struct()} | {:error, any()}
+  @callback new(enumerable :: Enumerable.t()) :: {:ok, struct()} | {:error, any()}
   @doc @new_ok_doc
-  @callback new_ok(enumerable :: Enumerable.t(), opts :: keyword()) :: {:ok, struct()} | {:error, any()}
-  @doc @ensure_type_doc
+  @callback new(enumerable :: Enumerable.t(), opts :: keyword()) :: {:ok, struct()} | {:error, any()}
+  @doc @ensure_type_raise_doc
   @callback ensure_type!(struct :: struct()) :: struct()
-  @callback ensure_type_ok(struct :: struct()) :: {:ok, struct()} | {:error, any()}
+  @callback ensure_type(struct :: struct()) :: {:ok, struct()} | {:error, any()}
   @doc @ensure_type_ok_doc
-  @callback ensure_type_ok(struct :: struct(), opts :: keyword()) :: {:ok, struct()} | {:error, any()}
+  @callback ensure_type(struct :: struct(), opts :: keyword()) :: {:ok, struct()} | {:error, any()}
   @callback typed_fields() :: [atom()]
   @doc @typed_fields_doc
   @callback typed_fields(opts :: keyword()) :: [atom()]
@@ -45,9 +45,9 @@ defmodule Domo do
 
         # have added:
         # new!/1
-        # new_ok/2
+        # new/2
         # ensure_type!/1
-        # ensure_type_ok/2
+        # ensure_type/2
         # typed_fields/1
         # required_fields/1
       end
@@ -70,7 +70,7 @@ defmodule Domo do
 
   The macro adds the following functions to the current module, that are the
   facade for the generated `TypeEnsurer` module:
-  `new!/1`, `new_ok/2`, `ensure_type!/1`, `ensure_type_ok/2`, `typed_fields/1`,
+  `new!/1`, `new/2`, `ensure_type!/1`, `ensure_type/2`, `typed_fields/1`,
   `required_fields/1`.
 
   ## Options
@@ -80,9 +80,9 @@ defmodule Domo do
       at compile time. Default is `true`.
 
     * `name_of_new_function` - the name of the constructor function added
-      to the module. The ok function name is generated automatically from
-      the given one by omitting trailing `!` if any, and appending `_ok`.
-      Defaults are `new!` and `new_ok` appropriately.
+      to the module. The raising error function name is generated automatically
+      from the given one by adding trailing `!`.
+      Defaults are `new` and `new!` appropriately.
 
     * `unexpected_type_error_as_warning` - if set to `true`, prints warning
       instead of throwing an error for field type mismatch in the raising
@@ -99,6 +99,16 @@ defmodule Domo do
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
     Raises.raise_absence_of_domo_compiler!(Mix.Project.config(), opts, __CALLER__)
+
+    do_test_env_ckeck =
+      case Application.fetch_env(:domo, :skip_test_env_check) do
+        {:ok, true} -> false
+        _ -> true
+      end
+
+    if do_test_env_ckeck and not is_nil(GenServer.whereis(ExUnit.Server)) do
+      Raises.raise_cant_build_in_test_environment(__CALLER__.module)
+    end
 
     start_resolve_planner()
 
@@ -119,15 +129,14 @@ defmodule Domo do
       TypeEnsurerFactory.collect_types_to_treat_as_any(plan_path, __CALLER__.module, global_anys, local_anys)
     end
 
-    global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new!)
-    new_fun_name = Keyword.get(opts, :name_of_new_function, global_new_func_name)
+    global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new)
+    new_ok_fun_name = Keyword.get(opts, :name_of_new_function, global_new_func_name)
 
-    new_ok_fun_name =
-      new_fun_name
+    new_raise_fun_name =
+      new_ok_fun_name
       |> Atom.to_string()
-      |> String.trim("!")
       |> List.wrap()
-      |> Enum.concat(["_ok"])
+      |> Enum.concat(["!"])
       |> Enum.join()
       |> String.to_atom()
 
@@ -143,15 +152,15 @@ defmodule Domo do
       import Domo, only: [precond: 1]
 
       @doc """
-      #{unquote(@new_doc)}
+      #{unquote(@new_raise_doc)}
 
       ## Examples
 
           alias #{unquote(long_module)}
 
-          #{unquote(short_module)}.#{unquote(new_fun_name)}(first_field: value1, second_field: value2, ...)
+          #{unquote(short_module)}.#{unquote(new_raise_fun_name)}(first_field: value1, second_field: value2, ...)
       """
-      def unquote(new_fun_name)(enumerable \\ []) do
+      def unquote(new_raise_fun_name)(enumerable \\ []) do
         skip_ensurance? =
           if TypeEnsurerFactory.compile_time?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, enumerable)
@@ -215,13 +224,13 @@ defmodule Domo do
       end
 
       @doc """
-      #{unquote(@ensure_type_doc)}
+      #{unquote(@ensure_type_raise_doc)}
 
       ## Examples
 
           alias #{unquote(long_module)}
 
-          struct = #{unquote(short_module)}.#{unquote(new_fun_name)}(first_field: value1, second_field: value2, ...)
+          struct = #{unquote(short_module)}.#{unquote(new_raise_fun_name)}(first_field: value1, second_field: value2, ...)
 
           #{unquote(short_module)}.ensure_type!(%{struct | first_field: new_value})
 
@@ -271,18 +280,18 @@ defmodule Domo do
 
           alias #{unquote(long_module)}
 
-          struct = #{unquote(short_module)}.#{unquote(new_fun_name)}(first_field: value1, second_field: value2, ...)
+          struct = #{unquote(short_module)}.#{unquote(new_raise_fun_name)}(first_field: value1, second_field: value2, ...)
 
           {:ok, _updated_struct} =
-            #{unquote(short_module)}.ensure_type_ok(%{struct | first_field: new_value})
+            #{unquote(short_module)}.ensure_type(%{struct | first_field: new_value})
 
           {:ok, _updated_struct} =
             struct
             |> Map.put(:first_field, new_value1)
             |> Map.put(:second_field, new_value2)
-            |> #{unquote(short_module)}.ensure_type_ok()
+            |> #{unquote(short_module)}.ensure_type()
       """
-      def ensure_type_ok(struct, opts \\ []) do
+      def ensure_type(struct, opts \\ []) do
         %name{} = struct
 
         unless name == __MODULE__ do

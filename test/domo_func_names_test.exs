@@ -2,7 +2,11 @@ defmodule DomoFuncNamesTest do
   use Domo.FileCase, async: false
   use Placebo
 
+  alias Domo.MixProjectHelper
+
   setup do
+    MixProjectHelper.disable_raise_in_test_env()
+
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(src_path())
 
@@ -31,28 +35,12 @@ defmodule DomoFuncNamesTest do
     compile_titled_struct("TitleHolder")
 
     assert Kernel.function_exported?(TitleHolder, :custom_new, 1)
-    assert Kernel.function_exported?(TitleHolder, :custom_new_ok, 1)
+    assert Kernel.function_exported?(TitleHolder, :custom_new!, 1)
 
     compile_titled_struct("Titled", "name_of_new_function: :amazing_new")
 
     assert Kernel.function_exported?(Titled, :amazing_new, 1)
-    assert Kernel.function_exported?(Titled, :amazing_new_ok, 1)
-  after
-    Application.delete_env(:domo, :name_of_new_function)
-  end
-
-  test "generates _ok function name dropping the last ! given with :name_of_new_function" do
-    Application.put_env(:domo, :name_of_new_function, :custom_new!)
-
-    compile_titled_struct("TitleHolder")
-
-    assert Kernel.function_exported?(TitleHolder, :custom_new!, 1)
-    assert Kernel.function_exported?(TitleHolder, :custom_new_ok, 1)
-
-    compile_titled_struct("Titled", "name_of_new_function: :amazing_new!")
-
     assert Kernel.function_exported?(Titled, :amazing_new!, 1)
-    assert Kernel.function_exported?(Titled, :amazing_new_ok, 1)
   after
     Application.delete_env(:domo, :name_of_new_function)
   end

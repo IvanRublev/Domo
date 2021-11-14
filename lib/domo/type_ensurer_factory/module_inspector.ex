@@ -36,7 +36,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     Enum.reject(type_list, &parametrized_type?/1)
   end
 
-  defp parametrized_type?({:type, {_name, _definition, [_ | _] = _arg_list}}) do
+  defp parametrized_type?({kind, {_name, _definition, [_ | _] = _arg_list}}) when kind in [:type, :opaque] do
     true
   end
 

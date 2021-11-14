@@ -59,6 +59,8 @@ defmodule Domo.MixTasksCompileDomoTest do
   end
 
   setup do
+    MixProjectHelper.disable_raise_in_test_env()
+
     Code.compiler_options(ignore_module_conflict: true)
 
     on_exit(fn ->
@@ -90,6 +92,8 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task should" do
     setup do
+      MixProjectHelper.disable_raise_in_test_env()
+
       allow BatchEnsurer.ensure_struct_defaults(any()), return: :ok
       allow BatchEnsurer.ensure_struct_integrity(any()), return: :ok
       allow Cleaner.rm!(any()), return: nil
@@ -687,6 +691,8 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   describe "Domo compiler task for compilation warnings should" do
     setup do
+      MixProjectHelper.disable_raise_in_test_env()
+
       allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()),
         return:
           {:ok,

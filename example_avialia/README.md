@@ -35,9 +35,9 @@ Passenger.ensure_type!(%{p | flight: "invalid"})
 
 alias ExampleAvialia.Cargos.Shipment
 
-{:ok, s} = Shipment.new_ok(flight: "ALA-1215", kind: {:passenger_baggage, "5C"}, weight: {:kilograms, 29}, documents_count: 0, documents: [])
+{:ok, s} = Shipment.new(flight: "ALA-1215", kind: {:passenger_baggage, "5C"}, weight: {:kilograms, 29}, documents_count: 0, documents: [])
 
-Shipment.ensure_type_ok(%{s | kind: {:passenger_baggage, "invalid"}}, maybe_filter_precond_errors: true)
+Shipment.ensure_type(%{s | kind: {:passenger_baggage, "invalid"}}, maybe_filter_precond_errors: true)
 ```
 
 ### To start your Phoenix server:

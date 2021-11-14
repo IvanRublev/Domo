@@ -246,6 +246,25 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic(error.file, message)
   end
 
+  defp diagnostic(%Error{compiler_module: Resolver, message: {:parametrized_type_not_supported, tuple}} = error) do
+    {module, full_type_string} = tuple
+
+    message = """
+    #{module_to_string(error.compiler_module)} failed to resolve fields type \
+    of the #{module_to_string(error.struct_module)} struct due to parametrized type \
+    referenced by #{full_type_string} is not supported.\
+    Please, define custom user type and validate fields of #{module_to_string(module)} \
+    in the precondition function attached like the following:
+
+        @type remote_type :: term()
+        precond remote_type: &validate_fields_of_struct/1
+
+    Then reference remote_type instead of #{full_type_string}
+    """
+
+    diagnostic(error.file, message)
+  end
+
   defp diagnostic(%Error{compiler_module: Resolver} = error) do
     message = """
     #{module_to_string(error.compiler_module)} failed to resolve fields type \

@@ -4,9 +4,12 @@ defmodule DomoFuncTest do
 
   import ExUnit.CaptureIO
 
+  alias Domo.MixProjectHelper
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do
+    MixProjectHelper.disable_raise_in_test_env()
+
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(tmp_path())
 
@@ -209,16 +212,16 @@ defmodule DomoFuncTest do
     end
   end
 
-  describe "new_ok/1 constructor" do
+  describe "new/1 constructor" do
     test "makes a struct and return it in the :ok tuple" do
       assert {:ok, %Recipient{title: :mr, name: "Bob", age: 27}} ==
-               Recipient.new_ok(title: :mr, name: "Bob", age: 27)
+               Recipient.new(title: :mr, name: "Bob", age: 27)
 
-      assert {:ok, %EmptyStruct{}} == EmptyStruct.new_ok()
+      assert {:ok, %EmptyStruct{}} == EmptyStruct.new()
     end
 
     test "returns :error tuple for arguments mismatching struct's field types" do
-      assert {:error, error} = Recipient.new_ok(title: "mr", name: "Bob", age: 27.5)
+      assert {:error, error} = Recipient.new(title: "mr", name: "Bob", age: 27.5)
 
       assert error == [
                title: """
@@ -233,7 +236,7 @@ defmodule DomoFuncTest do
     end
 
     test "returns :error tuple for arguments mismatching field's type precondition" do
-      assert {:error, error} = RecipientWithPrecond.new_ok(title: :mr, name: "Bob", age: 370)
+      assert {:error, error} = RecipientWithPrecond.new(title: :mr, name: "Bob", age: 370)
 
       assert error == [
                age: """
@@ -244,7 +247,7 @@ defmodule DomoFuncTest do
     end
 
     test "returns :error tuple for struct type precondition" do
-      assert {:error, error} = RecipientWithPrecond.new_ok(title: :mr, name: "Bob Thornton", age: 37)
+      assert {:error, error} = RecipientWithPrecond.new(title: :mr, name: "Bob Thornton", age: 37)
 
       assert error == [
                t: """
@@ -256,7 +259,7 @@ defmodule DomoFuncTest do
     end
 
     test "returns :error tuple for a missing key" do
-      assert {:error, error} = Recipient.new_ok(name: "Bob", age: 27)
+      assert {:error, error} = Recipient.new(name: "Bob", age: 27)
 
       assert error == [
                title: """
@@ -268,9 +271,9 @@ defmodule DomoFuncTest do
 
     test "makes a new struct discarding keys that don't exist in the struct" do
       assert {:ok, %Recipient{title: :mr, name: "Bob", age: 27}} ==
-               Recipient.new_ok(title: :mr, name: "Bob", age: 27, extra_key: true)
+               Recipient.new(title: :mr, name: "Bob", age: 27, extra_key: true)
 
-      assert {:ok, %EmptyStruct{}} == EmptyStruct.new_ok(extra_key: true)
+      assert {:ok, %EmptyStruct{}} == EmptyStruct.new(extra_key: true)
     end
   end
 
@@ -356,13 +359,13 @@ defmodule DomoFuncTest do
     end
   end
 
-  describe "ensure_type_ok/1" do
+  describe "ensure_type/1" do
     setup [:build_sample_structs]
 
     test "returns :ok if the struct matches it's type", %{bob: bob} do
       dr_bob = %{bob | title: :dr}
 
-      assert {:ok, dr_bob} == Recipient.ensure_type_ok(dr_bob)
+      assert {:ok, dr_bob} == Recipient.ensure_type(dr_bob)
     end
 
     test "returns an :error tuple for the struct mismatching it's type", %{bob: bob} do
@@ -372,7 +375,7 @@ defmodule DomoFuncTest do
               name: """
               Invalid value :bob_hope for field :name of %Recipient{}. Expected the value \
               matching the <<_::_*8>> type.\
-              """} = Recipient.ensure_type_ok(malformed_bob)
+              """} = Recipient.ensure_type(malformed_bob)
     end
 
     test "returns :error tuple for arguments mismatching field's type precondition", %{joe: joe} do
@@ -382,7 +385,7 @@ defmodule DomoFuncTest do
               age: """
               Invalid value 450 for field :age of %RecipientWithPrecond{}. Expected the value matching the integer() type. \
               And a true value from the precondition function "&(&1 < 300)" defined for RecipientWithPrecond.age() type.\
-              """} = RecipientWithPrecond.ensure_type_ok(malformed_joe)
+              """} = RecipientWithPrecond.ensure_type(malformed_joe)
     end
 
     test "returns :error tuple for struct type precondition", %{joe: joe} do
@@ -393,7 +396,7 @@ defmodule DomoFuncTest do
               Invalid value %RecipientWithPrecond{age: 37, name: "Bob Thornton", title: :mr}. \
               Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
               function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
-              """} = RecipientWithPrecond.ensure_type_ok(malformed_joe)
+              """} = RecipientWithPrecond.ensure_type(malformed_joe)
     end
 
     test "raises an error if the passed struct's name differs from the module's name" do
@@ -403,7 +406,7 @@ defmodule DomoFuncTest do
                    the first argument value instead of EmptyStruct.\
                    """,
                    fn ->
-                     Recipient.ensure_type_ok(%EmptyStruct{})
+                     Recipient.ensure_type(%EmptyStruct{})
                    end
     end
   end

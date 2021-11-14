@@ -123,6 +123,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
           err = {:error, {:type_not_found, {rem_module, missing_type, Alias.string_by_concat(rem_module, rem_type) <> "()"}}}
           {types, [err | errs], deps}
 
+        {:error, {:parametrized_type_not_supported, _parametrized_type}} ->
+          err = {:error, {:parametrized_type_not_supported, {rem_module, Alias.string_by_concat(rem_module, rem_type) <> "()"}}}
+          {types, [err | errs], deps}
+
         {:error, _} = err ->
           {types, [err | errs], deps}
       end
@@ -656,6 +660,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
       else
         {:error, {:type_not_found, missing_type}} ->
           err = {:error, {:type_not_found, {Alias.alias_to_atom(module), missing_type, Alias.string_by_concat(module, type_name) <> "()"}}}
+          {types, [err | errs], deps}
+
+        {:error, {:parametrized_type_not_supported, _parametrized_type}} ->
+          err = {:error, {:parametrized_type_not_supported, {Alias.alias_to_atom(module), Alias.string_by_concat(module, type_name) <> "()"}}}
           {types, [err | errs], deps}
 
         {:error, _} = err ->

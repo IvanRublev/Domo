@@ -59,7 +59,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   end
 
   defp do_ensure_structs_integrity([{module, fields, file, line} | tail]) do
-    case module.new_ok(fields) do
+    case module.new(fields) do
       {:ok, _struct} ->
         do_ensure_structs_integrity(tail)
 

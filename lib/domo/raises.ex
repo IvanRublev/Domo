@@ -154,7 +154,7 @@ defmodule Domo.Raises do
         file: caller_env.file,
         line: caller_env.line,
         description: """
-        Type @type t :: %__MODULE__{...} should be defined in the \
+        Type @type or @opaque t :: %__MODULE__{...} should be defined in the \
         #{inspect(caller_env.module)} struct's module, \
         that enables Domo to generate type ensurer module for the struct's data.\
         """
@@ -163,9 +163,12 @@ defmodule Domo.Raises do
   end
 
   defp has_type_t?(caller_env) do
-    caller_env.module
-    |> Module.get_attribute(:type)
-    |> Enum.find_value(fn {:type, {:"::", _, spec}, _} ->
+    types = Module.get_attribute(caller_env.module, :type)
+    opaques = Module.get_attribute(caller_env.module, :opaque)
+
+    [types, opaques]
+    |> Enum.concat()
+    |> Enum.find_value(fn {kind, {:"::", _, spec}, _} when kind in [:type, :opaque] ->
       with [{:t, _, _}, t_type] <- spec,
            {:%, _, [module, {:%{}, _, _}]} <- t_type do
         case module do
@@ -198,5 +201,13 @@ defmodule Domo.Raises do
 
   def raise_not_defined_fields(extra_fields, module) do
     raise "No fields #{inspect(extra_fields)} are defined in the #{inspect(module)}.t() type."
+  end
+
+  def raise_cant_build_in_test_environment(module) do
+    raise """
+    Domo can't build Type Ensurers in the test environment for #{inspect(module)}. \
+    Please put structs using Domo specific to your test environment \
+    into compilation directories and put path to them in your mix.exs\
+    """
   end
 end

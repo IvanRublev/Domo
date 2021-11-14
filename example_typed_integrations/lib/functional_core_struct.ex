@@ -45,9 +45,9 @@ defmodule FunctionalCoreStruct do
 
   # Functions added to this module by Domo:
   # new!
-  # new_ok
+  # new
   # ensure_type!
-  # ensure_type_ok
+  # ensure_type
   # typed_fields
   # required_fields
 end

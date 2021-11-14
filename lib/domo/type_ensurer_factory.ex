@@ -40,7 +40,7 @@ defmodule Domo.TypeEnsurerFactory do
       |> elem(1)
       |> ModuleInspector.filter_direct_types()
       |> Enum.find_value(fn
-        {:type, {:t, _, _} = t} -> t
+        {kind, {:t, _, _} = t} when kind in [:type, :opaque] -> t
         _ -> nil
       end)
       |> Code.Typespec.type_to_quoted()
@@ -118,7 +118,7 @@ defmodule Domo.TypeEnsurerFactory do
       bytecode
       |> Code.Typespec.fetch_types()
       |> elem(1)
-      |> Enum.map(fn {:type, {name, _, _}} -> name end)
+      |> Enum.map(fn {kind, {name, _, _}} when kind in [:type, :opaque] -> name end)
 
     module = env.module
     precond_name_description = Module.get_attribute(module, :domo_precond)

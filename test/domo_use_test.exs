@@ -35,16 +35,6 @@ defmodule DomoUseTest do
       end
   end
 
-  defp module1_one_field do
-    {:module, _, _bytecode, _} =
-      defmodule Module1 do
-        use Domo
-
-        defstruct [:former]
-        @type t :: %__MODULE__{former: integer}
-      end
-  end
-
   defp module_custom_struct_as_default_value do
     {:module, _, _bytecode, _} =
       defmodule Module do
@@ -85,6 +75,8 @@ defmodule DomoUseTest do
   end
 
   setup do
+    MixProjectHelper.disable_raise_in_test_env()
+
     Code.compiler_options(ignore_module_conflict: true)
 
     on_exit(fn ->
@@ -132,6 +124,28 @@ defmodule DomoUseTest do
       assert {:module, _, _bytecode, _} = module
     end
 
+    test "raise an exception in test environment" do
+      MixProjectHelper.enable_raise_in_test_env()
+
+      plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
+
+      assert_raise RuntimeError,
+                   """
+                   Domo can't build Type Ensurers in the test environment for DomoUseTest.ModuleInTestEnv. \
+                   Please put structs using Domo specific to your test environment \
+                   into compilation directories and put path to them in your mix.exs\
+                   """,
+                   fn ->
+                     defmodule ModuleInTestEnv do
+                       use Domo
+
+                       defstruct []
+                       @type t :: %__MODULE__{}
+                     end
+                   end
+    end
+
     test "raise CompileError when it's outside of the module scope" do
       assert_raise CompileError,
                    "nofile: use Domo should be called in a module scope only.",
@@ -170,7 +184,7 @@ defmodule DomoUseTest do
     test "raise the error for missing or unsupported t() for the struct" do
       message =
         Regex.compile!("""
-        Type @type t :: %__MODULE__{...} should be defined in the \
+        Type @type or @opaque t :: %__MODULE__{...} should be defined in the \
         #{inspect(__MODULE__)}.Module struct's module, that enables Domo \
         to generate type ensurer module for the struct's data.\
         """)
@@ -234,7 +248,13 @@ defmodule DomoUseTest do
           end
       end
 
-      module1_one_field()
+      {:module, _, _bytecode, _} =
+        defmodule Module1 do
+          use Domo
+
+          defstruct [:former]
+          @type t :: %__MODULE__{former: integer}
+        end
 
       assert_raise CompileError, message, fn ->
         {:module, _, _bytecode, _} =
@@ -261,6 +281,20 @@ defmodule DomoUseTest do
           @type name :: String.t()
           @type title :: String.t()
           @type t :: %__MODULE__{name: name(), title: title()}
+        end
+
+      assert {:module, _, _bytecode, _} = module
+
+      module =
+        defmodule ModuleOpaque do
+          use Domo
+
+          @enforce_keys [:name, :title]
+          defstruct [:name, :title]
+
+          @opaque name :: String.t()
+          @opaque title :: String.t()
+          @opaque t :: %__MODULE__{name: name(), title: title()}
         end
 
       assert {:module, _, _bytecode, _} = module
@@ -297,9 +331,9 @@ defmodule DomoUseTest do
 
       err_regex = @no_domo_compiler_error_regex
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :new!, [%{}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new_ok, [%{}]) end
+      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new, [%{}]) end
       assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type!, [%{__struct__: Module}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type_ok, [%{__struct__: Module}]) end
+      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type, [%{__struct__: Module}]) end
     end
 
     test "Not generate specs if no_specs option is given" do
@@ -385,7 +419,7 @@ defmodule DomoUseTest do
     test "plan struct integrity ensurance" do
       module_custom_struct_as_default_value()
 
-      call_line = 57
+      call_line = 47
 
       assert_called ResolvePlanner.plan_struct_integrity_ensurance(
                       any(),

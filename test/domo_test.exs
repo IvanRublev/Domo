@@ -14,6 +14,7 @@ defmodule DomoTest do
       AccountAnyPrecond,
       AccountCustomErrors,
       AccountCustomizedMessages,
+      AccountOpaquePrecond,
       Airplane,
       Airplane.Seat,
       Article,
@@ -38,6 +39,8 @@ defmodule DomoTest do
   )
 
   setup do
+    MixProjectHelper.disable_raise_in_test_env()
+
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(src_path())
 
@@ -64,9 +67,9 @@ defmodule DomoTest do
       _ = DomoMixTask.run([])
 
       assert Kernel.function_exported?(Receiver, :new!, 1)
-      assert Kernel.function_exported?(Receiver, :new_ok, 1)
+      assert Kernel.function_exported?(Receiver, :new, 1)
       assert Kernel.function_exported?(Receiver, :ensure_type!, 1)
-      assert Kernel.function_exported?(Receiver, :ensure_type_ok, 1)
+      assert Kernel.function_exported?(Receiver, :ensure_type, 1)
     end
 
     test "generates TypeEnsurer modules for Elixir structs from standard library" do
@@ -98,7 +101,38 @@ defmodule DomoTest do
       compile_mapset_holder_struct()
 
       assert {:error, [%{message: message}]} = DomoMixTask.run([])
-      assert message =~ "MapSet.t"
+
+      assert message =~ """
+             Domo.TypeEnsurerFactory.Resolver failed to resolve fields type \
+             of the MapSetHolder struct due to parametrized type referenced \
+             by MapSet.t() is not supported.\
+             Please, define custom user type and validate fields of MapSet \
+             in the precondition function attached like the following:
+
+                 @type remote_type :: term()
+                 precond remote_type: &validate_fields_of_struct/1
+
+             Then reference remote_type instead of MapSet.t()
+             """
+    end
+
+    test "returns error for owned module with local t(value) type" do
+      compile_parametrized_field_struct()
+
+      assert {:error, [%{message: message}]} = DomoMixTask.run([])
+
+      assert message =~ """
+             Domo.TypeEnsurerFactory.Resolver failed to resolve fields type \
+             of the ParametrizedField struct due to parametrized type referenced \
+             by ParametrizedField.set() is not supported.\
+             Please, define custom user type and validate fields of ParametrizedField \
+             in the precondition function attached like the following:
+
+                 @type remote_type :: term()
+                 precond remote_type: &validate_fields_of_struct/1
+
+             Then reference remote_type instead of ParametrizedField.set()
+             """
     end
 
     test "tells whether struct module has TypeEnsurer" do
@@ -334,6 +368,25 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       end
     end
 
+    test "ensures data integrity with @opaque struct field type and having precondition" do
+      compile_account_opaque_precond_struct()
+
+      {:ok, []} = DomoMixTask.run([])
+
+      account = AccountOpaquePrecond.new!(id: 101)
+      assert %{__struct__: AccountOpaquePrecond} = account
+
+      assert_raise ArgumentError, ~r/Expected the value matching the integer\(\) type. And a true value from the precondition function/s, fn ->
+        _ = AccountOpaquePrecond.new!(id: -500)
+      end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value %AccountOpaquePrecond{id: 100}. Expected the value matching the AccountOpaquePrecond.t\(\) type. And a true value from the precondition function/s,
+                   fn ->
+                     _ = AccountOpaquePrecond.new!(id: 100)
+                   end
+    end
+
     test "return custom error from preconditions" do
       compile_account_custom_errors_struct()
 
@@ -354,7 +407,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                      _ = AccountCustomErrors.new!(id: "ak47896", name: "John Smith", money: 2)
                    end
 
-      assert {:error, id: "Id should match format xxx-12345"} = AccountCustomErrors.new_ok(id: "ak47896", name: "John Smith", money: 2)
+      assert {:error, id: "Id should match format xxx-12345"} = AccountCustomErrors.new(id: "ak47896", name: "John Smith", money: 2)
 
       assert_raise ArgumentError,
                    "the following values should have types defined for fields of the AccountCustomErrors struct:\n * :empty_name_string",
@@ -362,7 +415,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                      _ = AccountCustomErrors.new!(id: "adk-47896", name: "", money: 2)
                    end
 
-      assert {:error, name: :empty_name_string} = AccountCustomErrors.new_ok(id: "adk-47896", name: "", money: 2)
+      assert {:error, name: :empty_name_string} = AccountCustomErrors.new(id: "adk-47896", name: "", money: 2)
     end
 
     test "returns list of precondition errors or single string message for each field given maybe_filter_precond_errors: true option for *_ok functions" do
@@ -370,7 +423,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       _ = DomoMixTask.run([])
 
-      assert {:error, messages} = Account.new_ok([id: "ak47896", name: :john_smith, money: 0], maybe_filter_precond_errors: true)
+      assert {:error, messages} = Account.new([id: "ak47896", name: :john_smith, money: 0], maybe_filter_precond_errors: true)
 
       [
         name: [
@@ -391,7 +444,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       account = struct!(Account, id: "ak47896", name: :john_smith, money: 0)
 
-      assert {:error, messages} = Account.ensure_type_ok(account, maybe_filter_precond_errors: true)
+      assert {:error, messages} = Account.ensure_type(account, maybe_filter_precond_errors: true)
 
       [
         name: [
@@ -417,11 +470,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         """
       ]
 
-      assert Account.new_ok([id: "akz-47896", name: "John Smith", money: 1], maybe_filter_precond_errors: true) == {:error, t: expected_messages}
+      assert Account.new([id: "akz-47896", name: "John Smith", money: 1], maybe_filter_precond_errors: true) == {:error, t: expected_messages}
 
       account = struct!(Account, id: "akz-47896", name: "John Smith", money: 1)
 
-      assert Account.ensure_type_ok(account, maybe_filter_precond_errors: true) == {:error, t: expected_messages}
+      assert Account.ensure_type(account, maybe_filter_precond_errors: true) == {:error, t: expected_messages}
 
       compile_account_custom_errors_struct()
 
@@ -429,12 +482,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       expected_messages = ["Id should match format xxx-12345"]
 
-      assert AccountCustomErrors.new_ok([id: "ak47896", name: "John Smith", money: 2], maybe_filter_precond_errors: true) ==
+      assert AccountCustomErrors.new([id: "ak47896", name: "John Smith", money: 2], maybe_filter_precond_errors: true) ==
                {:error, id: expected_messages}
 
       account = struct!(AccountCustomErrors, id: "ak47896", name: "John Smith", money: 2)
 
-      assert AccountCustomErrors.ensure_type_ok(account, maybe_filter_precond_errors: true) == {:error, id: expected_messages}
+      assert AccountCustomErrors.ensure_type(account, maybe_filter_precond_errors: true) == {:error, id: expected_messages}
 
       compile_money_struct()
 
@@ -447,11 +500,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         """
       ]
 
-      assert Money.new_ok([amount: 0.3], maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
+      assert Money.new([amount: 0.3], maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
 
       money = struct!(Money, amount: 0.3)
 
-      assert Money.ensure_type_ok(money, maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
+      assert Money.ensure_type(money, maybe_filter_precond_errors: true) == {:error, amount: expected_messages}
     end
 
     test "custom error messages are bypassed as in shape given in precond functions" do
@@ -459,7 +512,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       {:ok, []} = DomoMixTask.run([])
 
-      assert {:error, messages} = AccountCustomizedMessages.new_ok(id: "ak47896", money: 0)
+      assert {:error, messages} = AccountCustomizedMessages.new(id: "ak47896", money: 0)
 
       assert messages == [
                money: """
@@ -469,7 +522,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                id: {:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}
              ]
 
-      assert {:error, messages} = AccountCustomizedMessages.new_ok([id: "ak47896", money: 0], maybe_filter_precond_errors: true)
+      assert {:error, messages} = AccountCustomizedMessages.new([id: "ak47896", money: 0], maybe_filter_precond_errors: true)
 
       assert messages == [
                money: [
@@ -481,11 +534,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                id: [{:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}]
              ]
 
-      assert {:error, messages} = AccountCustomizedMessages.new_ok(id: "aky-47896", money: 1)
+      assert {:error, messages} = AccountCustomizedMessages.new(id: "aky-47896", money: 1)
 
       assert messages == [t: {:overdraft, :overflow}]
 
-      assert {:error, messages} = AccountCustomizedMessages.new_ok([id: "aky-47896", money: 1], maybe_filter_precond_errors: true)
+      assert {:error, messages} = AccountCustomizedMessages.new([id: "aky-47896", money: 1], maybe_filter_precond_errors: true)
 
       assert messages == [t: [{:overdraft, :overflow}]]
     end
@@ -515,9 +568,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     for {fun, correct_fun_call, wrong_fun_call} <- [
           {"new!/1", "Foo.new!(title: \"hello\")", "Foo.new!(title: :hello)"},
-          {"new_ok/1", "Foo.new_ok(title: \"hello\")", "Foo.new_ok(title: :hello)"},
+          {"new/1", "Foo.new(title: \"hello\")", "Foo.new(title: :hello)"},
           {"ensure_type!/1", "Foo.ensure_type!(%Foo{title: \"hello\"})", "Foo.ensure_type!(%Foo{title: :hello})"},
-          {"ensure_type_ok/1", "Foo.ensure_type_ok(%Foo{title: \"hello\"})", "Foo.ensure_type_ok(%Foo{title: :hello})"}
+          {"ensure_type/1", "Foo.ensure_type(%Foo{title: \"hello\"})", "Foo.ensure_type(%Foo{title: :hello})"}
         ] do
       test "ensures data integrity of a struct built at the compile time via #{fun} for being a default value" do
         compile_module_with_default_struct(unquote(correct_fun_call))
@@ -892,6 +945,28 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       precond any_number: &is_number(&1)
 
       @type t :: %__MODULE__{id: any_number()}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_account_opaque_precond_struct do
+    path = src_path("/account_opaque_precond.ex")
+
+    File.write!(path, """
+    defmodule AccountOpaquePrecond do
+      use Domo, ensure_struct_defaults: false
+
+      @enforce_keys [:id]
+      defstruct @enforce_keys
+
+      @opaque any_number :: number()
+      precond any_number: &(&1) > 0
+
+      @opaque t :: %__MODULE__{id: any_number()}
+      precond t: &(&1.id > 100)
     end
     """)
 
@@ -1278,6 +1353,25 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       defstruct [:set]
 
       @type t :: %__MODULE__{set: MapSet.t() | nil}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_parametrized_field_struct do
+    path = src_path("/parametrized_field.ex")
+
+    File.write!(path, """
+    defmodule ParametrizedField do
+      use Domo
+
+      defstruct [:set]
+
+      @typep value(t) :: t
+      @typep set :: value(any)
+      @type t :: %__MODULE__{set: set() | nil}
     end
     """)
 

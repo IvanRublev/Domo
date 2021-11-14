@@ -81,10 +81,10 @@ end
 Then `PurchaseOrder` struct can be constructed consistently like that:
 
 ```elixir
-iex> {:ok, po} = PurchaseOrder.new_ok()
+iex> {:ok, po} = PurchaseOrder.new()
 {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: []}}
 
-iex> PurchaseOrder.new_ok(id: 500, approved_limit: 0)
+iex> PurchaseOrder.new(id: 500, approved_limit: 0)
 {:error,
   [
     id: "Invalid value 500 for field :id of %PurchaseOrder{}. Expected the 
@@ -102,13 +102,13 @@ iex> updated_po = %{po | items: [LineItem.new!(amount: 150), LineItem.new!(amoun
   items: [%LineItem{amount: 150}, %LineItem{amount: 100}]
 }
 
-iex> PurchaseOrder.ensure_type_ok(updated_po)
+iex> PurchaseOrder.ensure_type(updated_po)
 {:error, [t: "Sum of line item amounts should be <= to approved limit"]}
 
 iex> updated_po = %{po | items: [LineItem.new!(amount: 150)]}
 %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}
 
-iex> PurchaseOrder.ensure_type_ok(updated_po)
+iex> PurchaseOrder.ensure_type(updated_po)
 {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}}
 ```
 
@@ -221,11 +221,11 @@ and raise `KeyError` otherwise.
 
 </blockquote>
 
-### new_ok/2/1/0
+### new/2/1/0
 
 <blockquote>
 
-[//]: # (new_ok/2)
+[//]: # (new/2)
 
 Creates a struct validating type conformance and preconditions.
 
@@ -256,7 +256,7 @@ are automatically discarded.
     back to the user. F.e. when the field's type is another struct.
     Default is `false`.
 
-[//]: # (new_ok/2)
+[//]: # (new/2)
 
 </blockquote>
 
@@ -278,11 +278,11 @@ or with `Map` module functions.
 
 </blockquote>
 
-### ensure_type_ok/2/1
+### ensure_type/2/1
 
 <blockquote>
 
-[//]: # (ensure_type_ok/2)
+[//]: # (ensure_type/2)
 
 Ensures that struct conforms to its `t()` type and all preconditions
 are fulfilled.
@@ -293,7 +293,7 @@ Otherwise returns the error in the shape of `{:error, message_by_field}`.
 Useful for struct validation when its fields changed with map syntax
 or with `Map` module functions.
 
-[//]: # (ensure_type_ok/2)
+[//]: # (ensure_type/2)
 
 </blockquote>
 
@@ -351,12 +351,8 @@ Because of that types like `Macro.t()` or `Path.t()` are not supported.
 
 Parametrized types are not supported. Library returns `{:type_not_found, :key}` 
 error for `@type dict(key, value) :: [{key, value}]` type definition.
-
-`MapSet.t(value)` just checks that the struct is of `MapSet`. Precondition
-can be used to verify set values.
-
-Domo doesn't check struct fields default value explicitly; instead,
-it fails when one creates a struct with wrong defaults.
+Domo returns error for type referencing parametrized type like 
+`@type field :: container(integer())`.
 
 Generated submodule with TypedStruct's `:module` option is not supported.
 
@@ -417,12 +413,12 @@ Please, find the output of `mix benchmark` command below.
     Benchmarking struct!(__MODULE__, arg)...
 
     Name                               ips        average  deviation         median         99th %
-    struct!(__MODULE__, arg)       14.35 K       69.69 μs    ±62.62%          70 μs         151 μs
-    __MODULE__.new!(arg)           12.04 K       83.05 μs    ±51.32%          84 μs         157 μs
+    struct!(__MODULE__, arg)       14.09 K       70.96 μs    ±63.01%          72 μs         158 μs
+    __MODULE__.new!(arg)           11.77 K       84.93 μs    ±53.72%          87 μs         181 μs
 
     Comparison: 
-    struct!(__MODULE__, arg)       14.35 K
-    __MODULE__.new!(arg)           12.04 K - 1.19x slower +13.36 μs
+    struct!(__MODULE__, arg)       14.09 K
+    __MODULE__.new!(arg)           11.77 K - 1.20x slower +13.97 μs
 
     A struct's field modification
     =========================================
@@ -445,30 +441,43 @@ Please, find the output of `mix benchmark` command below.
     Benchmarking struct!(tweet, user: arg)...
 
     Name                                                        ips        average  deviation         median         99th %
-    struct!(tweet, user: arg)                               15.45 K       64.71 μs    ±68.57%          67 μs         142 μs
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.64 K       73.34 μs    ±60.02%          73 μs         149 μs
+    struct!(tweet, user: arg)                               15.01 K       66.62 μs    ±66.93%          70 μs         148 μs
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.53 K       73.89 μs    ±60.83%          75 μs         159 μs
 
     Comparison: 
-    struct!(tweet, user: arg)                               15.45 K
-    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.64 K - 1.13x slower +8.63 μs
+    struct!(tweet, user: arg)                               15.01 K
+    %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.53 K - 1.11x slower +7.27 μs
 
 ## Contributing
 
 1. Fork the repository and make a feature branch
 
-2. Working on the feature, please add typespecs
-
-3. After working on the feature format code with
+2. After implementing of the feature format the code with:
 
        mix format
 
-   run the tests to ensure that all works as expected with
+   run linter and tests to ensure that all works as expected with:
 
-       mix test
+       mix check || mix check --failed
 
-4. Make a PR to this repository
+3. Make a PR to this repository
 
 ## Changelog
+
+### 1.4.0
+
++ Fix bug to detect runtime correctly launched under test.
+
++ Add support for @opaque types.
+
+Breaking changes:
+
++ Change `new_ok` constructor function name to `new` that is more convenient.
+  Search and replace `new_ok(` -> `new(` in all files of the project 
+  using Domo to migrate.
+
++ Constructor function name generation procedure changes to adding `!`
+  to the value of `:name_of_new_function` option. The defaults are `new` and `new!`.
 
 ### 1.3.4
 * Make error messages to be more informative
@@ -604,6 +613,8 @@ Please, find the output of `mix benchmark` command below.
 
 * [x] Support `precond/1` macro to specify a struct field value's contract 
       with a boolean function.
+
+* [ ] Support types referencing itself for tree structures.
 
 * [ ] Evaluate full recompilation time for 1000 structs using Domo.
 

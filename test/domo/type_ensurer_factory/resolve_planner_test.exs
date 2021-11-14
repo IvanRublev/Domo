@@ -5,6 +5,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
   alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
+  setup_all do
+    MixProjectHelper.disable_raise_in_test_env()
+    :ok
+  end
+
   describe "ResolvePlanner for sake of start should" do
     test "be started once for a plan file" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
