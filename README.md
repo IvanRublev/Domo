@@ -466,7 +466,7 @@ Please, find the output of `mix benchmark` command below.
 
 ### 1.4.1
 
-* Adaptions for Elixir v1.13
+* Improve compatibility with Elixir v1.13
 
 * Format string representations of an anonymous function passed to `precond/1` macro error message
 
