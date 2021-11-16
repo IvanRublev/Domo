@@ -17,11 +17,15 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
+    MixProjectHelper.disable_raise_in_test_env()
+
     # Evaluate modules to prepare plan file for domo mix task
     Code.eval_file("test/support/empty_struct.ex")
     Code.eval_file("test/support/custom_struct.ex")
 
     {:ok, []} = DomoMixTask.run([])
+
+    MixProjectHelper.enable_raise_in_test_env()
   end
 
   setup do

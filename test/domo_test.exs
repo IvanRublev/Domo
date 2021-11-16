@@ -287,9 +287,14 @@ defmodule DomoTest do
       account = Account.new!(id: "adk-47896", name: "John Smith", money: 2578)
       assert %{__struct__: Account} = account
 
-      message_regex = ~r/the following values should have types defined for fields of the Account struct:
- \* Invalid value "ak47896" for field :id of %Account\{\}. Expected the value matching the <<_::_\*8>> type. \
-And a true value from the precondition function "\&\(String.match\?\(\&1, ~r\/\[a-z\]\{3\}-.*d\{5\}\/\)\)" defined for Account.id\(\) type./
+      message_regex =
+        Regex.compile!(
+          Regex.escape("""
+          the following values should have types defined for fields of the Account struct:
+           * Invalid value "ak47896" for field :id of %Account{}. Expected the value matching the <<_::_*8>> type. \
+          And a true value from the precondition function \
+          """) <> ".* defined for Account.id"
+        )
 
       assert_raise ArgumentError, message_regex, fn ->
         _ = Account.new!(id: "ak47896", name: "John Smith", money: 2578)
@@ -432,7 +437,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         money: [
           """
           Expected the value matching the integer() type. And a true value from \
-          the precondition function "&(&1 > 0 and &1 < 10000000)" defined for Account.money() type.\
+          the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
           """
         ],
         id: [
@@ -453,7 +458,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         money: [
           """
           Expected the value matching the integer() type. And a true value from \
-          the precondition function "&(&1 > 0 and &1 < 10000000)" defined for Account.money() type.\
+          the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
           """
         ],
         id: [
@@ -517,7 +522,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert messages == [
                money: """
                Invalid value 0 for field :money of %AccountCustomizedMessages{}. Expected the value matching \
-               the integer() type. And a true value from the precondition function \"&(&1 > 0 and &1 < 10000000)\" defined for AccountCustomizedMessages.money() type.\
+               the integer() type. And a true value from the precondition function \"&(&1 > 0 and &1 < 10_000_000)\" defined for AccountCustomizedMessages.money() type.\
                """,
                id: {:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}
              ]
@@ -528,7 +533,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                money: [
                  """
                  Expected the value matching the integer() type. And a true value \
-                 from the precondition function \"&(&1 > 0 and &1 < 10000000)\" defined for AccountCustomizedMessages.money() type.\
+                 from the precondition function \"&(&1 > 0 and &1 < 10_000_000)\" defined for AccountCustomizedMessages.money() type.\
                  """
                ],
                id: [{:format_mismatch, "xxx-yyyyy where x = a-z, y = 0-9"}]

@@ -464,19 +464,25 @@ Please, find the output of `mix benchmark` command below.
 
 ## Changelog
 
+### 1.4.1
+
+* Adaptions for Elixir v1.13
+
+* Format string representations of an anonymous function passed to `precond/1` macro error message
+
 ### 1.4.0
 
-+ Fix bug to detect runtime correctly launched under test.
+* Fix bug to detect runtime mode correctly when launched under test.
 
-+ Add support for @opaque types.
+* Add support for `@opaque` types.
 
 Breaking changes:
 
-+ Change `new_ok` constructor function name to `new` that is more convenient.
+* Change `new_ok` constructor function name to `new` that is more convenient.
   Search and replace `new_ok(` -> `new(` in all files of the project 
   using Domo to migrate.
 
-+ Constructor function name generation procedure changes to adding `!`
+* Constructor function name generation procedure changes to adding `!`
   to the value of `:name_of_new_function` option. The defaults are `new` and `new!`.
 
 ### 1.3.4

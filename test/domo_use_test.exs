@@ -67,10 +67,7 @@ defmodule DomoUseTest do
         precond value: &Ext.value_valid?/1
 
         @type t :: %__MODULE__{field: float}
-        precond t: fn
-                  %{field: field} when field > 0.5 -> true
-                  _ -> false
-                end
+        precond t: fn %{field: field} -> field > 0.5 end
       end
   end
 
@@ -502,7 +499,7 @@ defmodule DomoUseTest do
       assert_called ResolvePlanner.ensure_started(any(), any())
 
       expected_preconds = [
-        t: "fn\n  %{field: field} when field > 0.5 ->\n    true\n  _ ->\n    false\nend",
+        t: "fn %{field: field} -> field > 0.5 end",
         value: "&Ext.value_valid?/1",
         counter: "&(&1 != 0)"
       ]

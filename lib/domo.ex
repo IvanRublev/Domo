@@ -480,7 +480,7 @@ defmodule Domo do
       Module.put_attribute(module, :after_compile, {Domo, :_plan_precond_checks})
     end
 
-    fun_as_string = Macro.to_string(fun)
+    fun_as_string = Macro.to_string(fun) |> Code.format_string!() |> to_string()
     precond_name_description = {type_name, fun_as_string}
     Module.put_attribute(module, :domo_precond, precond_name_description)
 
