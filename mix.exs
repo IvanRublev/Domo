@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.4.1"
+  @version "1.5.0"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -14,7 +14,6 @@ defmodule Domo.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      mix_project_stub: mix_project_stub(Mix.env()),
 
       # Tools
       test_coverage: [tool: ExCoveralls],
@@ -46,7 +45,7 @@ defmodule Domo.MixProject do
   defp elixirc_paths(:benchmark), do: ["lib", "benchmark"]
   defp elixirc_paths(_), do: ["lib"]
 
-  defp compilers(:benchmark), do: Mix.compilers() ++ [:domo_compiler]
+  defp compilers(:benchmark), do: [:domo_compiler] ++ Mix.compilers()
   defp compilers(_), do: Mix.compilers()
 
   defp deps do
@@ -54,7 +53,7 @@ defmodule Domo.MixProject do
       # Development and test dependencies
       {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:credo, "~> 1.5", only: :dev, runtime: false},
+      {:credo, "~> 1.6", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
       {:placebo, "~> 1.2", only: :test},
@@ -74,12 +73,15 @@ defmodule Domo.MixProject do
   defp aliases do
     [
       benchmark: "run -e 'Benchmark.run()'",
-      profile: "run -e 'Benchmark.Profile.run()'"
+      profile: "run -e 'Benchmark.Profile.run()'",
+      clean: ["clean", &clean_test_structs/1]
     ]
   end
 
-  defp mix_project_stub(:test), do: MixProjectStubCorrect
-  defp mix_project_stub(_), do: nil
+  defp clean_test_structs(_) do
+    path = Application.fetch_env!(:domo, :test_structs_path)
+    Mix.shell().cmd("mix clean --deps", cd: path, env: [{"MIX_ENV", "test"}])
+  end
 
   defp cli_env do
     [

@@ -1,12 +1,19 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
   use Domo.FileCase
+  use Placebo
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
 
   import ResolverTestHelper
 
   setup [:setup_project_planner]
+
+  setup do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    :ok
+  end
 
   defmodule FailingFile do
     def write(_path, _content), do: {:error, :write_error}
@@ -217,7 +224,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
       :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
 
-      expected = [[quote(do: any())]]
+      expected = [[{:any, [], []}]]
 
       assert %{TwoFieldStruct => map_idx_list_multitype(expected)} == read_types(types_file)
     end
@@ -227,9 +234,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     for {type, generator} <- [
           {"function",
            &[
-             quote(context: TwoFieldStruct, do: (unquote(&1) -> any())),
-             quote(context: TwoFieldStruct, do: (unquote(&1), unquote(&1) -> any())),
-             quote(context: TwoFieldStruct, do: (unquote(&1), unquote(&1), unquote(&1) -> any()))
+             quote(context: TwoFieldStruct, do: (unquote(&1) -> unquote({:any, [], []}))),
+             quote(context: TwoFieldStruct, do: (unquote(&1), unquote(&1) -> unquote({:any, [], []}))),
+             quote(context: TwoFieldStruct, do: (unquote(&1), unquote(&1), unquote(&1) -> unquote({:any, [], []})))
            ]},
           {"map with atom keys",
            &[

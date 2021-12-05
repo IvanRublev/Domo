@@ -1,25 +1,50 @@
 defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
   use Domo.FileCase
+  use Placebo
 
+  alias Domo.CodeEvaluation
+  alias Domo.TypeEnsurerFactory
   alias Domo.TypeEnsurerFactory.ModuleInspector
 
-  test "ModuleInspector detects module environment" do
-    assert ModuleInspector.module_context?(%{module: Module, function: nil})
-    refute ModuleInspector.module_context?(%{module: nil, function: nil})
-    refute ModuleInspector.module_context?(%{module: Module, function: :function})
-    refute ModuleInspector.module_context?(%{module: nil, function: :function})
+  @moduletag in_mix_compile?: false
+
+  setup tags do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: tags.in_mix_compile?
+    :ok
   end
 
-  test "ModuleInspector returns type ensurer module name for the given module" do
-    assert ModuleInspector.type_ensurer(Module) == Module.TypeEnsurer
+  describe "ModuleInspector in general should" do
+    test "detect module environment" do
+      assert ModuleInspector.module_context?(%{module: Module, function: nil})
+      refute ModuleInspector.module_context?(%{module: nil, function: nil})
+      refute ModuleInspector.module_context?(%{module: Module, function: :function})
+      refute ModuleInspector.module_context?(%{module: nil, function: :function})
+    end
+
+    test "return type ensurer module name for the given module" do
+      assert ModuleInspector.type_ensurer(Module) == Module.TypeEnsurer
+    end
+
+    test "return whether the given module has type ensurer" do
+      assert ModuleInspector.has_type_ensurer?(CustomStructUsingDomo) == true
+      assert ModuleInspector.has_type_ensurer?(CustomStruct) == false
+    end
+
+    test "return direct types from module" do
+      {:module, _, bytecode, _} =
+        defmodule SomeModule do
+          @type not_loaded(p) :: atom() | p
+          @type id :: integer()
+        end
+
+      assert {:ok, [type: {:id, {:type, _, :integer, []}, []}]} = ModuleInspector.fetch_direct_types(bytecode)
+      assert :error = ModuleInspector.fetch_direct_types(NonexistentModule)
+    end
   end
 
-  test "ModuleInspector returns whether the given module has type ensurer" do
-    assert ModuleInspector.has_type_ensurer?(CustomStructUsingDomo) == true
-    assert ModuleInspector.has_type_ensurer?(CustomStruct) == false
-  end
+  describe "ModuleInspector for types in mix task should" do
+    @describetag in_mix_compile?: true
 
-  describe "ModuleInspector for types should" do
     test "load empty list when there are no types in a module" do
       assert {:ok, []} = ModuleInspector.beam_types(NoTypesModule)
     end
@@ -34,18 +59,8 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     end
 
     test "return no_beam_file error if no beam file can be found for module or no types can be loaded" do
-      assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} ==
-               ModuleInspector.beam_types(
-                 ModuleNested.Module.Submodule,
-                 fn _module -> {:error, :badfile} end
-               )
-
-      assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} ==
-               ModuleInspector.beam_types(
-                 ModuleNested.Module.Submodule,
-                 fn module -> {:module, module} end,
-                 fn _module -> :error end
-               )
+      allow Code.Typespec.fetch_types(any()), meck_options: [:passthrough], return: :error
+      assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} == ModuleInspector.beam_types(ModuleNested.Module.Submodule)
     end
 
     test "return type_not_found error when can't find type in list" do
@@ -122,6 +137,32 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
       assert {:ok, :hello, []} == ModuleInspector.find_type_quoted(:atom_hello, type_list)
       assert {:ok, 1, []} == ModuleInspector.find_type_quoted(:number_one, type_list)
+    end
+  end
+
+  describe "ModuleInspector for types in iex should" do
+    @describetag in_mix_compile?: false
+
+    setup do
+      on_exit(fn -> ResolverTestHelper.stop_in_memory_planner() end)
+    end
+
+    test "load types from kept in memory and from beam file for the module" do
+      assert {:ok, []} = ModuleInspector.beam_types(NoTypesModule)
+
+      defmodule ModuleMemoryTypes do
+        use Domo.InteractiveTypesRegistration
+
+        @type not_loaded(p) :: atom() | p
+        @type id :: integer()
+      end
+
+      assert {:ok, [type: {:id, {:type, _, :integer, []}, []}]} = ModuleInspector.beam_types(ModuleMemoryTypes)
+    end
+
+    test "return error not finding module in memory or in beam" do
+      TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, [])
+      assert {:error, :no_types_registered} == ModuleInspector.beam_types(NonexistentModule)
     end
   end
 end

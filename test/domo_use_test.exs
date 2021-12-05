@@ -3,7 +3,7 @@ defmodule DomoUseTest do
   use Placebo
 
   alias Domo.TypeEnsurerFactory.ResolvePlanner
-  alias Domo.MixProjectHelper
+  alias Domo.CodeEvaluation
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias ModuleTypes
 
@@ -71,8 +71,13 @@ defmodule DomoUseTest do
       end
   end
 
-  setup do
-    MixProjectHelper.disable_raise_in_test_env()
+  @moduletag in_mix_compile?: true
+  @moduletag in_mix_test?: false
+
+  setup tags do
+    ResolverTestHelper.disable_raise_in_test_env()
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: tags.in_mix_compile?
+    allow CodeEvaluation.in_mix_test?(any()), meck_options: [:passthrough], return: tags.in_mix_test?
 
     Code.compiler_options(ignore_module_conflict: true)
 
@@ -80,39 +85,71 @@ defmodule DomoUseTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    project = MixProjectHelper.global_stub()
-    plan_file = DomoMixTask.manifest_path(project, :plan)
+    if tags.in_mix_compile? do
+      DomoMixTask.start_plan_collection()
+    end
 
     on_exit(fn ->
-      ResolvePlanner.stop(plan_file)
+      if tags.in_mix_compile? do
+        DomoMixTask.stop_plan_collection()
+      end
+
+      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     :ok
   end
 
   describe "use Domo should" do
-    test "ensure its compiler location is after elixir in project's compilers list" do
+    test "ensure its compiler location is before elixir in project's compilers list executed with `mix compile`" do
+      allow MixProjectStubCorrect.config(), meck_options: [:passthrough], return: []
+
       assert_raise CompileError, @no_domo_compiler_error_regex, fn ->
         defmodule Module do
-          use Domo, mix_project_stub: MixProjectStubEmpty
+          use Domo
 
           defstruct []
           @type t :: %__MODULE__{}
         end
       end
 
+      allow MixProjectStubCorrect.config(), meck_options: [:passthrough], return: [compilers: [:elixir, :domo_compiler]]
+
       assert_raise CompileError, @no_domo_compiler_error_regex, fn ->
         defmodule Module do
-          use Domo, mix_project_stub: MixProjectStubWrongCompilersOrder
+          use Domo
 
           defstruct []
           @type t :: %__MODULE__{}
         end
       end
+
+      allow MixProjectStubCorrect.config(), meck_options: [:passthrough], return: []
+
+      assert_raise CompileError, @no_domo_compiler_error_regex, fn ->
+        defmodule SharedKernel do
+          import Domo
+
+          @type id :: String.t()
+          precond id: &(&1 != "")
+        end
+      end
+
+      allow MixProjectStubCorrect.config(), meck_options: [:passthrough], return: [compilers: [:domo_compiler, :elixir]]
+
+      module =
+        defmodule SharedKernel do
+          import Domo
+
+          @type id :: String.t()
+          precond id: &(&1 != "")
+        end
+
+      assert {:module, _, _bytecode, _} = module
 
       module =
         defmodule Module do
-          use Domo, mix_project_stub: MixProjectStubCorrect
+          use Domo
 
           defstruct []
           @type t :: %__MODULE__{}
@@ -121,17 +158,28 @@ defmodule DomoUseTest do
       assert {:module, _, _bytecode, _} = module
     end
 
+    @tag in_mix_compile?: false
+    @tag in_mix_test?: true
     test "raise an exception in test environment" do
-      MixProjectHelper.enable_raise_in_test_env()
+      ResolverTestHelper.enable_raise_in_test_env()
 
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
       preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
 
       assert_raise RuntimeError,
                    """
-                   Domo can't build Type Ensurers in the test environment for DomoUseTest.ModuleInTestEnv. \
-                   Please put structs using Domo specific to your test environment \
-                   into compilation directories and put path to them in your mix.exs\
+                   Domo can't build TypeEnsurer module in the test environment for DomoUseTest.ModuleInTestEnv. \
+                   Please, put structs using Domo into compilation directories specific to your test environment \
+                   and put paths to them in your mix.exs:
+
+                   def project do
+                     ...
+                     elixirc_paths: elixirc_paths(Mix.env())
+                     ...
+                   end
+
+                   defp elixirc_paths(:test), do: ["lib", "test/support"]
+                   defp elixirc_paths(_), do: ["lib"]
                    """,
                    fn ->
                      defmodule ModuleInTestEnv do
@@ -299,38 +347,19 @@ defmodule DomoUseTest do
   end
 
   describe "Domo after compile of the module should" do
-    @describetag compile_time?: false
-
-    setup tags do
-      allow ResolvePlanner.ensure_started(any(), any()), return: {:ok, self()}
+    setup do
+      allow ResolvePlanner.ensure_started(any(), any(), any()), return: {:ok, self()}
+      allow ResolvePlanner.ensure_flushed_and_stopped(any()), return: :ok
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_types_resolving(any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_empty_struct(any(), any()), return: :ok
       allow ResolvePlanner.plan_precond_checks(any(), any(), any()), return: :ok
-      allow ResolvePlanner.compile_time?(), return: tags.compile_time?
       allow ResolvePlanner.plan_struct_defaults_ensurance(any(), any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_struct_integrity_ensurance(any(), any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.flush(any()), return: :ok
       allow ResolvePlanner.stop(any()), return: :ok
 
       :ok
-    end
-
-    test "raise absence of Domo compiler calling structure functions with no TypeEnsurer generated yet" do
-      defmodule Module do
-        use Domo
-
-        @enforce_keys []
-        defstruct []
-
-        @type t :: %__MODULE__{}
-      end
-
-      err_regex = @no_domo_compiler_error_regex
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new!, [%{}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :new, [%{}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type!, [%{__struct__: Module}]) end
-      assert_raise RuntimeError, err_regex, fn -> apply(Module, :ensure_type, [%{__struct__: Module}]) end
     end
 
     test "Not generate specs if no_specs option is given" do
@@ -350,12 +379,6 @@ defmodule DomoUseTest do
                bytecode
                |> ModuleTypes.specs()
                |> ModuleTypes.specs_to_string()
-    end
-
-    test "start the ResolvePlanner" do
-      module_empty()
-
-      assert_called ResolvePlanner.ensure_started(any(), any())
     end
 
     test "keep the module environment for further type resolve" do
@@ -412,8 +435,7 @@ defmodule DomoUseTest do
                     )
     end
 
-    @tag compile_time?: true
-    test "plan struct integrity ensurance" do
+    test "plan struct integrity ensurance by calling new!" do
       module_custom_struct_as_default_value()
 
       call_line = 47
@@ -496,8 +518,6 @@ defmodule DomoUseTest do
 
       expected_module = __MODULE__.Module
 
-      assert_called ResolvePlanner.ensure_started(any(), any())
-
       expected_preconds = [
         t: "fn %{field: field} -> field > 0.5 end",
         value: "&Ext.value_valid?/1",
@@ -505,21 +525,6 @@ defmodule DomoUseTest do
       ]
 
       assert_called ResolvePlanner.plan_precond_checks(any(), expected_module, expected_preconds)
-    end
-
-    test "keep running after parent process dies" do
-      path = "/some/path"
-      preconds_path = "/some/preconds_path"
-
-      parent_pid =
-        spawn(fn ->
-          ResolvePlanner.ensure_started(path, preconds_path)
-        end)
-
-      Process.monitor(parent_pid)
-
-      assert_receive {:DOWN, _, :process, ^parent_pid, _}
-      assert :ok == ResolvePlanner.plan_empty_struct(path, __MODULE__.Module)
     end
   end
 end

@@ -5,32 +5,38 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   alias Domo.TypeEnsurerFactory.Atomizer
 
-  @compile_time_key_name __MODULE__.CompileTime
+  @default_plan %{
+    filed_types_to_resolve: %{},
+    environments: %{},
+    structs_to_ensure: [],
+    struct_defaults_to_ensure: [],
+    remote_types_as_any_by_module: %{}
+  }
 
-  def ensure_started(plan_path, preconds_path) do
-    case start(plan_path, preconds_path) do
+  def ensure_started(plan_path, preconds_path, opts) do
+    case start(plan_path, preconds_path, opts) do
       {:ok, _pid} = reply -> reply
       {:error, {:already_started, pid}} -> {:ok, pid}
     end
   end
 
-  def start(plan_path, preconds_path) do
-    default_plan = %{
-      filed_types_to_resolve: %{},
-      environments: %{},
-      structs_to_ensure: [],
-      struct_defaults_to_ensure: [],
-      remote_types_as_any_by_module: %{}
-    }
-
-    plan = maybe_read_plan(plan_path, default_plan)
+  def start(plan_path, preconds_path, opts) do
+    plan = maybe_read_plan(plan_path, @default_plan)
     preconds = maybe_read_preconds(preconds_path, %{})
 
-    GenServer.start(
-      __MODULE__,
-      {plan_path, plan, preconds_path, preconds},
-      name: via(plan_path)
-    )
+    verbose? = Keyword.get(opts, :verbose?, false)
+
+    state = %{
+      plan_path: plan_path,
+      plan: plan,
+      preconds_path: preconds_path,
+      preconds: preconds,
+      in_memory_types: %{},
+      in_memory_dependencies: %{},
+      verbose?: verbose?
+    }
+
+    GenServer.start_link(__MODULE__, state, name: via(plan_path))
   end
 
   defguard is_plan(value)
@@ -40,6 +46,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
                   is_map_key(value, :struct_defaults_to_ensure) and
                   is_map_key(value, :remote_types_as_any_by_module)
 
+  defp maybe_read_plan(:in_memory, default) do
+    default
+  end
+
   defp maybe_read_plan(path, default) do
     with {:ok, plan_binary} <- File.read(path),
          {:ok, content} when is_plan(content) <- binary_to_term(plan_binary) do
@@ -47,6 +57,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     else
       _ -> default
     end
+  end
+
+  defp maybe_read_preconds(:in_memory, default) do
+    default
   end
 
   defp maybe_read_preconds(path, default) do
@@ -66,15 +80,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  def via(plan_path) do
-    Atomizer.to_atom_maybe_shorten_via_sha256(plan_path)
+  def via(:in_memory) do
+    __MODULE__
   end
 
-  def compile_time? do
-    case Application.fetch_env(:domo, @compile_time_key_name) do
-      {:ok, true} -> true
-      _ -> false
-    end
+  def via(plan_path) do
+    Atomizer.to_atom_maybe_shorten_via_sha256(plan_path)
   end
 
   def plan_types_resolving(plan_path, module, field, type_quoted) do
@@ -109,6 +120,14 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     GenServer.call(via(plan_path), {:plan_precond_checks, module, type_name_description})
   end
 
+  def get_plan_state(plan_path) do
+    GenServer.call(via(plan_path), :get_plan_state)
+  end
+
+  def clean_plan(:in_memory = plan_path) do
+    GenServer.call(via(plan_path), :clean_plan)
+  end
+
   def flush(plan_path) do
     GenServer.call(via(plan_path), :flush)
   end
@@ -121,26 +140,41 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  def ensure_flushed_and_stopped(plan_path, verbose? \\ false) do
+  def ensure_flushed_and_stopped(plan_path) do
     try do
-      GenServer.call(via(plan_path), {:flush_and_stop, verbose?})
+      GenServer.call(via(plan_path), :flush_and_stop)
     catch
       :exit, {:noproc, _} -> :ok
     end
   end
 
-  @impl true
-  def init({plan_path, plan, preconds_path, preconds}) do
-    Application.put_env(:domo, @compile_time_key_name, true)
+  def register_types(:in_memory = path, module, type_list) do
+    GenServer.call(via(path), {:register_types, module, type_list})
+  end
 
-    {:ok,
-     %{
-       plan_path: plan_path,
-       plan: plan,
-       preconds_path: preconds_path,
-       preconds: preconds,
-       verbose?: false
-     }}
+  def get_types(:in_memory = path, module) do
+    GenServer.call(via(path), {:get_types, module})
+  end
+
+  def register_many_dependants(:in_memory = path, dependants_on_module) do
+    GenServer.call(via(path), {:register_many_dependants, dependants_on_module})
+  end
+
+  def get_dependants(:in_memory = path, module) do
+    GenServer.call(via(path), {:get_dependants, module})
+  end
+
+  @impl true
+  def init(%{} = map) do
+    if map.verbose? do
+      IO.write("""
+      Domo resolve planner started (#{inspect(self())}).
+      """)
+    end
+
+    Process.flag(:trap_exit, true)
+
+    {:ok, map}
   end
 
   @impl true
@@ -198,13 +232,51 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     {:reply, :ok, updated_state}
   end
 
+  def handle_call(:get_plan_state, _from, state) do
+    {:reply, {:ok, state.plan, state.preconds}, state}
+  end
+
+  def handle_call(:clean_plan, _from, state) do
+    updated_state = put_in(state, [:plan], @default_plan)
+    {:reply, :ok, updated_state}
+  end
+
   def handle_call(:flush, _from, state) do
     {:reply, do_flush(state), state}
   end
 
-  def handle_call({:flush_and_stop, verbose?}, _from, state) do
-    updated_state = %{state | verbose?: verbose?}
-    {:stop, :normal, do_flush(updated_state), updated_state}
+  def handle_call(:flush_and_stop, _from, state) do
+    {:stop, :normal, do_flush(state), state}
+  end
+
+  def handle_call({:register_types, module, type_list}, _from, state) do
+    updated_state = put_in(state, [:in_memory_types, module], type_list)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:get_types, module}, _from, state) do
+    reply =
+      case Map.get(state.in_memory_types, module) do
+        nil -> {:error, :no_types_registered}
+        list -> {:ok, list}
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:register_many_dependants, dependants_on_module}, _from, state) do
+    updated_state = put_in(state, [:in_memory_dependencies], dependants_on_module)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:get_dependants, module}, _from, state) do
+    reply =
+      case Map.get(state.in_memory_dependencies, module) do
+        nil -> {:ok, []}
+        list -> {:ok, list}
+      end
+
+    {:reply, reply, state}
   end
 
   defp map_update_merge(map, key, value_list) do
@@ -227,42 +299,69 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     end
   end
 
-  defp do_flush(state) do
-    plan_binary = :erlang.term_to_binary(state.plan)
-    preconds_binary = :erlang.term_to_binary(state.preconds)
+  defp do_flush(%{plan_path: :in_memory}) do
+    :ok
+  end
 
-    with :ok <- File.write(state.plan_path, plan_binary),
-         :ok <- File.write(state.preconds_path, preconds_binary) do
+  defp do_flush(state) do
+    if anything_to_persist?(state) do
+      plan_binary = :erlang.term_to_binary(state.plan)
+      preconds_binary = :erlang.term_to_binary(state.preconds)
+
+      with :ok <- File.write(state.plan_path, plan_binary),
+           :ok <- File.write(state.preconds_path, preconds_binary) do
+        if state.verbose? do
+          IO.write("""
+          Domo resolve planner (#{inspect(self())}) flushed plan file \
+          to #{state.plan_path} and preconditions to #{state.preconds_path}.
+          """)
+        end
+
+        :ok
+      else
+        {:error, _message} = error ->
+          if state.verbose? do
+            IO.write("""
+            Domo resolve planner (#{inspect(self())}) failed to write \
+            to #{state.plan_path} or to #{state.preconds_path} due to \
+            the following error #{inspect(error)}.
+            """)
+          end
+
+          error
+      end
+    else
       if state.verbose? do
         IO.write("""
-        Domo resolve planner (#{inspect(self())}) flushed plan file \
-        to #{state.plan_path} and preconditions to #{state.preconds_path}.
+        Domo resolve planner (#{inspect(self())}) skipped flush to disk \
+        because had no essential data collected.
         """)
       end
 
       :ok
-    else
-      {:error, _message} = error ->
-        if state.verbose? do
-          IO.write("""
-          Domo resolve planner (#{inspect(self())}) failed to write \
-          to #{state.plan_path} or to #{state.preconds_path} due to \
-          the following error #{inspect(error)}.
-          """)
-        end
-
-        error
     end
+  end
+
+  defp anything_to_persist?(state) do
+    plan = state.plan
+
+    plan.filed_types_to_resolve != %{} or
+      plan.environments != %{} or
+      plan.structs_to_ensure != [] or
+      plan.struct_defaults_to_ensure != [] or
+      state.preconds != %{}
   end
 
   @impl true
   def terminate(reason, state) do
-    Application.put_env(:domo, @compile_time_key_name, false)
-
     if state.verbose? do
-      IO.write("""
-      Domo resolve planner (#{inspect(self())}) stopped with reason #{inspect(reason)}.
-      """)
+      try do
+        IO.write("""
+        Domo resolve planner (#{inspect(self())}) stopped with reason #{inspect(reason)}.
+        """)
+      rescue
+        _ -> :ok
+      end
     end
   end
 end

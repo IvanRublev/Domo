@@ -1,6 +1,8 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
   use Domo.FileCase
+  use Placebo
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
@@ -8,6 +10,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
   import ResolverTestHelper
 
   setup [:setup_project_planner]
+
+  setup do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    :ok
+  end
 
   describe "Resolver should" do
     test "return the error if no preconds file is found", %{
@@ -150,7 +157,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       two_elem_tuple_precond = Precondition.new(module: UserTypes, type_name: :two_elem_tuple, description: "func_body3")
 
       # interesting enough that remote two element tuple is represented in general form for tuples instead of keeping as is.
-      atom_list_tuple = {:{}, [], [quote(do: {atom(), nil}), quote(do: {[any()], nil})]}
+      atom_list_tuple = {:{}, [], [quote(do: {atom(), nil}), quote(do: {[unquote({:any, [], []})], nil})]}
 
       assert %{
                TwoFieldStruct => {
@@ -385,8 +392,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       preconds_file: preconds_file,
       deps_file: deps_file
     } do
-      # plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
-      # plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
+      plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
+      plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
       plan(planner, UserTypes, :field3, quote(context: UserTypes, do: number_one()))
       plan(planner, UserTypes, :field4, quote(context: UserTypes, do: atom_hello()))
       plan(planner, UserTypes, :field5, quote(context: UserTypes, do: a_boolean()))
@@ -457,8 +464,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       assert %{
                UserTypes => {
                  %{
-                   field1: [{quote(do: any()), precond1}],
-                   field2: [{quote(do: any()), precond2}]
+                   field1: [{quote(do: unquote({:any, [], []})), precond1}],
+                   field2: [{quote(do: unquote({:any, [], []})), precond2}]
                  },
                  nil
                }

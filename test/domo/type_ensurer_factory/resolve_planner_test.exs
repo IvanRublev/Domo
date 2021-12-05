@@ -2,26 +2,36 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
   use Domo.FileCase
 
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
-  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   setup_all do
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
+
+    on_exit(fn ->
+      ResolverTestHelper.enable_raise_in_test_env()
+    end)
+
     :ok
   end
 
   describe "ResolvePlanner for sake of start should" do
+    setup do
+      on_exit(fn ->
+        plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+        pid = GenServer.whereis(ResolvePlanner.via(plan_path))
+        if pid, do: GenServer.stop(pid)
+      end)
+
+      :ok
+    end
+
     test "be started once for a plan file" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
       preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
 
-      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
 
-      on_exit(fn ->
-        GenServer.stop(pid)
-      end)
-
-      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path)
+      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path, [])
 
       name = ResolvePlanner.via(plan_path)
       assert pid == GenServer.whereis(name)
@@ -30,35 +40,29 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     test "return same {:ok, pid} answer if already started" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
       preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
-      {:ok, pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
+      {:ok, pid} = ResolvePlanner.ensure_started(plan_path, preconds_path, [])
 
-      on_exit(fn ->
-        GenServer.stop(pid)
-      end)
+      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path, [])
 
-      assert {:error, {:already_started, pid}} == ResolvePlanner.start(plan_path, preconds_path)
-
-      assert {:ok, pid} == ResolvePlanner.ensure_started(plan_path, preconds_path)
+      assert {:ok, pid} == ResolvePlanner.ensure_started(plan_path, preconds_path, [])
     end
-  end
 
-  test "ResolvePlanner should return that its compile when it is running" do
-    # stop global server that may run due to compilation of structs
-    project = MixProjectHelper.global_stub()
-    plan_path = DomoMixTask.manifest_path(project, :plan)
-    preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
-    ResolvePlanner.stop(plan_path)
+    test "shutdown after parent process dies" do
+      path = "/some/path"
+      preconds_path = "/some/preconds_path"
 
-    assert ResolvePlanner.compile_time?() == false
+      parent_pid =
+        spawn(fn ->
+          ResolvePlanner.ensure_started(path, preconds_path, [])
+        end)
 
-    plan_path = "some_path_1"
-    {:ok, _pid} = ResolvePlanner.start(plan_path, preconds_path)
+      Process.monitor(parent_pid)
+      assert_receive {:DOWN, _, :process, ^parent_pid, _}
 
-    assert ResolvePlanner.compile_time?() == true
-
-    ResolvePlanner.stop(plan_path)
-
-    assert ResolvePlanner.compile_time?() == false
+      plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      name = ResolvePlanner.via(plan_path)
+      refute GenServer.whereis(name)
+    end
   end
 
   describe "ResolvePlanner for sake of planning should" do
@@ -69,10 +73,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
 
       if tags.start_server do
-        {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+        {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
 
         on_exit(fn ->
-          GenServer.stop(pid)
+          ResolverTestHelper.stop_gen_server(pid)
         end)
       end
 
@@ -318,10 +322,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       File.write!(plan_path, plan_binary)
 
-      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
 
       on_exit(fn ->
-        if Process.alive?(pid), do: GenServer.stop(pid)
+        ResolverTestHelper.stop_gen_server(pid)
       end)
 
       ResolvePlanner.plan_types_resolving(
@@ -407,10 +411,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
       File.write!(preconds_path, preconds_binary)
 
-      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
 
       on_exit(fn ->
-        if Process.alive?(pid), do: GenServer.stop(pid)
+        ResolverTestHelper.stop_gen_server(pid)
       end)
 
       ResolvePlanner.plan_precond_checks(
@@ -435,6 +439,36 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                ]
              } == preconds
     end
+
+    test "Not flush any file to disk giving a plan without types, preconds, envs, integrity, defaults", %{plan_path: plan_path} do
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+        plan_path,
+        %{Module => [:t]}
+      )
+
+      ResolvePlanner.keep_global_remote_types_to_treat_as_any(
+        plan_path,
+        %{Module => [:title]}
+      )
+
+      ResolvePlanner.keep_remote_types_to_treat_as_any(
+        plan_path,
+        TwoFieldStruct,
+        %{Module => [:name], Module1 => [:type1, :type2]}
+      )
+
+      ResolvePlanner.keep_remote_types_to_treat_as_any(
+        plan_path,
+        IncorrectDefault,
+        %{Module2 => [:name]}
+      )
+
+      refute File.exists?(plan_path)
+
+      assert :ok == ResolvePlanner.flush(plan_path)
+
+      refute File.exists?(plan_path)
+    end
   end
 
   describe "ResolvePlanner for sake of stop should" do
@@ -444,11 +478,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       {:ok, plan_path: plan_path, preconds_path: preconds_path}
     end
 
-    test "flush the plan and stop", %{plan_path: plan_path, preconds_path: preconds_path} do
-      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+    test "flush the plan having essential data and stop", %{plan_path: plan_path, preconds_path: preconds_path} do
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
+      ResolvePlanner.keep_module_environment(plan_path, TwoFieldStruct, __ENV__)
 
       on_exit(fn ->
-        if Process.alive?(pid), do: GenServer.stop(pid)
+        ResolverTestHelper.stop_gen_server(pid)
       end)
 
       assert :ok = ResolvePlanner.ensure_flushed_and_stopped(plan_path)
@@ -462,10 +497,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     end
 
     test "stop without flush", %{plan_path: plan_path, preconds_path: preconds_path} do
-      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path)
+      {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
+      ResolvePlanner.keep_module_environment(plan_path, TwoFieldStruct, __ENV__)
 
       on_exit(fn ->
-        if Process.alive?(pid), do: GenServer.stop(pid)
+        ResolverTestHelper.stop_gen_server(pid)
       end)
 
       assert :ok == ResolvePlanner.stop(plan_path)

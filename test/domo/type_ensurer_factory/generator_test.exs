@@ -2,7 +2,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   use Domo.FileCase, async: false
   use Placebo
 
-  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
@@ -10,7 +9,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   @moduletag types_content: %{}
 
   setup tags do
-    project = MixProjectHelper.global_stub()
+    project = MixProjectStubCorrect
     types_file = DomoMixTask.manifest_path(project, :types)
     code_path = DomoMixTask.generated_code_path(project)
 
@@ -159,12 +158,16 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     end
   end
 
-  test "do_type_ensurer_module/2 generates TypeEnsurer module in the form of quoted code" do
+  test "generate_one/2 generates TypeEnsurer module in the form of quoted code" do
     assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} =
-             Generator.do_type_ensurer_module(
+             Generator.generate_one(
                ParentModule,
                {%{first: [quote(do: integer())]}, nil}
              )
+  end
+
+  test "generate_invalid/1 generates invalid TypeEnsurer module in the form of quoted code" do
+    assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} = Generator.generate_invalid(ParentModule)
   end
 
   test "compile/1 bypasses paths to Elixir.ParallelCompiler" do

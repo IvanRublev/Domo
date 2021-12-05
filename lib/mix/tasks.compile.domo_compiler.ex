@@ -3,16 +3,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   use Mix.Task.Compiler
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.BatchEnsurer
   alias Domo.TypeEnsurerFactory.Cleaner
   alias Domo.TypeEnsurerFactory.DependencyResolver
-  alias Domo.TypeEnsurerFactory.Generator
   alias Domo.TypeEnsurerFactory.Error
+  alias Domo.TypeEnsurerFactory.Generator
   alias Domo.TypeEnsurerFactory.ResolvePlanner
   alias Domo.TypeEnsurerFactory.Resolver
-  alias Domo.MixProjectHelper
   alias Mix.Task.Compiler.Diagnostic
 
   @recursive true
@@ -21,34 +21,45 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   @preconds_manifest "preconds.domo"
   @deps_manifest "modules_deps.domo"
   @generated_code_directory "/domo_generated_code"
-  @standard_lib_modules [
-    Date,
-    Date.Range,
-    DateTime,
-    File.Stat,
-    File.Stream,
-    GenEvent.Stream,
-    IO.Stream,
-    Macro.Env,
-    NaiveDateTime,
-    Range,
-    Regex,
-    Task,
-    Time,
-    URI,
-    Version
-  ]
-  @optional_lib_modules [Decimal]
-  @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
+
+  @mix_project Application.compile_env(:domo, :mix_project, Mix.Project)
 
   @impl true
   def run(args) do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    plan_path = manifest_path(project, :plan)
-    preconds_path = manifest_path(project, :preconds)
-    types_path = manifest_path(project, :types)
-    deps_path = manifest_path(project, :deps)
-    code_path = generated_code_path(project)
+    start_plan_collection(args)
+
+    Mix.Task.Compiler.after_compiler(:elixir, fn status_diagnostic ->
+      __MODULE__.process_plan(status_diagnostic, args)
+    end)
+
+    {:ok, []}
+  end
+
+  def start_plan_collection(args \\ []) do
+    plan_path = manifest_path(@mix_project, :plan)
+    preconds_path = manifest_path(@mix_project, :preconds)
+    verbose? = Enum.member?(args, "--verbose")
+    {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path, verbose?: verbose?)
+
+    CodeEvaluation.put_plan_collection(true)
+  end
+
+  def process_plan({:error, _diagnostics} = error, _args) do
+    stop_plan_collection()
+    error
+  end
+
+  def process_plan(_status_diagnostic, args) do
+    plan_path = manifest_path(@mix_project, :plan)
+    preconds_path = manifest_path(@mix_project, :preconds)
+    types_path = manifest_path(@mix_project, :types)
+    deps_path = manifest_path(@mix_project, :deps)
+    code_path = generated_code_path(@mix_project)
+
+    TypeEnsurerFactory.maybe_collect_types_for_stdlib_structs(plan_path)
+    TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(plan_path)
+
+    stop_plan_collection()
 
     prev_ignore_module_conflict = Map.get(Code.compiler_options(), :ignore_module_conflict, false)
     Code.compiler_options(ignore_module_conflict: true)
@@ -64,6 +75,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     result
   end
 
+  def stop_plan_collection do
+    CodeEvaluation.put_plan_collection(false)
+
+    plan_path = manifest_path(@mix_project, :plan)
+    ResolvePlanner.ensure_flushed_and_stopped(plan_path)
+  end
+
   def generated_code_path(mix_project) do
     Path.join(mix_project.build_path(), @generated_code_directory)
   end
@@ -71,22 +89,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp build_ensurer_modules(paths, verbose?) do
     {plan_path, preconds_path, types_path, deps_path, code_path} = paths
 
-    maybe_collect_types_for_lib_structs(plan_path, preconds_path)
-    stop_and_flush_planner(plan_path, verbose?)
-
-    if File.exists?(plan_path) do
-      maybe_collect_lib_structs_to_treat_as_any(plan_path, preconds_path)
-      stop_and_flush_planner(plan_path, verbose?)
-    end
-
-    with {:ok, deps_warns} <- recompile_depending_structs(deps_path, preconds_path, verbose?),
-         stop_and_flush_planner(plan_path, verbose?),
-         maybe_remove_ensurers_code(plan_path, code_path, verbose?),
-         :ok <- resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?),
-         {:ok, type_ensurer_paths} <- generate_type_ensurers(types_path, code_path),
-         {:ok, {modules, ens_warns}} <- compile_type_ensurers(type_ensurer_paths, verbose?),
-         :ok <- ensure_struct_defaults(plan_path),
-         :ok <- ensure_structs_integrity(plan_path) do
+    with {:ok, deps_warns} <- TypeEnsurerFactory.recompile_depending_structs(plan_path, deps_path, preconds_path, verbose?),
+         remove_ensurers_code_having_plan(plan_path, code_path, verbose?),
+         :ok <- TypeEnsurerFactory.resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?),
+         {:ok, type_ensurer_paths} <- TypeEnsurerFactory.generate_type_ensurers(types_path, code_path, verbose?),
+         {:ok, {modules, ens_warns}} <- TypeEnsurerFactory.compile_type_ensurers(type_ensurer_paths, verbose?),
+         :ok <- TypeEnsurerFactory.ensure_struct_defaults(plan_path, verbose?),
+         :ok <- TypeEnsurerFactory.ensure_structs_integrity(plan_path, verbose?) do
       Cleaner.rm!([plan_path, types_path])
 
       if verbose? do
@@ -107,61 +116,14 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
         case message do
           [%Error{compiler_module: Resolver, message: :no_plan}] -> {:noop, []}
           {ex_errors, _ex_warns} -> {:error, Enum.map(ex_errors, &diagnostic(source, &1))}
+          {_, _, _} = file_line_msg -> {:error, [diagnostic(source, file_line_msg)]}
           errors when is_list(errors) -> {:error, Enum.map(errors, &diagnostic(&1))}
           error -> {:error, [diagnostic(error)]}
         end
     end
   end
 
-  defp maybe_collect_types_for_lib_structs(plan_path, preconds_path) do
-    modules = @standard_lib_modules ++ Enum.reduce(@optional_lib_modules, [], &if(TypeEnsurerFactory.ensure_loaded?(&1), do: [&1 | &2], else: &2))
-
-    collectable_modules = Enum.filter(modules, &(TypeEnsurerFactory.has_type_ensurer?(&1) == false))
-
-    unless Enum.empty?(collectable_modules) do
-      {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
-
-      modules_string = collectable_modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
-
-      IO.write("""
-      Domo makes type ensures for standard lib modules #{modules_string}.
-      """)
-
-      Enum.each(collectable_modules, fn module ->
-        env = simulated_env(module)
-        {_module, bytecode, _path} = :code.get_object_code(module)
-        TypeEnsurerFactory.collect_types_for_domo_compiler(plan_path, env, bytecode)
-      end)
-    end
-  end
-
-  defp maybe_collect_lib_structs_to_treat_as_any(plan_path, preconds_path) do
-    modules = Enum.reduce(@treat_as_any_optional_lib_modules, [], &if(TypeEnsurerFactory.ensure_loaded?(&1), do: [&1 | &2], else: &2))
-
-    unless Enum.empty?(modules) do
-      {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path)
-
-      modules_string = modules |> Enum.map(&Alias.atom_to_string/1) |> Enum.join(", ")
-
-      IO.write("""
-      Domo will treat the following modules t() type as any() #{modules_string}
-      """)
-
-      module_t_types = Enum.map(modules, &{&1, [:t]})
-
-      TypeEnsurerFactory.collect_types_to_treat_as_any(plan_path, nil, module_t_types, nil)
-    end
-  end
-
-  defp simulated_env(module) do
-    %{__ENV__ | module: module}
-  end
-
-  defp stop_and_flush_planner(plan_path, verbose?) do
-    ResolvePlanner.ensure_flushed_and_stopped(plan_path, verbose?)
-  end
-
-  defp maybe_remove_ensurers_code(plan_path, code_path, verbose?) do
+  defp remove_ensurers_code_having_plan(plan_path, code_path, verbose?) do
     if File.exists?(plan_path) do
       Cleaner.rmdir_if_exists!(code_path)
 
@@ -170,51 +132,6 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
         Domo removed directory with generated code if existed #{code_path}.
         """)
       end
-    end
-  end
-
-  defp recompile_depending_structs(deps_path, preconds_path, verbose?) do
-    case DependencyResolver.maybe_recompile_depending_structs(deps_path, preconds_path, verbose?: verbose?) do
-      {:ok, _warnings} = ok -> ok
-      {:noop, []} -> {:ok, []}
-      {:error, ex_errors, ex_warnings} -> {:error, {:deps, {ex_errors, ex_warnings}}}
-      {:error, message} -> {:error, {:deps, message}}
-    end
-  end
-
-  defp resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?) do
-    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, verbose?) do
-      :ok -> :ok
-      {:error, message} -> {:error, {:resolve, message}}
-    end
-  end
-
-  defp generate_type_ensurers(types_path, code_path) do
-    case Generator.generate(types_path, code_path) do
-      {:ok, _type_ensurer_paths} = ok -> ok
-      {:error, message} -> {:error, {:generate, message}}
-    end
-  end
-
-  defp compile_type_ensurers(type_ensurer_paths, verbose?) do
-    case Generator.compile(type_ensurer_paths, verbose?) do
-      {:ok, modules, te_warns} -> {:ok, {modules, te_warns}}
-      {:error, ex_errors, ex_warnings} -> {:error, {:compile, {ex_errors, ex_warnings}}}
-      {:error, message} -> {:error, {:compile, message}}
-    end
-  end
-
-  defp ensure_struct_defaults(plan_path) do
-    case BatchEnsurer.ensure_struct_defaults(plan_path) do
-      :ok -> :ok
-      {:error, message} -> {:error, {:batch_ensurer, {[message], []}}}
-    end
-  end
-
-  defp ensure_structs_integrity(plan_path) do
-    case BatchEnsurer.ensure_struct_integrity(plan_path) do
-      :ok -> :ok
-      {:error, message} -> {:error, {:batch_ensurer, {[message], []}}}
     end
   end
 
@@ -274,11 +191,26 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic(error.file, message)
   end
 
+  defp diagnostic(%Error{compiler_module: DependencyResolver} = error) do
+    message = """
+    #{module_to_string(error.compiler_module)} failed to recompile depending structs \
+    due to #{inspect(error.message)}.\
+    """
+
+    diagnostic(error.file, message)
+  end
+
   defp diagnostic(%Error{compiler_module: Generator} = error) do
     message = """
     #{module_to_string(error.compiler_module)} failed to generate \
     TypeEnsurer module code due to #{inspect(error.message)}.\
     """
+
+    diagnostic(error.file, message)
+  end
+
+  defp diagnostic(%Error{compiler_module: BatchEnsurer} = error) do
+    message = "#{inspect(error.compiler_module)} failed due to #{inspect(error.message)}"
 
     diagnostic(error.file, message)
   end
@@ -306,10 +238,10 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     }
   end
 
-  defp diagnostic(file, message) do
+  defp diagnostic(source, message) do
     %Diagnostic{
       compiler_name: "Domo",
-      file: file,
+      file: source,
       message: message,
       position: 1,
       severity: :error
@@ -318,10 +250,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   defp module_to_string(module) do
     {:__aliases__, [alias: false], module_parts} = Alias.atom_to_alias(module)
-
-    module_parts
-    |> Enum.map(&Atom.to_string(&1))
-    |> Enum.join(".")
+    Enum.map_join(module_parts, ".", &Atom.to_string(&1))
   end
 
   defp maybe_print_errors({:error, diagnostics}) do
@@ -372,12 +301,11 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   @impl true
   def clean do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    plan_path = manifest_path(project, :plan)
-    types_path = manifest_path(project, :types)
-    preconds_path = manifest_path(project, :preconds)
-    deps_path = manifest_path(project, :deps)
-    code_path = generated_code_path(project)
+    plan_path = manifest_path(@mix_project, :plan)
+    types_path = manifest_path(@mix_project, :types)
+    preconds_path = manifest_path(@mix_project, :preconds)
+    deps_path = manifest_path(@mix_project, :deps)
+    code_path = generated_code_path(@mix_project)
 
     File.rm(plan_path)
     File.rm(types_path)

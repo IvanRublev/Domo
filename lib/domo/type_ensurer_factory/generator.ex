@@ -61,7 +61,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   defp write_module_while(output_folder, item, acc, file_module) do
     {parent_module, fields_spec} = item
 
-    module_ast = do_type_ensurer_module(parent_module, fields_spec)
+    module_ast = generate_one(parent_module, fields_spec)
 
     module_path = Path.join(output_folder, module_filename(module_ast))
     module_binary = Macro.to_string(module_ast) |> Code.format_string!()
@@ -87,15 +87,14 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
     module_file =
       type_ensurer_items
-      |> Enum.map(&to_string/1)
-      |> Enum.join()
+      |> Enum.map_join(&to_string/1)
       |> Macro.underscore()
 
     "#{module_file}.ex"
   end
 
   # credo:disable-for-lines:118
-  def do_type_ensurer_module(parent_module, fields_spec_t_precond) do
+  def generate_one(parent_module, fields_spec_t_precond) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
     {fields_spec, t_precond} = fields_spec_t_precond
@@ -136,6 +135,25 @@ defmodule Domo.TypeEnsurerFactory.Generator do
           message = Domo.ErrorBuilder.build_field_error(spec_string)
           {:error, value, [message]}
         end
+      end
+    end
+  end
+
+  def generate_invalid(parent_module) do
+    {:__aliases__, [alias: false], parent_module_parts} = Alias.atom_to_alias(parent_module)
+    type_ensurer_alias = {:__aliases__, [alias: false], parent_module_parts ++ [ModuleInspector.type_ensurer_atom()]}
+
+    alias Domo.Raises
+
+    quote do
+      defmodule unquote(type_ensurer_alias) do
+        @moduledoc false
+
+        def fields(_kind), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
+
+        def t_precondition(_value), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
+
+        def ensure_field_type(_value), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
       end
     end
   end

@@ -5,6 +5,27 @@ defmodule ResolverTestHelper do
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   @project_stub MixProjectStubCorrect
+  @skip_test_env_check_key_name :skip_test_env_check
+
+  def disable_raise_in_test_env, do: Application.put_env(:domo, @skip_test_env_check_key_name, true)
+  def enable_raise_in_test_env, do: Application.delete_env(:domo, @skip_test_env_check_key_name)
+
+  def stop_in_memory_planner do
+    :in_memory
+    |> ResolvePlanner.via()
+    |> GenServer.whereis()
+    |> stop_gen_server()
+  end
+
+  def stop_gen_server(pid) do
+    if pid do
+      try do
+        GenServer.stop(pid)
+      catch
+        :exit, _ -> :ok
+      end
+    end
+  end
 
   def setup_project_planner(_context) do
     plan_file = DomoMixTask.manifest_path(@project_stub, :plan)
@@ -14,7 +35,7 @@ defmodule ResolverTestHelper do
 
     stop_project_palnner()
 
-    {:ok, _pid} = ResolvePlanner.start(plan_file, preconds_file)
+    {:ok, _pid} = ResolvePlanner.start(plan_file, preconds_file, [])
 
     ExUnit.Callbacks.on_exit(fn ->
       stop_project_palnner()
@@ -36,7 +57,7 @@ defmodule ResolverTestHelper do
   end
 
   def write_empty_plan(plan_file, preconds_file) do
-    {:ok, _pid} = ResolvePlanner.start(plan_file, preconds_file)
+    {:ok, _pid} = ResolvePlanner.start(plan_file, preconds_file, [])
     keep_env(plan_file, TwoFieldStruct, __ENV__)
     flush(plan_file)
     stop_project_palnner()

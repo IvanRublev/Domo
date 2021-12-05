@@ -4,7 +4,6 @@ defmodule DomoTest do
 
   import ExUnit.CaptureIO
 
-  alias Domo.MixProjectHelper
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
@@ -26,7 +25,9 @@ defmodule DomoTest do
       Library.Book,
       Library.Book.Author,
       Library.Shelve,
+      MemonlyStruct,
       Money,
+      Order,
       PostFieldAndNestedPrecond,
       PostFieldPrecond,
       PostFieldPrecond.CommentNoTPrecond,
@@ -39,7 +40,7 @@ defmodule DomoTest do
   )
 
   setup do
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
 
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(src_path())
@@ -47,6 +48,7 @@ defmodule DomoTest do
     on_exit(fn ->
       File.rm_rf(tmp_path())
       Code.compiler_options(ignore_module_conflict: false)
+      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     on_exit(fn ->
@@ -62,9 +64,9 @@ defmodule DomoTest do
 
   describe "Domo library" do
     test "adds the constructor and verification functions to a struct" do
+      DomoMixTask.start_plan_collection()
       compile_receiver_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert Kernel.function_exported?(Receiver, :new!, 1)
       assert Kernel.function_exported?(Receiver, :new, 1)
@@ -73,7 +75,8 @@ defmodule DomoTest do
     end
 
     test "generates TypeEnsurer modules for Elixir structs from standard library" do
-      _ = DomoMixTask.run([])
+      DomoMixTask.start_plan_collection()
+      DomoMixTask.process_plan({:ok, []}, [])
 
       for elixir_module <- [
             Macro.Env,
@@ -97,10 +100,10 @@ defmodule DomoTest do
       end
     end
 
-    test "returns error for MapSet due to unsupport of t(value) types" do
+    test "returns error for MapSet due to unsupported of t(value) types" do
+      DomoMixTask.start_plan_collection()
       compile_mapset_holder_struct()
-
-      assert {:error, [%{message: message}]} = DomoMixTask.run([])
+      assert {:error, [%{message: message}]} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert message =~ """
              Domo.TypeEnsurerFactory.Resolver failed to resolve fields type \
@@ -117,9 +120,9 @@ defmodule DomoTest do
     end
 
     test "returns error for owned module with local t(value) type" do
+      DomoMixTask.start_plan_collection()
       compile_parametrized_field_struct()
-
-      assert {:error, [%{message: message}]} = DomoMixTask.run([])
+      assert {:error, [%{message: message}]} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert message =~ """
              Domo.TypeEnsurerFactory.Resolver failed to resolve fields type \
@@ -136,18 +139,18 @@ defmodule DomoTest do
     end
 
     test "tells whether struct module has TypeEnsurer" do
+      DomoMixTask.start_plan_collection()
       compile_receiver_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert Domo.has_type_ensurer?(Receiver) == true
       assert Domo.has_type_ensurer?(CustomStruct) == false
     end
 
     test "ensures data integrity of a struct by matching to it's type" do
+      DomoMixTask.start_plan_collection()
       compile_receiver_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       bob = Receiver.new!(title: :mr, name: "Bob", age: 27)
       assert %{__struct__: Receiver, title: :mr, name: "Bob", age: 27} = bob
@@ -170,9 +173,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of a struct that has referenced user types defined after t type" do
+      DomoMixTask.start_plan_collection()
       compile_receiver_user_type_after_t_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       bob = ReceiverUserTypeAfterT.new!(title: :mr, name: "Bob", age: 27)
       assert %{__struct__: ReceiverUserTypeAfterT, title: :mr, name: "Bob", age: 27} = bob
@@ -195,9 +198,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of a struct with a sum type field" do
+      DomoMixTask.start_plan_collection()
       compile_game_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError, ~r/Invalid value nil for field :status/s, fn ->
         _ = Game.new!(status: nil)
@@ -222,9 +225,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of a struct with a field referencing erlang type" do
+      DomoMixTask.start_plan_collection()
       compile_web_service_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError, ~r/Invalid value nil for field :port/s, fn ->
         _ = WebService.new!(port: nil)
@@ -235,9 +238,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity of nested structs" do
+      DomoMixTask.start_plan_collection()
       compile_customer_structs()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       alias Customer.{
         Address,
@@ -266,9 +269,9 @@ defmodule DomoTest do
     end
 
     test "ensures Ecto schema" do
+      DomoMixTask.start_plan_collection()
       compile_ecto_passenger_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert %{__struct__: EctoPassenger, __meta__: _} = EctoPassenger.new!(first_name: "John", last_name: "Smith")
 
@@ -280,9 +283,9 @@ defmodule DomoTest do
     end
 
     test "ensures data integrity with struct field type's value preconditions" do
+      DomoMixTask.start_plan_collection()
       compile_account_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       account = Account.new!(id: "adk-47896", name: "John Smith", money: 2578)
       assert %{__struct__: Account} = account
@@ -318,9 +321,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "ensures data integrity with either field precondition or t() type precondition for field's struct value" do
+      DomoMixTask.start_plan_collection()
       compile_post_comment_structs()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert %{__struct__: PostFieldPrecond} = PostFieldPrecond.new!(comment: struct!(PostFieldPrecond.CommentNoTPrecond, id: 1))
 
@@ -334,13 +337,14 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         _ = PostNestedPecond.new!(comment: struct!(PostNestedPecond.CommentTPrecond, id: 1))
       end
 
+      DomoMixTask.start_plan_collection()
       [path] = compile_post_field_and_nested_precond_struct()
 
       me = self()
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -361,9 +365,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "ensures data integrity with struct field type referencing any and having precondition" do
+      DomoMixTask.start_plan_collection()
       compile_account_any_precond_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       account = AccountAnyPrecond.new!(id: 1)
       assert %{__struct__: AccountAnyPrecond} = account
@@ -374,9 +378,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "ensures data integrity with @opaque struct field type and having precondition" do
+      DomoMixTask.start_plan_collection()
       compile_account_opaque_precond_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       account = AccountOpaquePrecond.new!(id: 101)
       assert %{__struct__: AccountOpaquePrecond} = account
@@ -393,9 +397,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "return custom error from preconditions" do
+      DomoMixTask.start_plan_collection()
       compile_account_custom_errors_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       account = AccountCustomErrors.new!(id: "adk-47896", name: "John Smith", money: 2)
       assert %{__struct__: AccountCustomErrors} = account
@@ -424,26 +428,26 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "returns list of precondition errors or single string message for each field given maybe_filter_precond_errors: true option for *_ok functions" do
+      DomoMixTask.start_plan_collection()
       compile_account_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert {:error, messages} = Account.new([id: "ak47896", name: :john_smith, money: 0], maybe_filter_precond_errors: true)
 
-      [
-        name: [
-          "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
-        ],
-        money: [
-          """
-          Expected the value matching the integer() type. And a true value from \
-          the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
-          """
-        ],
-        id: [
-          id_message
-        ]
-      ] = messages
+      assert [
+               name: [
+                 "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
+               ],
+               money: [
+                 """
+                 Expected the value matching the integer() type. And a true value from \
+                 the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
+                 """
+               ],
+               id: [
+                 id_message
+               ]
+             ] = messages
 
       assert id_message =~ "String.match?"
 
@@ -451,20 +455,20 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert {:error, messages} = Account.ensure_type(account, maybe_filter_precond_errors: true)
 
-      [
-        name: [
-          "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
-        ],
-        money: [
-          """
-          Expected the value matching the integer() type. And a true value from \
-          the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
-          """
-        ],
-        id: [
-          id_message
-        ]
-      ] = messages
+      assert [
+               name: [
+                 "Invalid value :john_smith for field :name of %Account{}. Expected the value matching the <<_::_*8>> type."
+               ],
+               money: [
+                 """
+                 Expected the value matching the integer() type. And a true value from \
+                 the precondition function "&(&1 > 0 and &1 < 10_000_000)" defined for Account.money() type.\
+                 """
+               ],
+               id: [
+                 id_message
+               ]
+             ] = messages
 
       assert id_message =~ "String.match?"
 
@@ -481,9 +485,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert Account.ensure_type(account, maybe_filter_precond_errors: true) == {:error, t: expected_messages}
 
+      DomoMixTask.start_plan_collection()
       compile_account_custom_errors_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       expected_messages = ["Id should match format xxx-12345"]
 
@@ -494,9 +498,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert AccountCustomErrors.ensure_type(account, maybe_filter_precond_errors: true) == {:error, id: expected_messages}
 
+      DomoMixTask.start_plan_collection()
       compile_money_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       expected_messages = [
         """
@@ -513,9 +517,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "custom error messages are bypassed as in shape given in precond functions" do
+      DomoMixTask.start_plan_collection()
       compile_account_customized_messages_struct()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert {:error, messages} = AccountCustomizedMessages.new(id: "ak47896", money: 0)
 
@@ -548,20 +552,21 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert messages == [t: [{:overdraft, :overflow}]]
     end
 
-    test "recompiles type ensurer of depending struct when the type of dependent struct Not using Domo changes" do
-      compile_airplane_and_seat_structs()
-
-      {:ok, []} = DomoMixTask.run([])
+    test "recompiles type ensurer of depending struct when the type of the struct it depends on changes" do
+      DomoMixTask.start_plan_collection([])
+      [_airplane_path, seat_path] = compile_airplane_and_seat_structs()
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       seat = struct!(Airplane.Seat, id: "A2")
       assert _ = Airplane.new!(seats: [seat])
 
+      File.rm!(seat_path)
       :code.purge(Airplane.Seat)
       :code.delete(Airplane.Seat)
 
+      DomoMixTask.start_plan_collection([])
       compile_seat_with_atom_id()
-
-      {:ok, []} = DomoMixTask.run([])
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    ~r/Invalid value.*for field :seats.*Value of field :id is invalid/s,
@@ -578,9 +583,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
           {"ensure_type/1", "Foo.ensure_type(%Foo{title: \"hello\"})", "Foo.ensure_type(%Foo{title: :hello})"}
         ] do
       test "ensures data integrity of a struct built at the compile time via #{fun} for being a default value" do
+        DomoMixTask.start_plan_collection()
         compile_module_with_default_struct(unquote(correct_fun_call))
-
-        assert {:ok, []} = DomoMixTask.run([])
+        assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
         refute is_nil(struct!(FooHolder))
 
@@ -588,13 +593,14 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         :code.delete(Elixir.Foo.TypeEnsurer)
         File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Foo.TypeEnsurer.beam"))
 
+        DomoMixTask.start_plan_collection()
         [path] = compile_module_with_default_struct(unquote(wrong_fun_call))
 
         me = self()
 
         msg =
           capture_io(fn ->
-            assert {:error, [diagnostic]} = DomoMixTask.run([])
+            assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
             send(me, diagnostic)
           end)
 
@@ -608,30 +614,31 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
         assert msg =~ "== Compilation error in file #{path}:9 ==\n** Failed to build Foo struct."
 
-        plan_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :plan)
+        plan_file = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
         refute File.exists?(plan_file)
 
-        types_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :types)
+        types_file = DomoMixTask.manifest_path(MixProjectStubCorrect, :types)
         refute File.exists?(types_file)
       end
     end
 
     test "ensures that struct default values conform to t() type" do
+      DomoMixTask.start_plan_collection()
       compile_struct_with_defaults("id: 1, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
-
-      assert {:ok, []} = DomoMixTask.run([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       :code.purge(Elixir.Bar.TypeEnsurer)
       :code.delete(Elixir.Bar.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
 
+      DomoMixTask.start_plan_collection()
       [path] = compile_struct_with_defaults(":id, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
 
       me = self()
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -650,6 +657,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       :code.delete(Elixir.Bar.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
 
+      DomoMixTask.start_plan_collection()
+
       [path] =
         compile_struct_with_defaults(":id, field: :hello",
           enforce_keys: ":id",
@@ -660,7 +669,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -679,6 +688,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       :code.delete(Elixir.Bar.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
 
+      DomoMixTask.start_plan_collection()
+
       [path] =
         compile_struct_with_defaults("id: 1, field: :hello",
           enforce_keys: nil,
@@ -689,7 +700,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -708,6 +719,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       :code.delete(Elixir.Bar.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
 
+      DomoMixTask.start_plan_collection()
+
       [path] =
         compile_struct_with_defaults("id: 1, field: :hello",
           enforce_keys: nil,
@@ -719,7 +732,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -735,31 +748,31 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert msg =~ "And a true value from the precondition function"
       assert msg =~ "&(&1.id > 10)"
 
-      plan_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :plan)
+      plan_file = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
       refute File.exists?(plan_file)
 
-      types_file = DomoMixTask.manifest_path(MixProjectHelper.global_stub(), :types)
+      types_file = DomoMixTask.manifest_path(MixProjectStubCorrect, :types)
       refute File.exists?(types_file)
     end
 
     test "skips enforced keys during the struct defaults values ensurance" do
+      DomoMixTask.start_plan_collection()
       compile_struct_with_defaults(":id, field: :hello", enforce_keys: ":id", t: "id: integer(), field: atom()")
-
-      assert {:ok, []} = DomoMixTask.run([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
     test "skip keys that are not in t() type during defaults ensurance" do
+      DomoMixTask.start_plan_collection()
       compile_struct_with_defaults(":id, :leaf, field: :hello", enforce_keys: nil, t: "field: atom()")
-
-      assert {:ok, []} = DomoMixTask.run([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
     test "skips ensurance of struct default values given ensure_struct_defaults: false option" do
       Application.put_env(:domo, :ensure_struct_defaults, false)
 
+      DomoMixTask.start_plan_collection()
       compile_struct_with_defaults(":id, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
-
-      assert {:ok, []} = DomoMixTask.run([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
       :code.purge(Elixir.Bar.TypeEnsurer)
       :code.delete(Elixir.Bar.TypeEnsurer)
@@ -767,13 +780,15 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       Application.put_env(:domo, :ensure_struct_defaults, true)
 
+      DomoMixTask.start_plan_collection()
+
       compile_struct_with_defaults(":id, field: :hello",
         use_opts: "ensure_struct_defaults: false",
         enforce_keys: nil,
         t: "id: integer(), field: atom()"
       )
 
-      assert {:ok, []} = DomoMixTask.run([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     after
       Application.delete_env(:domo, :ensure_struct_defaults)
     end
@@ -783,23 +798,24 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       :code.delete(Elixir.Game.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Game.TypeEnsurer.beam"))
 
+      DomoMixTask.start_plan_collection()
       compile_game_struct()
       arena_paths = compile_arena_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert %{__struct__: Arena, game: %{__struct__: Game, status: :not_started}} = struct!(Arena)
 
       :code.purge(Game)
       :code.delete(Game)
 
+      DomoMixTask.start_plan_collection()
       compile_game_with_string_status()
 
       me = self()
 
       msg =
         capture_io(fn ->
-          assert {:error, [diagnostic]} = DomoMixTask.run([])
+          assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
           send(me, diagnostic)
         end)
 
@@ -821,9 +837,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
   describe "Domo library error messages should" do
     test "have no underlying errors printed giving | type with primitive type arguments" do
+      DomoMixTask.start_plan_collection()
       compile_receiver_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    """
@@ -837,9 +853,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "have only underlying error for matching argument type with failed precondition giving | with user type arguments" do
+      DomoMixTask.start_plan_collection()
       compile_money_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    """
@@ -856,9 +872,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "returns error for | sum type with details about part that matches most deeply" do
+      DomoMixTask.start_plan_collection()
       compile_article_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    """
@@ -884,9 +900,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     test "returns error for most deepest error for nested structs" do
+      DomoMixTask.start_plan_collection()
       compile_library_struct()
-
-      _ = DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    """
@@ -1496,7 +1512,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   defp compile_seat_with_atom_id do
-    seat_path = src_path("/seat.ex")
+    seat_path = src_path("/seat_atom_id.ex")
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do

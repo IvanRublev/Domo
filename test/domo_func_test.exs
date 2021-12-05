@@ -4,11 +4,12 @@ defmodule DomoFuncTest do
 
   import ExUnit.CaptureIO
 
-  alias Domo.MixProjectHelper
+  alias Domo.CodeEvaluation
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
 
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(tmp_path())
@@ -17,12 +18,19 @@ defmodule DomoFuncTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/support/recipient.ex")
-    Code.eval_file("test/support/recipient_with_precond.ex")
-    Code.eval_file("test/support/empty_struct.ex")
+    DomoMixTask.start_plan_collection()
 
-    {:ok, []} = DomoMixTask.run([])
+    # Evaluate modules to prepare plan file for domo mix task
+    Code.eval_file("test/struct_modules/lib/recipient.ex")
+    Code.eval_file("test/struct_modules/lib/recipient_with_precond.ex")
+    Code.eval_file("test/struct_modules/lib/empty_struct.ex")
+
+    {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+
+    Placebo.unstub()
+    ResolverTestHelper.enable_raise_in_test_env()
+
+    :ok
   end
 
   setup do
@@ -125,22 +133,24 @@ defmodule DomoFuncTest do
     end
 
     test "ensures remote types as any type listing them in `remote_types_as_any` option or overridden with use Domo" do
+      DomoMixTask.start_plan_collection()
+
       compile_recipient_foreign_struct(
         "RecipientForeignStructsAsAnyInUsing",
         "remote_types_as_any: [{EmptyStruct, :t}, {CustomStructUsingDomo, [:t]}]",
         "alias The.Nested.EmptyStruct"
       )
 
-      DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert _ =
                apply(RecipientForeignStructsAsAnyInUsing, :new!, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
 
       Application.put_env(:domo, :remote_types_as_any, [{The.Nested.EmptyStruct, :t}, CustomStructUsingDomo: [:t]])
 
+      DomoMixTask.start_plan_collection()
       compile_recipient_foreign_struct("RecipientForeignStructs")
-
-      DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert _ = apply(RecipientForeignStructs, :new!, [[placeholder: :not_empty_struct, custom_struct: :not_custom_struct, title: "hello"]])
 
@@ -150,12 +160,14 @@ defmodule DomoFuncTest do
 
       Application.put_env(:domo, :remote_types_as_any, CustomStructUsingDomo: :t)
 
+      DomoMixTask.start_plan_collection()
+
       compile_recipient_foreign_struct(
         "RecipientForeignStructsRemoteTypesAsAnyOverriden",
         "remote_types_as_any: [Recipient: [:name]]"
       )
 
-      DomoMixTask.run([])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert _ =
                apply(RecipientForeignStructsRemoteTypesAsAnyOverriden, :new!, [
@@ -180,17 +192,26 @@ defmodule DomoFuncTest do
     test "raises error for wrong formatted `remote_types_as_any` option" do
       Application.put_env(:domo, :remote_types_as_any, [The.Nested.EmptyStruct, CustomStructUsingDomo: [:t]])
 
-      assert {:error, [%{message: message}]} = compile_recipient_foreign_struct("RecipientForeignStructs")
+      DomoMixTask.start_plan_collection()
+      return_value = compile_recipient_foreign_struct("RecipientForeignStructs")
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, [%{message: message}]} = return_value
       assert message =~ ":remote_types_as_any option value must be of the following shape"
 
       Application.delete_env(:domo, :remote_types_as_any)
 
-      assert {:error, [%{message: message}]} =
-               compile_recipient_foreign_struct(
-                 "RecipientForeignStructsRemoteTypesAsAnyOverriden",
-                 "remote_types_as_any: [{Recipient, :name}, CustomStructUsingDomo: [1]]"
-               )
+      DomoMixTask.start_plan_collection()
 
+      return_value =
+        compile_recipient_foreign_struct(
+          "RecipientForeignStructsRemoteTypesAsAnyOverriden",
+          "remote_types_as_any: [{Recipient, :name}, CustomStructUsingDomo: [1]]"
+        )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, [%{message: message}]} = return_value
       assert message =~ ":remote_types_as_any option value must be of the following shape"
     after
       Application.delete_env(:domo, :remote_types_as_any)
@@ -412,9 +433,9 @@ defmodule DomoFuncTest do
   end
 
   test "typed_fields/1 returns struct fields having specific (not any) type sorted alphabetically with/without meta fields" do
+    DomoMixTask.start_plan_collection()
     compile_meta_fields_struct("MetaDefaults")
-
-    DomoMixTask.run([])
+    DomoMixTask.process_plan({:ok, []}, [])
 
     assert apply(MetaDefaults, :typed_fields, []) == [:custom_struct, :title]
     assert apply(MetaDefaults, :typed_fields, [[include_any_typed: true]]) == [:custom_struct, :placeholder, :title]
@@ -432,9 +453,9 @@ defmodule DomoFuncTest do
   end
 
   test "required_fields/1 returns struct fields having not nil and not any type sorted alphabetically with/without meta fields" do
+    DomoMixTask.start_plan_collection()
     compile_meta_fields_struct("MetaDefaults")
-
-    DomoMixTask.run([])
+    DomoMixTask.process_plan({:ok, []}, [])
 
     assert apply(MetaDefaults, :required_fields, []) == [:custom_struct, :title]
     assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]

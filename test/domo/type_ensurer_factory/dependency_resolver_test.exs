@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   use Domo.FileCase
   use Placebo
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.DependencyResolver.ElixirTask
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.DependencyResolver
@@ -24,6 +25,8 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   @moduletag touch_paths: []
 
   setup tags do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+
     File.mkdir_p!(@source_dir)
     File.write!(@deps_path, :erlang.term_to_binary(tags.deps))
     File.write!(@preconds_path, :erlang.term_to_binary(tags.preconds))

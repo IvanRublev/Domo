@@ -1,12 +1,12 @@
 defmodule Domo do
-  @moduledoc Domo.Doc.readme_doc("[//]: # (Documentation)")
+  @moduledoc Domo.Doc.readme_doc("<!-- Documentation -->")
 
-  @new_raise_doc Domo.Doc.readme_doc("[//]: # (new!/1)")
-  @new_ok_doc Domo.Doc.readme_doc("[//]: # (new/2)")
-  @ensure_type_raise_doc Domo.Doc.readme_doc("[//]: # (ensure_type!/1)")
-  @ensure_type_ok_doc Domo.Doc.readme_doc("[//]: # (ensure_type/2)")
-  @typed_fields_doc Domo.Doc.readme_doc("[//]: # (typed_fields/1)")
-  @required_fields_doc Domo.Doc.readme_doc("[//]: # (required_fields/1)")
+  @new_raise_doc Domo.Doc.readme_doc("<!-- new!/1 -->")
+  @new_ok_doc Domo.Doc.readme_doc("<!-- new/2 -->")
+  @ensure_type_raise_doc Domo.Doc.readme_doc("<!-- ensure_type!/1 -->")
+  @ensure_type_ok_doc Domo.Doc.readme_doc("<!-- ensure_type/2 -->")
+  @typed_fields_doc Domo.Doc.readme_doc("<!-- typed_fields/1 -->")
+  @required_fields_doc Domo.Doc.readme_doc("<!-- required_fields/1 -->")
 
   @callback new!() :: struct()
   @doc @new_raise_doc
@@ -27,10 +27,13 @@ defmodule Domo do
   @doc @required_fields_doc
   @callback required_fields(opts :: keyword()) :: [atom()]
 
+  @mix_project Application.compile_env(:domo, :mix_project, Mix.Project)
+
   alias Domo.ErrorBuilder
-  alias Domo.MixProjectHelper
+  alias Domo.CodeEvaluation
   alias Domo.Raises
   alias Domo.TypeEnsurerFactory
+  alias Domo.TypeEnsurerFactory.Error
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   @doc """
@@ -94,23 +97,41 @@ defmodule Domo do
 
   The option value given to the macro overrides one set globally in the
   configuration with `config :domo, option: value`.
+
+  Run the `Application.put_env(:domo, :verbose_in_iex, true)` to enable verbose
+  messages from domo in Interactive Elixir console.
   """
   # credo:disable-for-lines:332
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
-    Raises.raise_absence_of_domo_compiler!(Mix.Project.config(), opts, __CALLER__)
 
-    do_test_env_ckeck =
-      case Application.fetch_env(:domo, :skip_test_env_check) do
-        {:ok, true} -> false
-        _ -> true
+    in_mix_compile? = CodeEvaluation.in_mix_compile?(__CALLER__)
+    config = @mix_project.config()
+
+    if in_mix_compile? do
+      Raises.maybe_raise_absence_of_domo_compiler!(config, __CALLER__)
+    else
+      do_test_env_ckeck =
+        case Application.fetch_env(:domo, :skip_test_env_check) do
+          {:ok, true} -> false
+          _ -> true
+        end
+
+      if do_test_env_ckeck and CodeEvaluation.in_mix_test?(__CALLER__) do
+        Raises.raise_cant_build_in_test_environment(__CALLER__.module)
       end
 
-    if do_test_env_ckeck and not is_nil(GenServer.whereis(ExUnit.Server)) do
-      Raises.raise_cant_build_in_test_environment(__CALLER__.module)
+      # We consider to be in interactive mode
+      opts = [verbose?: Application.get_env(:domo, :verbose_in_iex, false)]
+      TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, opts)
     end
 
-    start_resolve_planner()
+    maybe_build_type_ensurer_after_compile =
+      unless in_mix_compile? do
+        quote do
+          @after_compile {Domo, :_build_in_memory_type_ensurer}
+        end
+      end
 
     global_anys =
       if global_anys = Application.get_env(:domo, :remote_types_as_any) do
@@ -124,8 +145,14 @@ defmodule Domo do
         Enum.map(local_anys, fn {module, types} -> {Macro.expand_once(module, __CALLER__), types} end)
       end
 
+    plan_path =
+      if in_mix_compile? do
+        DomoMixTask.manifest_path(@mix_project, :plan)
+      else
+        :in_memory
+      end
+
     unless is_nil(global_anys) and is_nil(local_anys) do
-      plan_path = get_plan_path()
       TypeEnsurerFactory.collect_types_to_treat_as_any(plan_path, __CALLER__.module, global_anys, local_anys)
     end
 
@@ -140,14 +167,18 @@ defmodule Domo do
       |> Enum.join()
       |> String.to_atom()
 
-    type_ensurer = TypeEnsurerFactory.type_ensurer(__CALLER__.module)
-
     long_module = TypeEnsurerFactory.module_name_string(__CALLER__.module)
     short_module = long_module |> String.split(".") |> List.last()
+
+    type_ensurer = TypeEnsurerFactory.type_ensurer(__CALLER__.module)
 
     quote do
       Module.register_attribute(__MODULE__, :domo_options, accumulate: false)
       Module.put_attribute(__MODULE__, :domo_options, unquote(opts))
+      Module.register_attribute(__MODULE__, :domo_plan_path, accumulate: false)
+      Module.put_attribute(__MODULE__, :domo_plan_path, unquote(plan_path))
+
+      @compile {:no_warn_undefined, unquote(type_ensurer)}
 
       import Domo, only: [precond: 1]
 
@@ -162,7 +193,7 @@ defmodule Domo do
       """
       def unquote(new_raise_fun_name)(enumerable \\ []) do
         skip_ensurance? =
-          if TypeEnsurerFactory.compile_time?() do
+          if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, enumerable)
             true
           else
@@ -172,8 +203,6 @@ defmodule Domo do
         struct = struct!(__MODULE__, enumerable)
 
         unless skip_ensurance? do
-          Raises.maybe_raise_add_domo_compiler(__MODULE__)
-
           {errors, t_precondition_error} = Domo._do_validate_fields(unquote(type_ensurer), struct, :pretty_error)
 
           unless Enum.empty?(errors) do
@@ -199,7 +228,7 @@ defmodule Domo do
       """
       def unquote(new_ok_fun_name)(enumerable \\ [], opts \\ []) do
         skip_ensurance? =
-          if TypeEnsurerFactory.compile_time?() do
+          if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, enumerable)
             true
           else
@@ -211,8 +240,6 @@ defmodule Domo do
         if skip_ensurance? do
           {:ok, struct}
         else
-          Raises.maybe_raise_add_domo_compiler(__MODULE__)
-
           {errors, t_precondition_error} = Domo._do_validate_fields(unquote(type_ensurer), struct, :pretty_error_by_key, opts)
 
           cond do
@@ -247,7 +274,7 @@ defmodule Domo do
         end
 
         skip_ensurance? =
-          if TypeEnsurerFactory.compile_time?() do
+          if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, Map.from_struct(struct))
             true
           else
@@ -255,8 +282,6 @@ defmodule Domo do
           end
 
         unless skip_ensurance? do
-          Raises.maybe_raise_add_domo_compiler(__MODULE__)
-
           {errors, t_precondition_error} = Domo._do_validate_fields(unquote(type_ensurer), struct, :pretty_error)
 
           unless Enum.empty?(errors) do
@@ -299,7 +324,7 @@ defmodule Domo do
         end
 
         skip_ensurance? =
-          if TypeEnsurerFactory.compile_time?() do
+          if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, Map.from_struct(struct))
             true
           else
@@ -309,7 +334,6 @@ defmodule Domo do
         if skip_ensurance? do
           {:ok, struct}
         else
-          Raises.maybe_raise_add_domo_compiler(__MODULE__)
           Domo._validate_fields_ok(unquote(type_ensurer), struct, opts)
         end
       end
@@ -324,13 +348,13 @@ defmodule Domo do
             true -> :typed_no_meta_no_any
           end
 
-        apply(unquote(type_ensurer), :fields, [field_kind])
+        unquote(type_ensurer).fields(field_kind)
       end
 
       @doc unquote(@required_fields_doc)
       def required_fields(opts \\ []) do
         field_kind = if opts[:include_meta], do: :required_with_meta, else: :required_no_meta
-        apply(unquote(type_ensurer), :fields, [field_kind])
+        unquote(type_ensurer).fields(field_kind)
       end
 
       @before_compile {Raises, :raise_not_in_a_struct_module!}
@@ -338,43 +362,55 @@ defmodule Domo do
       @before_compile {Domo, :_plan_struct_defaults_ensurance}
 
       @after_compile {Domo, :_collect_types_for_domo_compiler}
+      unquote(maybe_build_type_ensurer_after_compile)
     end
-  end
-
-  defp start_resolve_planner do
-    plan_path = get_plan_path()
-    preconds_path = get_precond_path()
-
-    {:ok, _pid} = TypeEnsurerFactory.start_resolve_planner(plan_path, preconds_path)
-
-    plan_path
-  end
-
-  defp get_plan_path do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    DomoMixTask.manifest_path(project, :plan)
-  end
-
-  defp get_precond_path do
-    project = MixProjectHelper.global_stub() || Mix.Project
-    DomoMixTask.manifest_path(project, :preconds)
   end
 
   @doc false
   def _plan_struct_defaults_ensurance(env) do
-    plan_path = get_plan_path()
+    plan_path = Module.get_attribute(env.module, :domo_plan_path)
     TypeEnsurerFactory.plan_struct_defaults_ensurance(plan_path, env)
   end
 
   @doc false
   def _collect_types_for_domo_compiler(env, bytecode) do
-    plan_path = get_plan_path()
+    plan_path = Module.get_attribute(env.module, :domo_plan_path)
     TypeEnsurerFactory.collect_types_for_domo_compiler(plan_path, env, bytecode)
   end
 
   @doc false
+  def _build_in_memory_type_ensurer(env, bytecode) do
+    verbose? = Application.get_env(:domo, :verbose_in_iex, false)
+
+    TypeEnsurerFactory.register_in_memory_types(env.module, bytecode)
+    # struct's types are collected with separate _collect_types_for_domo_compiler call
+    TypeEnsurerFactory.maybe_collect_types_for_stdlib_structs(:in_memory)
+    TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(:in_memory)
+
+    {:ok, plan, preconds} = TypeEnsurerFactory.get_plan_state(:in_memory)
+
+    with {:ok, module_filed_types, dependencies_by_module} <- TypeEnsurerFactory.resolve_plan(plan, preconds, verbose?),
+         TypeEnsurerFactory.build_type_ensurers(module_filed_types, verbose?),
+         :ok <- TypeEnsurerFactory.ensure_struct_defaults(plan, verbose?) do
+      {:ok, dependants} = TypeEnsurerFactory.get_dependants(:in_memory, env.module)
+
+      unless dependants == [] do
+        TypeEnsurerFactory.invalidate_type_ensurers(dependants)
+        Raises.warn_invalidated_type_ensurers(env.module, dependants)
+      end
+
+      TypeEnsurerFactory.register_dependants_from(:in_memory, dependencies_by_module)
+      TypeEnsurerFactory.clean_plan(:in_memory)
+      :ok
+    else
+      {:error, [%Error{message: {:no_types_registered, _} = error}]} -> Raises.raise_cant_find_type_in_memory(error)
+      {:error, {:batch_ensurer, _details} = message} -> Raises.raise_incorrect_defaults(message)
+    end
+  end
+
+  @doc false
   def _plan_struct_integrity_ensurance(module, enumerable) do
-    plan_path = get_plan_path()
+    plan_path = DomoMixTask.manifest_path(@mix_project, :plan)
     TypeEnsurerFactory.plan_struct_integrity_ensurance(plan_path, module, enumerable)
   end
 
@@ -391,13 +427,13 @@ defmodule Domo do
 
   def _do_validate_fields(type_ensurer, struct, err_fun, opts \\ []) do
     maybe_filter_precond_errors = Keyword.get(opts, :maybe_filter_precond_errors, false)
-    typed_no_any_fields = apply(type_ensurer, :fields, [:typed_with_meta_no_any])
+    typed_no_any_fields = type_ensurer.fields(:typed_with_meta_no_any)
 
     errors =
       Enum.reduce(typed_no_any_fields, [], fn field, errors ->
         field_value = {field, Map.get(struct, field)}
 
-        case apply(type_ensurer, :ensure_field_type, [field_value]) do
+        case type_ensurer.ensure_field_type(field_value) do
           {:error, _} = error ->
             [apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors]) | errors]
 
@@ -408,7 +444,7 @@ defmodule Domo do
 
     t_precondition_error =
       if Enum.empty?(errors) do
-        case apply(type_ensurer, :t_precondition, [struct]) do
+        case type_ensurer.t_precondition(struct) do
           {:error, _} = error -> apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors])
           :ok -> nil
         end
@@ -486,7 +522,7 @@ defmodule Domo do
 
     quote do
       def __precond__(unquote(type_name), value) do
-        apply(unquote(fun), [value])
+        unquote(fun).(value)
       end
     end
   end
@@ -497,8 +533,20 @@ defmodule Domo do
 
   @doc false
   def _plan_precond_checks(env, bytecode) do
-    # precond macro can be called via import Domo, so need to start resolve planner
-    plan_path = start_resolve_planner()
+    in_mix_compile? = CodeEvaluation.in_mix_compile?(env)
+
+    if in_mix_compile? do
+      config = @mix_project.config()
+      Raises.maybe_raise_absence_of_domo_compiler!(config, env)
+    end
+
+    plan_path =
+      if in_mix_compile? do
+        DomoMixTask.manifest_path(@mix_project, :plan)
+      else
+        :in_memory
+      end
+
     TypeEnsurerFactory.plan_precond_checks(plan_path, env, bytecode)
   end
 

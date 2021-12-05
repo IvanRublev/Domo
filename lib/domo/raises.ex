@@ -3,18 +3,18 @@ defmodule Domo.Raises do
 
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.ModuleInspector
-  alias Domo.MixProjectHelper
 
   @add_domo_compiler_message """
   Domo compiler is expected to do a second-pass compilation \
   to resolve remote types that are in the project's BEAM files \
   and generate TypeEnsurer modules.
   More details are in https://hexdocs.pm/domo/Domo.html#module-setup
-  Please, add :domo_compiler after the :elixir in mix.exs file like the following:
+  To queue the second-pass, please, add :domo_compiler before the :elixir \
+  in mix.exs file like the following:
 
     def project do
       [
-        compilers: ... Mix.compilers() ++ [:domo_compiler],
+        compilers: [:domo_compiler] ++ Mix.compilers(),
         ...
       ]
     end
@@ -40,10 +40,7 @@ defmodule Domo.Raises do
   end
 
   def raise_or_warn_values_should_have_expected_types(opts, module, errors) do
-    error_points =
-      errors
-      |> Enum.map(&(" * " <> cast_to_string(&1)))
-      |> Enum.join("\n")
+    error_points = Enum.map_join(errors, "\n", &(" * " <> cast_to_string(&1)))
 
     raise_or_warn(opts, ArgumentError, """
     the following values should have types defined for fields of the #{inspect(module)} struct:
@@ -79,23 +76,24 @@ defmodule Domo.Raises do
     end
   end
 
-  def raise_absence_of_domo_compiler!(project_configuration, opts, caller_env) do
-    project_stub =
-      MixProjectHelper.opts_stub(opts, caller_env) ||
-        MixProjectHelper.global_stub(project_configuration)
-
-    configuration = if project_stub, do: project_stub.config(), else: project_configuration
-
+  def maybe_raise_absence_of_domo_compiler!(configuration, caller_env) do
     compilers = Keyword.get(configuration, :compilers, [])
-    elixir_idx = Enum.find_index(compilers, &(:elixir == &1))
     domo_idx = Enum.find_index(compilers, &(:domo_compiler == &1))
+    elixir_idx = Enum.find_index(compilers, &(:elixir == &1))
 
-    unless not is_nil(elixir_idx) and not is_nil(domo_idx) and domo_idx > elixir_idx do
+    unless not is_nil(elixir_idx) and not is_nil(domo_idx) and domo_idx < elixir_idx do
       raise CompileError,
         file: caller_env.file,
         line: caller_env.line,
         description: @add_domo_compiler_message
     end
+  end
+
+  def raise_only_interactive(module, caller_env) do
+    raise CompileError,
+      file: caller_env.file,
+      line: caller_env.line,
+      description: "#{inspect(module)} should be used only in interactive elixir."
   end
 
   def raise_incorrect_remote_types_as_any_format!([_ | _] = list) do
@@ -132,6 +130,20 @@ defmodule Domo.Raises do
     raise ArgumentError, """
     precond/1 is called with undefined #{inspect(type_name)} type name. \
     The name of a type defined with @type attribute is expected.\
+    """
+  end
+
+  def raise_incorrect_defaults({:batch_ensurer, {file, line, message}}) do
+    raise CompileError,
+      file: file,
+      line: line,
+      description: message
+  end
+
+  def raise_cant_find_type_in_memory({:no_types_registered, type_string}) do
+    raise """
+    Can't resolve #{type_string} type. Please, define the module first \
+    or use Domo.InteractiveTypesRegistration in it to inform Domo about the types.\
     """
   end
 
@@ -205,9 +217,34 @@ defmodule Domo.Raises do
 
   def raise_cant_build_in_test_environment(module) do
     raise """
-    Domo can't build Type Ensurers in the test environment for #{inspect(module)}. \
-    Please put structs using Domo specific to your test environment \
-    into compilation directories and put path to them in your mix.exs\
+    Domo can't build TypeEnsurer module in the test environment for #{inspect(module)}. \
+    Please, put structs using Domo into compilation directories specific to your test environment \
+    and put paths to them in your mix.exs:
+
+    def project do
+      ...
+      elixirc_paths: elixirc_paths(Mix.env())
+      ...
+    end
+
+    defp elixirc_paths(:test), do: ["lib", "test/support"]
+    defp elixirc_paths(_), do: ["lib"]
+    """
+  end
+
+  def warn_invalidated_type_ensurers(module, dependencies) do
+    deps_string = Enum.map_join(dependencies, ",", &inspect/1)
+
+    IO.warn("""
+    TypeEnsurer modules are invalidated. Please, redefine the following modules depending on #{inspect(module)} \
+    to make their types ensurable again: #{deps_string}\
+    """)
+  end
+
+  def raise_invalid_type_ensurer(module) do
+    raise """
+    TypeEnsurer module is invalid. Please, redefine #{inspect(module)} \
+    to make constructor, validation, and reflection functions to work again.\
     """
   end
 end

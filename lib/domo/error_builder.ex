@@ -218,8 +218,7 @@ defmodule Domo.ErrorBuilder do
         parts
         |> Enum.at(1)
         |> String.split("\n")
-        |> Enum.map(&("  " <> &1))
-        |> Enum.join("\n")
+        |> Enum.map_join("\n", &("  " <> &1))
 
       [error: Enum.join(["the following:", shifted_underlying], "\n")]
     else

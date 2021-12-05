@@ -1,7 +1,12 @@
 defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   @moduledoc false
 
+  alias Domo.CodeEvaluation
+  alias Domo.TypeEnsurerFactory.ResolvePlanner
+
   @type_ensurer_atom :TypeEnsurer
+
+  defdelegate ensure_loaded?(module), to: Code
 
   def module_context?(env) do
     not is_nil(env.module) and is_nil(env.function)
@@ -23,17 +28,32 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     Code.ensure_loaded?(type_ensurer)
   end
 
-  def beam_types(module, load_module \\ &Code.ensure_loaded/1, fetch_types \\ &Code.Typespec.fetch_types/1) do
-    with {:module, module} <- load_module.(module),
-         {:ok, type_list} <- fetch_types.(module) do
-      {:ok, filter_direct_types(type_list)}
-    else
-      _ -> {:error, {:no_beam_file, module}}
+  def beam_types(module) do
+    case beam_types_from_file(module) do
+      {:ok, _types} = ok ->
+        ok
+
+      {:error, {:no_beam_file, _module}} = error ->
+        if CodeEvaluation.in_mix_compile?(__ENV__) do
+          error
+        else
+          ResolvePlanner.get_types(:in_memory, module)
+        end
     end
   end
 
-  def filter_direct_types(type_list) do
-    Enum.reject(type_list, &parametrized_type?/1)
+  defp beam_types_from_file(module) do
+    case fetch_direct_types(module) do
+      {:ok, _type_list} = ok -> ok
+      :error -> {:error, {:no_beam_file, module}}
+    end
+  end
+
+  def fetch_direct_types(module_or_bytecode) do
+    case Code.Typespec.fetch_types(module_or_bytecode) do
+      {:ok, type_list} -> {:ok, Enum.reject(type_list, &parametrized_type?/1)}
+      :error -> :error
+    end
   end
 
   defp parametrized_type?({kind, {_name, _definition, [_ | _] = _arg_list}}) when kind in [:type, :opaque] do

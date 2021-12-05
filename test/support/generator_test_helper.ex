@@ -17,6 +17,6 @@ defmodule GeneratorTestHelper do
   end
 
   def type_ensurer_quoted_with_no_preconds(field_spec) do
-    Generator.do_type_ensurer_module(Elixir, field_spec)
+    Generator.generate_one(Elixir, field_spec)
   end
 end

@@ -1,12 +1,19 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
   use Domo.FileCase
+  use Placebo
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
 
   import ResolverTestHelper
 
   setup [:setup_project_planner]
+
+  setup do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    :ok
+  end
 
   describe "TypeEnsurerFactory.Resolver should" do
     test "treat remote types to any() according to global setting joined with one for given module", %{
@@ -32,11 +39,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
 
       expected =
         add_empty_precond_to_spec(%{
-          field1: [quote(do: any())],
+          field1: [quote(do: unquote({:any, [], []}))],
           field2: [quote(do: integer())],
-          field3: [quote(do: any())],
-          field4: [quote(do: any())],
-          field5: [quote(do: any())]
+          field3: [quote(do: unquote({:any, [], []}))],
+          field4: [quote(do: unquote({:any, [], []}))],
+          field5: [quote(do: unquote({:any, [], []}))]
         })
 
       assert %{RemoteUserType => expected} == read_types(types_file)
@@ -137,7 +144,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
             quote(context: RemoteUserType, do: atom()),
             quote(context: RemoteUserType, do: integer()),
             quote(context: RemoteUserType, do: float()),
-            quote(context: RemoteUserType, do: [any()])
+            quote(context: RemoteUserType, do: [unquote({:any, [], []})])
           ]
         })
 

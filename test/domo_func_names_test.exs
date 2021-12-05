@@ -2,16 +2,19 @@ defmodule DomoFuncNamesTest do
   use Domo.FileCase, async: false
   use Placebo
 
-  alias Domo.MixProjectHelper
+  alias Domo.CodeEvaluation
+  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup do
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
 
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(src_path())
 
     on_exit(fn ->
       Code.compiler_options(ignore_module_conflict: false)
+      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     config = Mix.Project.config()
@@ -32,6 +35,7 @@ defmodule DomoFuncNamesTest do
   test "generates constructor with name set with name_of_new_function option globally or overridden with use Domo" do
     Application.put_env(:domo, :name_of_new_function, :custom_new)
 
+    DomoMixTask.start_plan_collection()
     compile_titled_struct("TitleHolder")
 
     assert Kernel.function_exported?(TitleHolder, :custom_new, 1)
@@ -43,6 +47,7 @@ defmodule DomoFuncNamesTest do
     assert Kernel.function_exported?(Titled, :amazing_new!, 1)
   after
     Application.delete_env(:domo, :name_of_new_function)
+    DomoMixTask.stop_plan_collection()
   end
 
   defp compile_titled_struct(module_name, use_arg \\ nil) do

@@ -14,13 +14,17 @@ defmodule Domo.ChangesetTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/support/custom_struct_using_domo.ex")
-    Code.eval_file("test/support/custom_struct_using_domo_optional_field.ex")
-    Code.eval_file("test/support/custom_struct_using_domo_meta_field.ex")
-    Code.eval_file("test/support/recipient_with_precond.ex")
+    ResolverTestHelper.disable_raise_in_test_env()
+    DomoMixTask.start_plan_collection()
 
-    DomoMixTask.run([])
+    # Evaluate modules to prepare plan file for domo mix task
+    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo.ex")
+    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo_optional_field.ex")
+    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo_meta_field.ex")
+    Code.eval_file("test/struct_modules/lib/recipient_with_precond.ex")
+
+    DomoMixTask.process_plan({:ok, []}, [])
+    ResolverTestHelper.enable_raise_in_test_env()
 
     :ok
   end

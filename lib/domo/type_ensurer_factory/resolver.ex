@@ -47,7 +47,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end
   end
 
-  defp resolve_plan(plan, plan_path, verbose?) do
+  def resolve_plan(plan, plan_path, verbose?) do
     fields = plan[:fields]
     preconds = plan[:preconds]
     envs = plan[:envs]

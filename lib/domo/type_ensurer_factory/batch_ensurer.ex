@@ -43,11 +43,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
 
     {:__aliases__, [alias: false], parts} = Alias.atom_to_alias(module)
 
-    module =
-      parts
-      |> Enum.map(&to_string/1)
-      |> Enum.join(".")
-
+    module = Enum.map_join(parts, ".", &to_string/1)
     message = Enum.join(["Failed to build #{module} struct." | errors], "\n")
     {file, line, message}
   end
@@ -80,12 +76,25 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     Enum.map(files, &File.touch!(&1))
   end
 
-  def ensure_struct_defaults(plan_path) do
+  def ensure_struct_defaults(plan_path) when is_binary(plan_path) do
     with {:ok, plan_map} <- read_plan(plan_path),
          {:ok, defaults_to_ensure} <- read_field(plan_map, plan_path, :struct_defaults_to_ensure),
          :ok <- do_ensure_struct_defaults(defaults_to_ensure) do
       :ok
     else
+      {:module_error, module_error} ->
+        {:error, build_defaults_error_message(module_error)}
+
+      {:error, errors} ->
+        {:error, wrap_error(errors)}
+    end
+  end
+
+  def ensure_struct_defaults(defaults) when is_list(defaults) do
+    case do_ensure_struct_defaults(defaults) do
+      :ok ->
+        :ok
+
       {:module_error, module_error} ->
         {:error, build_defaults_error_message(module_error)}
 

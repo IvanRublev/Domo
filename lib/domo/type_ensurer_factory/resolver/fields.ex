@@ -127,6 +127,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
           err = {:error, {:parametrized_type_not_supported, {rem_module, Alias.string_by_concat(rem_module, rem_type) <> "()"}}}
           {types, [err | errs], deps}
 
+        {:error, :no_types_registered} ->
+          err = {:error, {:no_types_registered, Alias.string_by_concat(rem_module, rem_type) <> "()"}}
+          {types, [err | errs], deps}
+
         {:error, _} = err ->
           {types, [err | errs], deps}
       end

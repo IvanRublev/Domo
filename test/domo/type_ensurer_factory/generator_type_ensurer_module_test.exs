@@ -4,7 +4,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   import GeneratorTestHelper
 
   alias Domo.ErrorBuilder
-  alias Domo.MixProjectHelper
   alias Domo.TypeEnsurerFactory.Precondition
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
@@ -17,23 +16,24 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
+    DomoMixTask.start_plan_collection()
 
     # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/support/empty_struct.ex")
-    Code.eval_file("test/support/custom_struct.ex")
+    Code.eval_file("test/struct_modules/lib/empty_struct.ex")
+    Code.eval_file("test/struct_modules/lib/custom_struct.ex")
 
-    {:ok, []} = DomoMixTask.run([])
-
-    MixProjectHelper.enable_raise_in_test_env()
+    DomoMixTask.process_plan({:ok, []}, [])
+    ResolverTestHelper.enable_raise_in_test_env()
   end
 
   setup do
-    MixProjectHelper.disable_raise_in_test_env()
+    ResolverTestHelper.disable_raise_in_test_env()
 
     on_exit(fn ->
       :code.purge(TypeEnsurer)
       :code.delete(TypeEnsurer)
+      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     :ok
@@ -61,7 +61,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "Generated TypeEnsurer module" do
     setup do
-      MixProjectHelper.disable_raise_in_test_env()
+      ResolverTestHelper.disable_raise_in_test_env()
 
       load_type_ensurer_module_with_no_preconds(%{
         __example_meta_field__: [quote(do: atom())],

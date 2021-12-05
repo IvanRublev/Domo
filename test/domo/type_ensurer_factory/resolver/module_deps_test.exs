@@ -1,6 +1,8 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
   use Domo.FileCase
+  use Placebo
 
+  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver
@@ -10,6 +12,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
   import ResolverTestHelper
 
   setup [:setup_project_planner]
+
+  setup do
+    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    :ok
+  end
 
   defmodule FailingDepsFile do
     def write(path, _content) do
