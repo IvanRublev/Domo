@@ -200,7 +200,7 @@ defmodule Customer do
   end
 
   # Domo adds typed_fields/0, required_fields/0 funcitons to the schema.
-  # Domo.Cahngeset defines validate_type/1 function.
+  # Domo.Changeset defines validate_type/1 function.
 end
 ```
 
