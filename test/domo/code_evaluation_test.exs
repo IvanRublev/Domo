@@ -6,8 +6,8 @@ defmodule Domo.CodeEvaluationTest do
 
   @answer_holder_source """
   defmodule AnswerBaker do
-    defmacro __before_compile__(env) do
-      value = Domo.CodeEvaluation.in_mix_compile?(env)
+    defmacro __before_compile__(_env) do
+      value = Domo.CodeEvaluation.in_mix_compile?()
 
       quote do
         def in_mix_compile_return_value, do: unquote(value)
@@ -54,21 +54,16 @@ defmodule Domo.CodeEvaluationTest do
 
       assert apply(AnswerHolder, :in_mix_compile_return_value, []) == false
     end
-
-    test "returns false given empty map or nil" do
-      assert CodeEvaluation.in_mix_compile?(nil) == false
-      assert CodeEvaluation.in_mix_compile?(%{}) == false
-    end
   end
 
   describe "in_mix_test?" do
     test "returns true when executed with `mix test` command" do
-      assert CodeEvaluation.in_mix_test?(%{}) == true
+      assert CodeEvaluation.in_mix_test?() == true
     end
 
     test "returns false when executed Not with `mix test`" do
       allow GenServer.whereis(ExUnit.Server), meck_options: [:passthrough], return: nil
-      assert CodeEvaluation.in_mix_test?(%{}) == false
+      assert CodeEvaluation.in_mix_test?() == false
     end
   end
 

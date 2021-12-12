@@ -62,7 +62,7 @@ defmodule Domo.MixTasksCompileDomoTest do
 
   setup tags do
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
 
     Code.compiler_options(ignore_module_conflict: true)
 
@@ -103,6 +103,7 @@ defmodule Domo.MixTasksCompileDomoTest do
     allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
     allow ResolvePlanner.keep_global_remote_types_to_treat_as_any(any(), any()), return: :ok
     allow ResolvePlanner.plan_struct_defaults_ensurance(any(), any(), any(), any(), any()), return: :ok
+    allow ResolvePlanner.types_treated_as_any(any()), return: {:ok, %{}}
 
     allow ModuleInspector.ensure_loaded?(any()), meck_options: [:passthrough], return: false
     allow ModuleInspector.has_type_ensurer?(any()), meck_options: [:passthrough], return: true

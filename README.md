@@ -129,6 +129,10 @@ PurchaseOrder.new(id: 500, items: [%LineItem{amount: -5}])
  ]}
 ```
 
+The returned errors are verbose and are intended for debugging purposes.
+See the [User facing error messages](#user-facing-error-messages) section below
+for more options.
+
 And manually updated struct can be validated like the following:
 
 ```elixir
@@ -162,6 +166,61 @@ PurchaseOrder.required_fields()
 ```
 
 See the [Callbacks](#callbacks) section for more details about functions added to the struct.
+
+## User facing error messages
+
+It's possible to attach error messages to types with the `precond` macro to display
+them later to the user. To filter such kinds of messages, pass 
+the `maybe_filter_precond_errors: true` option to Domo generated functions like that:
+
+```elixir
+defmodule Book do
+  use Domo
+
+  defstruct [:title, :pages]
+
+  @type title :: String.t()
+  precond title: &(if String.length(&1) > 1, do: :ok, else: {:error, "Book title is required."})
+
+  @type pages :: pos_integer()
+  precond pages: &(if &1 > 2, do: :ok, else: {:error, "Book should have more then 3 pages. Given (#{&1})."})
+  
+  @type t :: %__MODULE__{title: nil | title(), pages: nil | pages()}
+end
+
+defmodule Shelf do
+  use Domo
+  
+  defstruct books: []
+  
+  @type t :: %__MODULE__{books: [Book.t()]}
+end
+
+defmodule PublicLibrary do
+  use Domo
+  
+  defstruct shelves: []
+  
+  @type t :: %__MODULE__{shelves: [Shelf.t()]}
+end
+
+library = struct!(PublicLibrary, %{shelves: [struct!(Shelf, %{books: [struct!(Book, %{title: "", pages: 1})]})]})
+
+PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
+```
+
+```output
+{:error,
+ [
+   shelves: [
+     "Book title is required.",
+     "Book should have more then 3 pages. Given (1)."
+   ]
+]}
+```
+
+That output contains only a flattened list of precondition error messages 
+from the deeply nested structure.
 
 ## Integration with Ecto
 
@@ -455,7 +514,7 @@ It's not that. The library ensures the correctness of data types at runtime and
 it comes with the price of computation. As the result users get the application 
 with correct states at every update that is valid in many business contexts.
 
-Please, find the output of `mix benchmark` command below.
+The output of `mix benchmark` is following.
 
 ```
 Generate 10000 inputs, may take a while.
@@ -467,8 +526,8 @@ Operating System: macOS
 CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
 Number of Available Cores: 8
 Available memory: 16 GB
-Elixir 1.12.3
-Erlang 24.0.1
+Elixir 1.13.0
+Erlang 24.1.5
 
 Benchmark suite executing with the following configuration:
 warmup: 2 s
@@ -482,12 +541,12 @@ Benchmarking __MODULE__.new!(arg)...
 Benchmarking struct!(__MODULE__, arg)...
 
 Name                               ips        average  deviation         median         99th %
-struct!(__MODULE__, arg)       14.09 K       70.96 μs    ±63.01%          72 μs         158 μs
-__MODULE__.new!(arg)           11.77 K       84.93 μs    ±53.72%          87 μs         181 μs
+struct!(__MODULE__, arg)       13.72 K       72.88 μs    ±64.17%          73 μs         168 μs
+__MODULE__.new!(arg)           11.33 K       88.24 μs    ±50.65%          91 μs         177 μs
 
 Comparison: 
-struct!(__MODULE__, arg)       14.09 K
-__MODULE__.new!(arg)           11.77 K - 1.20x slower +13.97 μs
+struct!(__MODULE__, arg)       13.72 K
+__MODULE__.new!(arg)           11.33 K - 1.21x slower +15.36 μs
 
 A struct's field modification
 =========================================
@@ -495,8 +554,8 @@ Operating System: macOS
 CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
 Number of Available Cores: 8
 Available memory: 16 GB
-Elixir 1.12.3
-Erlang 24.0.1
+Elixir 1.13.0
+Erlang 24.1.5
 
 Benchmark suite executing with the following configuration:
 warmup: 2 s
@@ -510,12 +569,12 @@ Benchmarking %{tweet | user: arg} |> __MODULE__.ensure_type!()...
 Benchmarking struct!(tweet, user: arg)...
 
 Name                                                        ips        average  deviation         median         99th %
-struct!(tweet, user: arg)                               15.01 K       66.62 μs    ±66.93%          70 μs         148 μs
-%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.53 K       73.89 μs    ±60.83%          75 μs         159 μs
+struct!(tweet, user: arg)                               15.16 K       65.96 μs    ±65.51%          66 μs         148 μs
+%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K       75.44 μs    ±59.84%          76 μs         163 μs
 
 Comparison: 
-struct!(tweet, user: arg)                               15.01 K
-%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.53 K - 1.11x slower +7.27 μs
+struct!(tweet, user: arg)                               15.16 K
+%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K - 1.14x slower +9.48 μs
 ```
 
 ## Contributing
@@ -537,6 +596,14 @@ struct!(tweet, user: arg)                               15.01 K
 3. Make a PR to this repository
 
 ## Changelog
+
+### 1.5.1
+
+* Fix to detect mix compile with more reliable `Code.can_await_module_compilation?`
+
+* Fix to make benchmark run again as sub-project
+   
+* Make `:maybe_filter_precond_errors` option to lift precondition error messages from the nested structs
 
 ### 1.5.0
 

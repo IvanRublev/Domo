@@ -7,7 +7,7 @@ defmodule DomoFuncNamesTest do
 
   setup do
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
 
     Code.compiler_options(ignore_module_conflict: true)
     File.mkdir_p!(src_path())

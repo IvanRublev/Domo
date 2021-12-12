@@ -150,6 +150,13 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
                  TwoFieldStruct,
                  %{Module => [:name], Module1 => [:type1, :type2]}
                )
+
+      assert ResolvePlanner.types_treated_as_any(plan_path) ==
+               {:ok,
+                %{
+                  :global => %{Module => [:t]},
+                  TwoFieldStruct => %{Module => [:name], Module1 => [:type1, :type2]}
+                }}
     end
 
     test "be able to flush all planned types to disk", %{plan_path: plan_path} do

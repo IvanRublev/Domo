@@ -34,7 +34,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
         ok
 
       {:error, {:no_beam_file, _module}} = error ->
-        if CodeEvaluation.in_mix_compile?(__ENV__) do
+        if CodeEvaluation.in_mix_compile?() do
           error
         else
           ResolvePlanner.get_types(:in_memory, module)

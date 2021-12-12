@@ -76,8 +76,8 @@ defmodule DomoUseTest do
 
   setup tags do
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: tags.in_mix_compile?
-    allow CodeEvaluation.in_mix_test?(any()), meck_options: [:passthrough], return: tags.in_mix_test?
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: tags.in_mix_compile?
+    allow CodeEvaluation.in_mix_test?(), meck_options: [:passthrough], return: tags.in_mix_test?
 
     Code.compiler_options(ignore_module_conflict: true)
 

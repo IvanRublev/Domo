@@ -9,7 +9,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
 
   setup do
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), return: true
+    allow CodeEvaluation.in_mix_compile?(), return: true
 
     on_exit(fn ->
       :code.purge(TypeEnsurer)
@@ -21,7 +21,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
   end
 
   def call_ensure_type({_field, _value} = subject) do
-    apply(TypeEnsurer, :ensure_field_type, [subject])
+    apply(TypeEnsurer, :ensure_field_type, [subject, []])
   end
 
   # There is a compilation error for referenced structs not using Domo at resolver phase
@@ -40,7 +40,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
       instance = %CustomStructUsingDomo{title: :one}
       call_ensure_type({:first, instance})
 
-      assert_called Domo._validate_fields_ok(CustomStructUsingDomo.TypeEnsurer, instance, [])
+      assert_called Domo._validate_fields_ok(CustomStructUsingDomo.TypeEnsurer, instance, any())
     end
 
     test "ensures field's value by delegating to struct's TypeEnsurer and using precondition" do

@@ -76,10 +76,10 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [] = unquote(value_var), unquote(spec_string_var)),
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [] = unquote(value_var), unquote(spec_string_var), _opts),
           do: unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [{_key, _value} | _] = value, spec_string) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, [{_key, _value} | _] = value, spec_string, opts) do
           reduced_list =
             Enum.reduce_while(unquote(kv_match_spec_attributes), value, fn {expected_key, value_attributes}, list ->
               {value_spec_atom, value_precond_atom, value_spec_string} = value_attributes
@@ -88,7 +88,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
               value_error =
                 Enum.reduce_while(list_by_matching_key, :ok, fn {_key, value}, _acc ->
                   # credo:disable-for-lines:4
-                  case do_match_spec({value_spec_atom, value_precond_atom}, value, value_spec_string) do
+                  case do_match_spec({value_spec_atom, value_precond_atom}, value, value_spec_string, opts) do
                     :ok -> {:cont, :ok}
                     {:error, _value, _messages} = error -> {:halt, error}
                   end
@@ -138,8 +138,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when unquote(guard_quoted) do
-          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), opts) when unquote(guard_quoted) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0, opts) do
             {:proper, _length} ->
               unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
@@ -157,10 +157,10 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     {tail_spec_atom, tail_precond_atom, tail_spec_string} = tail_attributes
 
     quote do
-      def do_match_list_elements(unquote(type_spec_atom), [head | tail], idx) do
-        case do_match_spec({unquote(head_spec_atom), unquote(head_precond_atom)}, head, unquote(head_spec_string)) do
+      def do_match_list_elements(unquote(type_spec_atom), [head | tail], idx, opts) do
+        case do_match_spec({unquote(head_spec_atom), unquote(head_precond_atom)}, head, unquote(head_spec_string), opts) do
           :ok ->
-            do_match_list_elements(unquote(type_spec_atom), tail, idx + 1)
+            do_match_list_elements(unquote(type_spec_atom), tail, idx + 1, opts)
 
           {:error, element_value, messages} ->
             {:element_error,
@@ -171,12 +171,12 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
         end
       end
 
-      def do_match_list_elements(unquote(type_spec_atom), [], idx) do
+      def do_match_list_elements(unquote(type_spec_atom), [], idx, _opts) do
         {:proper, idx}
       end
 
-      def do_match_list_elements(unquote(type_spec_atom), tail, idx) do
-        case do_match_spec({unquote(tail_spec_atom), unquote(tail_precond_atom)}, tail, unquote(tail_spec_string)) do
+      def do_match_list_elements(unquote(type_spec_atom), tail, idx, opts) do
+        case do_match_spec({unquote(tail_spec_atom), unquote(tail_precond_atom)}, tail, unquote(tail_spec_string), opts) do
           :ok ->
             {:improper, idx}
 
@@ -204,8 +204,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), opts) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0, opts) do
             {:element_error, messages} -> {:error, value, messages}
             {_kind, _length} -> unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           end
@@ -228,8 +228,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), opts) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0, opts) do
             {:element_error, messages} ->
               {:error, value, messages}
 
@@ -261,8 +261,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when is_list(value) do
-          case do_match_list_elements(unquote(type_spec_atom), value, 0) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), opts) when is_list(value) do
+          case do_match_list_elements(unquote(type_spec_atom), value, 0, opts) do
             {:element_error, messages} ->
               {:error, value, messages}
 

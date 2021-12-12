@@ -108,6 +108,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     GenServer.call(via(plan_path), {:keep_types_as_any, module, remote_types_as_any})
   end
 
+  def types_treated_as_any(plan_path) do
+    GenServer.call(via(plan_path), :types_treated_as_any)
+  end
+
   def plan_struct_integrity_ensurance(plan_path, module, fields, file, line) do
     GenServer.call(via(plan_path), {:plan_struct_integrity_ensurance, module, fields, file, line})
   end
@@ -211,6 +215,11 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     updated_remotes_as_any_by_module = map_update_merge(state.plan.remote_types_as_any_by_module, module, remote_types_as_any)
     updated_state = put_in(state, [:plan, :remote_types_as_any_by_module], updated_remotes_as_any_by_module)
     {:reply, :ok, updated_state}
+  end
+
+  def handle_call(:types_treated_as_any, _from, state) do
+    types = get_in(state, [:plan, :remote_types_as_any_by_module])
+    {:reply, {:ok, types}, state}
   end
 
   def handle_call({:plan_struct_integrity_ensurance, module, fields, file, line}, _from, state) do

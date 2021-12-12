@@ -131,7 +131,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
         unquote_splicing(match_spec_functions)
 
-        def do_match_spec({_spec_atom, _precond_atom}, value, spec_string) do
+        def do_match_spec({_spec_atom, _precond_atom}, value, spec_string, _opts) do
           message = Domo.ErrorBuilder.build_field_error(spec_string)
           {:error, value, [message]}
         end
@@ -153,7 +153,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
         def t_precondition(_value), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
 
-        def ensure_field_type(_value), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
+        def ensure_field_type(_value, _opts), do: Raises.raise_invalid_type_ensurer(unquote(parent_module))
       end
     end
   end
@@ -244,7 +244,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     cond do
       any_spec?(spec_precond_list) ->
         quote do
-          def ensure_field_type({unquote(field), _value}), do: :ok
+          def ensure_field_type({unquote(field), _value}, _opts), do: :ok
         end
 
       match?([_spec], spec_precond_list) ->
@@ -260,8 +260,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
           |> TypeSpec.spec_to_string()
 
         quote do
-          def ensure_field_type({unquote(field), value}) do
-            case do_match_spec({unquote(spec_atom), unquote(precond_atom)}, value, unquote(spec_string)) do
+          def ensure_field_type({unquote(field), value}, opts) do
+            case do_match_spec({unquote(spec_atom), unquote(precond_atom)}, value, unquote(spec_string), opts) do
               :ok ->
                 :ok
 
@@ -289,10 +289,10 @@ defmodule Domo.TypeEnsurerFactory.Generator do
         spec_strings = Macro.escape(spec_strings)
 
         quote do
-          def ensure_field_type({unquote(field), value}) do
+          def ensure_field_type({unquote(field), value}, opts) do
             maybe_errors =
               Enum.reduce_while(unquote(spec_precond_atoms), [], fn {spec_atom, precond_atom, spec_string}, errors ->
-                case do_match_spec({spec_atom, precond_atom}, value, spec_string) do
+                case do_match_spec({spec_atom, precond_atom}, value, spec_string, opts) do
                   :ok ->
                     {:halt, nil}
 

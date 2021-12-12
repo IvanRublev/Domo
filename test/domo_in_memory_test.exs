@@ -13,7 +13,7 @@ defmodule DomoInMemoryTest do
     Code.compiler_options(ignore_module_conflict: true)
 
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: false
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
 
     on_exit(fn ->
       Code.compiler_options(ignore_module_conflict: false)

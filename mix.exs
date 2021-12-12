@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.0"
+  @version "1.5.1"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -42,10 +42,8 @@ defmodule Domo.MixProject do
 
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(:benchmark), do: ["lib", "benchmark"]
   defp elixirc_paths(_), do: ["lib"]
 
-  defp compilers(:benchmark), do: [:domo_compiler] ++ Mix.compilers()
   defp compilers(_), do: Mix.compilers()
 
   defp deps do
@@ -61,20 +59,14 @@ defmodule Domo.MixProject do
       {:decimal, ">= 0.0.0", optional: true},
 
       # Documentation dependencies
-      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
-
-      # Benchmark dependencies
-      {:benchee, "~> 1.0", only: :benchmark, runtime: false},
-      {:stream_data, "~> 0.5.0", only: :benchmark, runtime: false},
-      {:profiler, "~> 0.1.0", only: :benchmark, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false}
     ]
   end
 
   defp aliases do
     [
-      benchmark: "run -e 'Benchmark.run()'",
-      profile: "run -e 'Benchmark.Profile.run()'",
-      clean: ["clean", &clean_test_structs/1]
+      benchmark: "cmd --cd ./benchmark mix benchmark",
+      clean: ["clean", "cmd --cd ./benchmark mix clean --deps", &clean_test_structs/1]
     ]
   end
 
@@ -94,11 +86,7 @@ defmodule Domo.MixProject do
       "coveralls.html": :test,
 
       # Use a custom env for docs.
-      docs: :docs,
-
-      # Use a custom env for benchmark and profile.
-      benchmark: :benchmark,
-      profile: :benchmark
+      docs: :docs
     ]
   end
 

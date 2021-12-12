@@ -25,7 +25,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
   @moduletag touch_paths: []
 
   setup tags do
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
 
     File.mkdir_p!(@source_dir)
     File.write!(@deps_path, :erlang.term_to_binary(tags.deps))

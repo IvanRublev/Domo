@@ -12,7 +12,7 @@ defmodule Domo.InteractiveTypesRegistration do
   alias Domo.Raises
 
   defmacro __using__(_opts) do
-    if CodeEvaluation.in_mix_compile?(__CALLER__) do
+    if CodeEvaluation.in_mix_compile?() do
       Raises.raise_only_interactive(__MODULE__, __CALLER__)
     end
 

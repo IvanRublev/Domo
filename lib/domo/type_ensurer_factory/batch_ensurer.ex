@@ -127,7 +127,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     Enum.reduce_while(fields_list, :ok, fn field, ok ->
       field_value = {field, fields_values[field]}
 
-      case type_ensurer.ensure_field_type(field_value) do
+      case type_ensurer.ensure_field_type(field_value, []) do
         {:error, _} = error -> {:halt, {:error, ErrorBuilder.pretty_error(error)}}
         _ -> {:cont, ok}
       end

@@ -66,7 +66,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
 
         quote do
           {unquote(key), :ok} <-
-            {unquote(key), do_match_spec({unquote(value_spec_atom), unquote(value_precond_atom)}, unquote(value_var), unquote(value_spec_string))}
+            {unquote(key),
+             do_match_spec({unquote(value_spec_atom), unquote(value_precond_atom)}, unquote(value_var), unquote(value_spec_string), opts)}
         end
       end)
 
@@ -75,7 +76,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %{unquote_splicing(kvv_quoted)} = value, unquote(spec_string_var))
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %{unquote_splicing(kvv_quoted)} = value, unquote(spec_string_var), opts)
             when map_size(value) == unquote(expected_map_size) do
           # credo:disable-for-next-line
           with unquote_splicing(with_expectations_quoted) do
@@ -125,7 +126,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %{} = value, unquote(spec_string_var)) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %{} = value, unquote(spec_string_var), opts) do
           list_value = Map.to_list(value)
 
           rest_key_values = unquote(filter_list_value_quoted(rkvl_spec_atoms))
@@ -157,7 +158,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
                                           list_value ->
         {list_by_matching_key, filtered_list} =
           Enum.split_with(list_value, fn {key, _value} ->
-            match?(:ok, do_match_spec(key_spec_precond_atoms, key, key_spec_string))
+            match?(:ok, do_match_spec(key_spec_precond_atoms, key, key_spec_string, opts))
           end)
 
         list_keys_matching_empty? = Enum.empty?(list_by_matching_key)
@@ -175,7 +176,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
             values_by_matching_key = Enum.map(list_by_matching_key, fn {_key, value} -> value end)
 
             # credo:disable-for-lines:13
-            case do_match_spec(value_list_spec_precond_atom, values_by_matching_key, value_list_spec_string) do
+            case do_match_spec(value_list_spec_precond_atom, values_by_matching_key, value_list_spec_string, opts) do
               :ok ->
                 {:cont, filtered_list}
 

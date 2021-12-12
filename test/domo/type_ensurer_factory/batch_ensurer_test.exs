@@ -18,7 +18,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: false
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
     disable_raise_in_test_env()
     DomoMixTask.start_plan_collection()
 
@@ -54,7 +54,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       File.rm_rf(@source_dir)
     end)
 
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: false
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
 
     :ok
   end

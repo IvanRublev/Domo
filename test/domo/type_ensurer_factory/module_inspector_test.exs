@@ -9,7 +9,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
   @moduletag in_mix_compile?: false
 
   setup tags do
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: tags.in_mix_compile?
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: tags.in_mix_compile?
     :ok
   end
 

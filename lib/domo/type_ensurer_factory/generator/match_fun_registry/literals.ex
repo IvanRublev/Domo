@@ -12,7 +12,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), nil}, _value, _spec_string), do: :ok
+        def do_match_spec({unquote(type_spec_atom), nil}, _value, _spec_string, _opts), do: :ok
       end
 
     {match_spec_functions_quoted, []}
@@ -25,7 +25,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), _opts) do
           unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
         end
       end
@@ -42,7 +42,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var)) when unquote(quoted_guard) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), _opts) when unquote(quoted_guard) do
           unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
         end
       end

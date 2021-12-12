@@ -120,12 +120,6 @@ defmodule Domo.TypeEnsurerFactory do
     modules = Enum.reduce(@treat_as_any_optional_lib_modules, [], &if(ModuleInspector.ensure_loaded?(&1), do: [&1 | &2], else: &2))
 
     unless Enum.empty?(modules) do
-      modules_string = Enum.map_join(modules, ", ", &Alias.atom_to_string/1)
-
-      IO.write("""
-      Domo will treat the following modules t() type as any(): #{modules_string}
-      """)
-
       module_t_types = Enum.map(modules, &{&1, [:t]})
       collect_types_to_treat_as_any(plan_path, nil, module_t_types, nil)
     end
@@ -147,6 +141,28 @@ defmodule Domo.TypeEnsurerFactory do
     kw_list
     |> Enum.map(fn {key, value} -> {Module.concat(Elixir, key), List.wrap(value)} end)
     |> Enum.into(%{})
+  end
+
+  def print_global_anys(plan_path) do
+    {:ok, anys} = ResolvePlanner.types_treated_as_any(plan_path)
+    global_anys = Map.get(anys, :global, %{})
+
+    unless Enum.empty?(global_anys) do
+      module_type_list =
+        global_anys
+        |> Enum.reduce([], fn {module, types}, acc ->
+          Enum.reduce(types, acc, fn type, acc ->
+            module_type = Alias.string_by_concat(module, type) <> "()"
+            [module_type | acc]
+          end)
+        end)
+        |> Enum.reverse()
+        |> Enum.join(", ")
+
+      IO.write("""
+      Domo will treat the following types as any() globally: #{module_type_list}
+      """)
+    end
   end
 
   def plan_struct_defaults_ensurance(plan_path, env) do

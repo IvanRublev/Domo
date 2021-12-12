@@ -46,7 +46,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
       |> Enum.map(fn {{el_spec_atom, el_precond_atom, el_spec_string, var}, idx} ->
         quote do
           {unquote(idx), :ok} <-
-            {unquote(idx), do_match_spec({unquote(el_spec_atom), unquote(el_precond_atom)}, unquote(var), unquote(el_spec_string))}
+            {unquote(idx), do_match_spec({unquote(el_spec_atom), unquote(el_precond_atom)}, unquote(var), unquote(el_spec_string), opts)}
         end
       end)
 
@@ -67,7 +67,12 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
 
     match_spec_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, {unquote_splicing(elem_vars_quoted)} = value, unquote(spec_string_var)) do
+        def do_match_spec(
+              {unquote(type_spec_atom), unquote(precond_atom)},
+              {unquote_splicing(elem_vars_quoted)} = value,
+              unquote(spec_string_var),
+              opts
+            ) do
           # credo:disable-for-next-line
           with unquote_splicing(with_expectations_quoted) do
             unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))

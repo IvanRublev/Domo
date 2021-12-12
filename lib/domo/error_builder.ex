@@ -29,49 +29,63 @@ defmodule Domo.ErrorBuilder do
   def precond_error?({_template, keywords}), do: Keyword.has_key?(keywords, :precond_description)
   def precond_error?(_value), do: false
 
-  def pretty_error_by_key(_error, _maybe_filter_precond_errors \\ false)
+  def pretty_error_by_key(_error, _filter_preconds? \\ false, _bypass_preconds? \\ false)
 
-  def pretty_error_by_key({:error, {_, _, field, _, _, _}} = error, maybe_filter_precond_errors) do
-    {field || :t, pretty_error(error, maybe_filter_precond_errors)}
+  def pretty_error_by_key({:error, {_, _, field, _, _, _}} = error, filter_preconds?, bypass_preconds?) do
+    {field || :t, pretty_error(error, filter_preconds?, bypass_preconds?)}
   end
 
-  def pretty_error(_error, _maybe_filter_precond_errors \\ false)
+  def pretty_error(_error, _filter_preconds? \\ false, _bypass_preconds? \\ false)
 
-  def pretty_error({:error, {:type_mismatch, _struct_module, _field, _value, _expected_types, [{:bypass, message}]}}, maybe_filter_precond_errors) do
-    if maybe_filter_precond_errors do
+  def pretty_error({:error, {:type_mismatch, _, _, _, _, [{:bypass, _message} = error]}}, true = _filter_preconds?, true = _bypass_preconds?) do
+    error
+  end
+
+  def pretty_error({:error, {:type_mismatch, _, _, _, _, [{:bypass, message}]}}, filter_preconds?, _bypass_preconds?) do
+    if filter_preconds? do
       [message]
     else
       message
     end
   end
 
-  def pretty_error({:error, {:type_mismatch, struct_module, field, value, _expected_types, [single_error_template]}}, maybe_filter_precond_errors) do
-    general_error_string = general_error_message(single_error_template)
+  def pretty_error(
+        {:error, {:type_mismatch, struct_module, field, value, _expected_types, [single_error_template]}},
+        filter_preconds?,
+        bypass_preconds?
+      ) do
+    precond? = precond_error?(single_error_template)
 
     message =
-      if maybe_filter_precond_errors and precond_error?(single_error_template) do
-        general_error_string
-      else
-        invalid_value = invalid_value_message(value, field, struct_module)
-        "#{invalid_value} #{general_error_string}"
+      case {precond?, filter_preconds?, bypass_preconds?} do
+        {true, true, true} ->
+          single_error_template
+
+        {true, true, false} ->
+          general_error_message(single_error_template)
+
+        _ ->
+          invalid_value = invalid_value_message(value, field, struct_module)
+          general_error_string = general_error_message(single_error_template)
+          "#{invalid_value} #{general_error_string}"
       end
 
-    if maybe_filter_precond_errors do
+    if filter_preconds? do
       List.wrap(message)
     else
       message
     end
   end
 
-  def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}, maybe_filter_precond_errors) do
+  def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}, filter_preconds?, bypass_preconds?) do
     underlying_errors = collect_deepest_underlying_errors(error_templates)
 
     precond_errors =
-      if maybe_filter_precond_errors do
+      if filter_preconds? do
         underlying_errors
         |> List.flatten()
         |> Enum.filter(&precond_error?/1)
-        |> Enum.map(fn {template, keywords} -> interpolate_error_template(template, keywords) end)
+        |> Enum.map(fn {template, keywords} = error -> if(bypass_preconds?, do: error, else: interpolate_error_template(template, keywords)) end)
       else
         []
       end
@@ -89,7 +103,7 @@ defmodule Domo.ErrorBuilder do
         precond_errors
       end
 
-    if maybe_filter_precond_errors do
+    if filter_preconds? do
       List.wrap(message)
     else
       message

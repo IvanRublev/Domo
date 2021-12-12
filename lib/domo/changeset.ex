@@ -165,7 +165,7 @@ defmodule Domo.Changeset do
     defp do_validate_field(type_ensurer, field, value, maybe_filter_precond_errors, take_error_fun) do
       alias Domo.ErrorBuilder
 
-      case type_ensurer.ensure_field_type({field, value}) do
+      case type_ensurer.ensure_field_type({field, value}, []) do
         :ok ->
           []
 

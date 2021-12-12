@@ -58,9 +58,9 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any()),
+      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any(), any()),
         meck_options: [:passthrough],
-        exec: fn arg ->
+        exec: fn arg, _ ->
           send(me, {:ensure_field_type_was_called, arg})
           :ok
         end
@@ -84,9 +84,9 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      allow CustomStructUsingDomoMetaField.TypeEnsurer.ensure_field_type(any()),
+      allow CustomStructUsingDomoMetaField.TypeEnsurer.ensure_field_type(any(), any()),
         meck_options: [:passthrough],
-        exec: fn arg ->
+        exec: fn arg, _ ->
           send(me, {:ensure_field_type_was_called, arg})
           :ok
         end
@@ -206,9 +206,9 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      allow CustomStructUsingDomoOptionalField.TypeEnsurer.ensure_field_type(any()),
+      allow CustomStructUsingDomoOptionalField.TypeEnsurer.ensure_field_type(any(), any()),
         meck_options: [:passthrough],
-        exec: fn arg ->
+        exec: fn arg, _ ->
           send(me, {:ensure_field_type_was_called, arg})
           :ok
         end
@@ -242,9 +242,9 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any()),
+      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any(), any()),
         meck_options: [:passthrough],
-        exec: fn arg ->
+        exec: fn arg, _ ->
           send(me, {:ensure_field_type_was_called, arg})
           :ok
         end
@@ -307,9 +307,9 @@ defmodule Domo.ChangesetTest do
           changeset
         end
 
-      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any()),
+      allow CustomStructUsingDomo.TypeEnsurer.ensure_field_type(any(), any()),
         meck_options: [:passthrough],
-        exec: fn arg ->
+        exec: fn arg, _ ->
           send(me, {:ensure_field_type_was_called, arg})
           :ok
         end

@@ -18,6 +18,7 @@ defmodule DomoTest do
       Airplane.Seat,
       Article,
       Arena,
+      Book,
       Customer,
       EctoPassenger,
       Game,
@@ -33,8 +34,10 @@ defmodule DomoTest do
       PostFieldPrecond.CommentNoTPrecond,
       PostNestedPecond,
       PostNestedPecond.CommentTPrecond,
+      PublicLibrary,
       Receiver,
       ReceiverUserTypeAfterT,
+      Shelf,
       WebService
     ]
   )
@@ -323,7 +326,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     test "ensures data integrity with either field precondition or t() type precondition for field's struct value" do
       DomoMixTask.start_plan_collection()
       compile_post_comment_structs()
-      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+      DomoMixTask.process_plan({:ok, []}, [])
 
       assert %{__struct__: PostFieldPrecond} = PostFieldPrecond.new!(comment: struct!(PostFieldPrecond.CommentNoTPrecond, id: 1))
 
@@ -550,6 +553,151 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert {:error, messages} = AccountCustomizedMessages.new([id: "aky-47896", money: 1], maybe_filter_precond_errors: true)
 
       assert messages == [t: [{:overdraft, :overflow}]]
+    end
+
+    test "returns list of precondition errors lifted from nested structs given maybe_filter_precond_errors: true option for *_ok functions" do
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs(
+        """
+        precond id: &if(&1 > 10, do: :ok, else: {:error, "Expected id > 10. Got \#{&1}."})
+        """,
+        "",
+        ""
+      )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+      assert [items: ["Expected id > 10. Got 9."]] = messages
+
+      DomoMixTask.start_plan_collection()
+      compile_line_item_order_structs("precond id: &(&1 > 10)", "", "")
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+
+      assert [
+               items: [
+                 "Expected the value matching the integer() type. And a true value from the precondition function \"&(&1 > 10)\" defined for LineItem.id() type."
+               ]
+             ] = messages
+
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs(
+        "",
+        """
+        precond t: &if(&1.id > 10, do: :ok, else: {:error, "Expected struct's id > 10. Got \#{&1.id}."})
+        """,
+        ""
+      )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+      assert [items: ["Expected struct's id > 10. Got 9."]] = messages
+
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs(
+        "",
+        """
+        precond t: &(&1.id > 10)
+        """,
+        ""
+      )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+
+      assert [
+               items: [
+                 "Expected the value matching the LineItem.t() type. And a true value from the precondition function \"&(&1.id > 10)\" defined for LineItem.t() type."
+               ]
+             ] = messages
+
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs("", "", """
+      precond item: &if(&1.id > 10, do: :ok, else: {:error, "Expected item's id > 10. Got \#{&1.id}."})
+      """)
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+      assert [items: ["Expected item's id > 10. Got 9."]] = messages
+
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs("", "", """
+      precond item: &(&1.id > 10)
+      """)
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9)]], maybe_filter_precond_errors: true)
+
+      assert [
+               items: [
+                 "Expected the value matching the %LineItem{} type. And a true value from the precondition function \"&(&1.id > 10)\" defined for Order.item() type."
+               ]
+             ] = messages
+    end
+
+    test "returns list of multiple precondition errors lifted from nested structs given maybe_filter_precond_errors: true option for *_ok functions" do
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs(
+        """
+        precond id: &if(&1 > 10, do: :ok, else: {:error, "Expected id > 10. Got \#{&1}."})
+        """,
+        "",
+        ""
+      )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9, amount: 0)]], maybe_filter_precond_errors: true)
+
+      assert [
+               items: [
+                 "Expected id > 10. Got 9.",
+                 "Expected the value matching the integer() type. And a true value from the precondition function \"&(&1 > 0)\" defined for LineItem.amount() type."
+               ]
+             ] = messages
+
+      DomoMixTask.start_plan_collection()
+
+      compile_line_item_order_structs(
+        "",
+        """
+        precond t: &if(&1.id > 10, do: :ok, else: {:error, "Expected struct's id > 10. Got \#{&1.id}."})
+        """,
+        ""
+      )
+
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:error, messages} = Order.new([items: [struct!(LineItem, id: 9, amount: 0)]], maybe_filter_precond_errors: true)
+
+      assert [
+               items: [
+                 "Expected the value matching the integer() type. And a true value from the precondition function \"&(&1 > 0)\" defined for LineItem.amount() type."
+               ]
+             ] = messages
+    end
+
+    test "returns list of precondition errors from 3 level deep nested struct" do
+      DomoMixTask.start_plan_collection()
+      compile_public_library_struct()
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      library = struct!(PublicLibrary, %{shelves: [struct!(Shelf, %{books: [struct!(Book, %{title: "", pages: 1})]})]})
+
+      assert {:error, messages} = PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
+      assert [shelves: ["Book title is required.", "Book should have more then 3 pages. Given (1)."]] = messages
     end
 
     test "recompiles type ensurer of depending struct when the type of the struct it depends on changes" do
@@ -1147,6 +1295,78 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       @type t :: %__MODULE__{id: id(), money: money()}
       precond t: &if(&1.money >= 10, do: :ok, else: {:error, {:overdraft, :overflow}})
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_line_item_order_structs(precond_line_item_id, precond_line_item_t, precond_ref_t) do
+    path = src_path("/line_order.ex")
+
+    File.write!(path, """
+    defmodule LineItem do
+      use Domo, ensure_struct_defaults: false
+      defstruct [:id, :amount]
+
+      @type id :: integer()
+      #{precond_line_item_id}
+
+      @type amount :: integer()
+      precond amount: &(&1 > 0)
+
+      @type t :: %__MODULE__{id: id(), amount: amount() | nil}
+      #{precond_line_item_t}
+    end
+
+    defmodule Order do
+      use Domo, ensure_struct_defaults: false
+      defstruct [:items]
+
+      @type t :: %__MODULE__{items: [item()]}
+
+      @type item :: LineItem.t()
+      #{precond_ref_t}
+    end
+    """)
+
+    compile_with_elixir()
+    [path]
+  end
+
+  defp compile_public_library_struct do
+    path = src_path("/public_library.ex")
+
+    File.write!(path, """
+    defmodule Book do
+      use Domo
+
+      defstruct [:title, :pages]
+
+      @type title :: String.t()
+      precond title: &(if String.length(&1) > 1, do: :ok, else: {:error, "Book title is required."})
+
+      @type pages :: pos_integer()
+      precond pages: &(if &1 > 2, do: :ok, else: {:error, "Book should have more then 3 pages. Given (\#{&1})."})
+
+      @type t :: %__MODULE__{title: nil | title(), pages: nil | pages()}
+    end
+
+    defmodule Shelf do
+      use Domo
+
+      defstruct books: []
+
+      @type t :: %__MODULE__{books: [Book.t()]}
+    end
+
+    defmodule PublicLibrary do
+      use Domo
+
+      defstruct shelves: []
+
+      @type t :: %__MODULE__{shelves: [Shelf.t()]}
     end
     """)
 

@@ -9,7 +9,7 @@ defmodule Domo.InteractiveTypeRegistrationTest do
 
   setup tags do
     ResolverTestHelper.disable_raise_in_test_env()
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: tags.in_mix_compile?
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: tags.in_mix_compile?
 
     Code.compiler_options(ignore_module_conflict: true)
 

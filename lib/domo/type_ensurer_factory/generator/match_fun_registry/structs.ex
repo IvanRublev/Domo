@@ -25,15 +25,27 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %unquote(struct_atom){} = value, unquote(spec_string_var)) do
-          case Domo._validate_fields_ok(unquote(type_ensurer), value, []) do
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, %unquote(struct_atom){} = value, unquote(spec_string_var), opts) do
+          opts = Keyword.put(opts, :maybe_bypass_precond_errors, true)
+
+          case Domo._validate_fields_ok(unquote(type_ensurer), value, opts) do
             {:ok, _instance} ->
               unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
 
             {:error, struct_errors} ->
               messages =
                 Enum.map(struct_errors, fn {field, error} ->
-                  {"Value of field #{inspect(field)} is invalid due to %{error}", error: error}
+                  any_error =
+                    case error do
+                      [err | _] -> err
+                      _ -> error
+                    end
+
+                  if Domo.ErrorBuilder.precond_error?(any_error) do
+                    error
+                  else
+                    {"Value of field #{inspect(field)} is invalid due to %{error}", error: error}
+                  end
                 end)
 
               {:error, value, messages}

@@ -44,7 +44,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   end
 
   def call_ensure_field_type({_field, _value} = subject) do
-    apply(TypeEnsurer, :ensure_field_type, [subject])
+    apply(TypeEnsurer, :ensure_field_type, [subject, []])
   end
 
   def call_t_precondition(subject) do

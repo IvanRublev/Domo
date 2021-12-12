@@ -11,7 +11,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
   setup [:setup_project_planner]
 
   setup do
-    allow CodeEvaluation.in_mix_compile?(any()), meck_options: [:passthrough], return: true
+    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
     :ok
   end
 

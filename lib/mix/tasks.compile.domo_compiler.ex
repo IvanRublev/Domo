@@ -58,6 +58,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
     TypeEnsurerFactory.maybe_collect_types_for_stdlib_structs(plan_path)
     TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(plan_path)
+    TypeEnsurerFactory.print_global_anys(plan_path)
 
     stop_plan_collection()
 

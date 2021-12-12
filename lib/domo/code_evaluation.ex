@@ -3,12 +3,11 @@ defmodule Domo.CodeEvaluation do
 
   @plan_collection_key __MODULE__.PlanCollection
 
-  def in_mix_compile?(module_env) do
-    tracers = Map.get(module_env || %{}, :tracers, [])
-    Enum.member?(tracers, Mix.Compilers.ApplicationTracer)
+  def in_mix_compile? do
+    Code.can_await_module_compilation?()
   end
 
-  def in_mix_test?(_module_env) do
+  def in_mix_test? do
     not is_nil(GenServer.whereis(ExUnit.Server))
   end
 

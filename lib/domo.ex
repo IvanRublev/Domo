@@ -105,7 +105,7 @@ defmodule Domo do
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
 
-    in_mix_compile? = CodeEvaluation.in_mix_compile?(__CALLER__)
+    in_mix_compile? = CodeEvaluation.in_mix_compile?()
     config = @mix_project.config()
 
     if in_mix_compile? do
@@ -117,7 +117,7 @@ defmodule Domo do
           _ -> true
         end
 
-      if do_test_env_ckeck and CodeEvaluation.in_mix_test?(__CALLER__) do
+      if do_test_env_ckeck and CodeEvaluation.in_mix_test?() do
         Raises.raise_cant_build_in_test_environment(__CALLER__.module)
       end
 
@@ -427,15 +427,16 @@ defmodule Domo do
 
   def _do_validate_fields(type_ensurer, struct, err_fun, opts \\ []) do
     maybe_filter_precond_errors = Keyword.get(opts, :maybe_filter_precond_errors, false)
+    maybe_bypass_precond_errors = Keyword.get(opts, :maybe_bypass_precond_errors, false)
     typed_no_any_fields = type_ensurer.fields(:typed_with_meta_no_any)
 
     errors =
       Enum.reduce(typed_no_any_fields, [], fn field, errors ->
         field_value = {field, Map.get(struct, field)}
 
-        case type_ensurer.ensure_field_type(field_value) do
+        case type_ensurer.ensure_field_type(field_value, opts) do
           {:error, _} = error ->
-            [apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors]) | errors]
+            [apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors, maybe_bypass_precond_errors]) | errors]
 
           _ ->
             errors
@@ -445,7 +446,7 @@ defmodule Domo do
     t_precondition_error =
       if Enum.empty?(errors) do
         case type_ensurer.t_precondition(struct) do
-          {:error, _} = error -> apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors])
+          {:error, _} = error -> apply(ErrorBuilder, err_fun, [error, maybe_filter_precond_errors, maybe_bypass_precond_errors])
           :ok -> nil
         end
       end
@@ -533,7 +534,7 @@ defmodule Domo do
 
   @doc false
   def _plan_precond_checks(env, bytecode) do
-    in_mix_compile? = CodeEvaluation.in_mix_compile?(env)
+    in_mix_compile? = CodeEvaluation.in_mix_compile?()
 
     if in_mix_compile? do
       config = @mix_project.config()
