@@ -18,15 +18,15 @@
 A library to ensure the consistency of structs modelling a business domain via
 their `t()` types and associated precondition functions.
 
-Used in a struct's module, the library adds constructor, validation, 
-and reflection functions. Constructor and validation functions 
+Used in a struct's module, the library adds constructor, validation,
+and reflection functions. Constructor and validation functions
 guarantee the following at call time:
 
 * A complex struct conforms to its `t()` type.
 * Structs are validated to be consistent to follow given business rules by
   precondition functions associated with struct types.
 
-If the conditions described above are not met, the constructor 
+If the conditions described above are not met, the constructor
 and validation functions return an error.
 
 Because precondition function associates with type the validation can be shared
@@ -79,7 +79,7 @@ defmodule PurchaseOrder do
 
   defp validate_invariants(po) do
     amounts = po.items |> Enum.map(& &1.amount) |> Enum.sum()
-    
+
     if amounts <= po.approved_limit do
       :ok
     else
@@ -107,7 +107,7 @@ The constructor function takes any `Enumerable` as the input value:
 {:ok, %PurchaseOrder{approved_limit: 250, id: 1000, items: []}}
 ```
 
-It returns the descriptive keyword list if there is an error in input arguments. 
+It returns the descriptive keyword list if there is an error in input arguments.
 And it validates nested structs automatically:
 
 ```elixir
@@ -116,15 +116,15 @@ PurchaseOrder.new(id: 500, items: [%LineItem{amount: -5}])
 ```output
 {:error,
  [
-   items: "Invalid value [%LineItem{amount: -5}] for field :items of %PurchaseOrder{}. 
+   items: "Invalid value [%LineItem{amount: -5}] for field :items of %PurchaseOrder{}.
     Expected the value matching the [%LineItem{}] type.
     Underlying errors:
        - The element at index 0 has value %LineItem{amount: -5} that is invalid.
-       - Value of field :amount is invalid due to Invalid value -5 for field :amount 
+       - Value of field :amount is invalid due to Invalid value -5 for field :amount
          of %LineItem{}. Expected the value matching the non_neg_integer() type.",
-   id: "Invalid value 500 for field :id of %PurchaseOrder{}. Expected the 
-    value matching the non_neg_integer() type. And a true value from 
-    the precondition function \"&(1000 <= &1 and &1 <= 5000)\" 
+   id: "Invalid value 500 for field :id of %PurchaseOrder{}. Expected the
+    value matching the non_neg_integer() type. And a true value from
+    the precondition function \"&(1000 <= &1 and &1 <= 5000)\"
     defined for PurchaseOrder.id() type."
  ]}
 ```
@@ -136,15 +136,15 @@ for more options.
 And manually updated struct can be validated like the following:
 
 ```elixir
-po 
-|> Map.put(:items, [LineItem.new!(amount: 150)]) 
+po
+|> Map.put(:items, [LineItem.new!(amount: 150)])
 |> PurchaseOrder.ensure_type()
 ```
 ```output
 {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}}
 ```
 
-Domo returns the error if the precondition function attached to the `t()` type 
+Domo returns the error if the precondition function attached to the `t()` type
 that validates invariants for the struct as a whole fails:
 
 ```elixir
@@ -155,7 +155,7 @@ PurchaseOrder.ensure_type(updated_po)
 {:error, [t: "Sum of line item amounts should be <= to approved limit"]}
 ```
 
-Getting the list of the required fields of the struct that have type other 
+Getting the list of the required fields of the struct that have type other
 then `nil` or `any` is like that:
 
 ```elixir
@@ -170,7 +170,7 @@ See the [Callbacks](#callbacks) section for more details about functions added t
 ## User facing error messages
 
 It's possible to attach error messages to types with the `precond` macro to display
-them later to the user. To filter such kinds of messages, pass 
+them later to the user. To filter such kinds of messages, pass
 the `maybe_filter_precond_errors: true` option to Domo generated functions like that:
 
 ```elixir
@@ -184,23 +184,23 @@ defmodule Book do
 
   @type pages :: pos_integer()
   precond pages: &(if &1 > 2, do: :ok, else: {:error, "Book should have more then 3 pages. Given (#{&1})."})
-  
+
   @type t :: %__MODULE__{title: nil | title(), pages: nil | pages()}
 end
 
 defmodule Shelf do
   use Domo
-  
+
   defstruct books: []
-  
+
   @type t :: %__MODULE__{books: [Book.t()]}
 end
 
 defmodule PublicLibrary do
   use Domo
-  
+
   defstruct shelves: []
-  
+
   @type t :: %__MODULE__{shelves: [Shelf.t()]}
 end
 
@@ -219,7 +219,7 @@ PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
 ]}
 ```
 
-That output contains only a flattened list of precondition error messages 
+That output contains only a flattened list of precondition error messages
 from the deeply nested structure.
 
 ## Integration with Ecto
@@ -263,7 +263,7 @@ defmodule Customer do
 end
 ```
 
-See `typed_fields/0`, `required_fields/0`, and `Domo.Changeset` module 
+See `typed_fields/0`, `required_fields/0`, and `Domo.Changeset` module
 documentation for details.
 
 See detailed example is in the [./example_avialia](https://github.com/IvanRublev/Domo/tree/master/example_avialia) project.
@@ -286,9 +286,9 @@ At the project's compile-time, Domo can perform the following checks:
   to be a function's default argument or a struct field's default value
   matches its type and preconditions.
 
-Domo validates struct type conformance with appropriate `TypeEnsurer` modules 
+Domo validates struct type conformance with appropriate `TypeEnsurer` modules
 built during the project's compilation at the application's run-time.
-These modules rely on guards and pattern matchings. See `__using__/1` for 
+These modules rely on guards and pattern matchings. See `__using__/1` for
 more details.
 
 ## Depending types tracking
@@ -332,7 +332,7 @@ add the following import to the `.formatter.exs`:
 
 ## Setup for Phoenix hot reload
 
-To enable hot reload for type changes in structs using Domo, add the following 
+To enable hot reload for type changes in structs using Domo, add the following
 line to the endpoint's configuration in the `config.exs` file:
 
 <!-- livebook:{"force_markdown":true} -->
@@ -473,12 +473,12 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Limitations
 
-The recursive types like `@type t :: :end | {integer, t()}` are not supported. 
+The recursive types like `@type t :: :end | {integer, t()}` are not supported.
 Because of that types like `Macro.t()` or `Path.t()` are not supported.
 
-Parametrized types are not supported. Library returns `{:type_not_found, :key}` 
+Parametrized types are not supported. Library returns `{:type_not_found, :key}`
 error for `@type dict(key, value) :: [{key, value}]` type definition.
-Domo returns error for type referencing parametrized type like 
+Domo returns error for type referencing parametrized type like
 `@type field :: container(integer())`.
 
 Generated submodule with TypedStruct's `:module` option is not supported.
@@ -506,12 +506,12 @@ constructor functions as the following:
 
 ## Performance 🐢
 
-On the average, the current version of the library makes struct operations 
+On the average, the current version of the library makes struct operations
 about 20% sower what may seem plodding. And it may look like non-performant
 to run in production.
 
 It's not that. The library ensures the correctness of data types at runtime and
-it comes with the price of computation. As the result users get the application 
+it comes with the price of computation. As the result users get the application
 with correct states at every update that is valid in many business contexts.
 
 The output of `mix benchmark` is following.
@@ -544,7 +544,7 @@ Name                               ips        average  deviation         median 
 struct!(__MODULE__, arg)       13.72 K       72.88 μs    ±64.17%          73 μs         168 μs
 __MODULE__.new!(arg)           11.33 K       88.24 μs    ±50.65%          91 μs         177 μs
 
-Comparison: 
+Comparison:
 struct!(__MODULE__, arg)       13.72 K
 __MODULE__.new!(arg)           11.33 K - 1.21x slower +15.36 μs
 
@@ -572,7 +572,7 @@ Name                                                        ips        average  
 struct!(tweet, user: arg)                               15.16 K       65.96 μs    ±65.51%          66 μs         148 μs
 %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K       75.44 μs    ±59.84%          76 μs         163 μs
 
-Comparison: 
+Comparison:
 struct!(tweet, user: arg)                               15.16 K
 %{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K - 1.14x slower +9.48 μs
 ```
@@ -597,15 +597,15 @@ struct!(tweet, user: arg)                               15.16 K
 
 ## Changelog
 
-### 1.5.1
+### v1.5.1 (2021-12-12)
 
 * Fix to detect mix compile with more reliable `Code.can_await_module_compilation?`
 
 * Fix to make benchmark run again as sub-project
-   
+
 * Make `:maybe_filter_precond_errors` option to lift precondition error messages from the nested structs
 
-### 1.5.0
+### v1.5.0 (2021-12-05)
 
 * Fix bug to return explicit file read error message during the compile time
 
@@ -619,16 +619,16 @@ Breaking change:
 
 * Improve compilation speed by starting resolve planner only once in Domo mix task.
   To migrate, please, put the `:domo_compiler` before `:elixir` in mix.exs.
-  And do the same for `reloadable_compilers` key in config file 
+  And do the same for `reloadable_compilers` key in config file
   if configured for Phoenix endpoint.
 
-### 1.4.1
+### v1.4.1 (2021-11-16)
 
 * Improve compatibility with Elixir v1.13
 
 * Format string representations of an anonymous function passed to `precond/1` macro error message
 
-### 1.4.0
+### v1.4.0 (2021-11-15)
 
 * Fix bug to detect runtime mode correctly when launched under test.
 
@@ -637,13 +637,13 @@ Breaking change:
 Breaking changes:
 
 * Change `new_ok` constructor function name to `new` that is more convenient.
-  Search and replace `new_ok(` -> `new(` in all files of the project 
+  Search and replace `new_ok(` -> `new(` in all files of the project
   using Domo to migrate.
 
 * Constructor function name generation procedure changes to adding `!`
   to the value of `:name_of_new_function` option. The defaults are `new` and `new!`.
 
-### 1.3.4
+### v1.3.4 (2021-10-13)
 
 * Make error messages to be more informative
 
@@ -657,13 +657,13 @@ Breaking changes:
 
 * Replace `apply()` with Module.function calls to run faster
 
-### 1.3.3
+### v1.3.3 (2021-10-07)
 
 * Support validation of `Decimal.t()`
 
 * Fix bug to define precondition function for user type referencing any() or term()
 
-### 1.3.2
+### v1.3.2 (2021-09-18)
 
 * Support remote types in erlang modules like `:inet.port_number()`
 
@@ -683,11 +683,11 @@ Breaking changes:
 
 * Add example of parsing with validating of the Contentful JSON reply via `Jason` + `ExJSONPath` + `Domo`
 
-### 1.3.1
+### v1.3.1 (2021-08-19)
 
 * Fix bug to validate defaults having | nil type.
 
-### 1.3.0
+### v1.3.0 (2021-08-15)
 
 * Change the default name of the constructor function to `new!` to follow Elixir naming convention.
   You can always change the name with the `config :domo, :name_of_new_function, :new_func_name_here` app configuration.
@@ -698,7 +698,7 @@ Breaking changes:
 
 * Add examples of integrations with `TypedStruct` and `TypedEctoSchema`.
 
-### 1.2.9
+### v1.2.9 (2021-08-09)
 
 * Fix bug to acknowledge that type has been changed after a failed compilation.
 
@@ -708,31 +708,31 @@ Breaking changes:
 
 * Add `maybe_filter_precond_errors: true` option that filters errors from precondition functions for better output for the user.
 
-### 1.2.8
+### v1.2.8 (2021-07-15)
 
 * Add `Domo.Changeset.validate_type/*` functions to validate Echo.Changeset field changes matching the t() type.
 
 * Fix the bug to return custom error from precondition function as underlying error for :| types.
 
-### 1.2.7
+### v1.2.7 (2021-07-05)
 
 * Fix the bug to make recompilation occur when fixing alias for remote type.
 
 * Support custom errors to be returned from functions defined with `precond/1`.
 
-### 1.2.6
+### v1.2.6 (2021-06-21)
 
 * Validates type conformance of default values given with `defstruct/1` to the
   struct's `t()` type at compile-time.
 
 * Includes only the most matching type error into the error message.
 
-### 1.2.5
+### v1.2.5 (2021-06-14)
 
 * Add `remote_types_as_any` option to disable validation of specified complex
   remote types. What can be replaced by precondition for wrapping user-defined type.
 
-### 1.2.4
+### v1.2.4 (2021-06-07)
 
 * Speedup resolving of struct types
 * Limit the number of allowed fields types combinations to 4096
@@ -741,29 +741,29 @@ Breaking changes:
 * Remove preconditions manifest file on `mix clean` command
 * List processed structs giving mix `--verbose` option
 
-### 1.2.3
+### v1.2.3 (2021-05-31)
 
 * Support struct's attribute introduced in Elixir 1.12.0 for error checking
 * Add user-defined precondition functions to check the allowed range of values
   with `precond/1` macro
 
-### 1.2.2
+### v1.2.2 (2021-05-05)
 
 * Add support for `new/1` calls at compile time f.e. to specify default values
 
-### 1.2.1
+### v1.2.1 (2021-04-25)
 
 * Domo compiler is renamed to `:domo_compiler`
 * Compile `TypeEnsurer` modules only if struct changes or dependency type changes
 * Phoenix hot-reload with `:reloadable_compilers` option is fully supported
 
-### 1.2.0
+### v1.2.0 (2021-04-12)
 
 * Resolve all types at compile time and build `TypeEnsurer` modules for all structs
 * Make Domo library work with Elixir 1.11.x and take it as the required minimum version
 * Introduce `---/2` operator to make tag chains with `Domo.TaggedTuple` module
 
-### 0.0.x - 1.0.x
+### v0.0.x - v1.0.x (2020-06-20)
 
 * MVP like releases, resolving types at runtime. Adds `new` constructor to a struct
 
@@ -801,4 +801,4 @@ Breaking changes:
 
 Copyright © 2021 Ivan Rublev
 
-This project is licensed under the [MIT license](LICENSE).
+This project is licensed under the [MIT license](./LICENSE.md).

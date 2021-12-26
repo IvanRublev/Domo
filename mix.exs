@@ -22,9 +22,14 @@ defmodule Domo.MixProject do
       # Docs
       name: "Domo",
       docs: [
-        main: "Domo",
+        extras: [
+          "LICENSE.md": [title: "License"],
+          "README.md": [title: "Readme"]
+        ],
+        main: "readme",
         source_url: @repo_url,
-        source_ref: "v#{@version}"
+        source_ref: "v#{@version}",
+        formatters: ["html"]
       ],
 
       # Package
