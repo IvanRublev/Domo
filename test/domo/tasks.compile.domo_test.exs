@@ -665,7 +665,7 @@ defmodule Domo.MixTasksCompileDomoTest do
     end
   end
 
-  describe "Domo compiler task clean/0 fucntion should" do
+  describe "Domo compiler task clean/0 function should" do
     test "remove plan, types, deps files and compiled code directory", %{
       plan_file: plan_file,
       types_file: types_file,

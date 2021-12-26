@@ -143,11 +143,11 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
 
   defp remove_dependant_modules_with_unloadable_types(dependants, type_hashes_by_module) do
     dependants
-    |> Enum.reduce([], fn {dependant_module, _type_old_hash, _precond_old_hash} = dependant, acc ->
+    |> Enum.reduce([], fn {dependant_module, _type_old_hash, _precond_old_hash} = dependent, acc ->
       if type_hashes_by_module[dependant_module] == nil do
         acc
       else
-        [dependant | acc]
+        [dependent | acc]
       end
     end)
     |> Enum.reverse()
