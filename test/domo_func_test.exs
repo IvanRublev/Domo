@@ -349,7 +349,7 @@ defmodule DomoFuncTest do
                    end
     end
 
-    test "issues a mismatch warning when `unexpected_type_error_as_warning` option is set or overriden with use Domo",
+    test "issues a mismatch warning when `unexpected_type_error_as_warning` option is set or overridden with use Domo",
          %{bob: bob} do
       malformed_bob = %{bob | name: :bob_hope}
       Application.put_env(:domo, :unexpected_type_error_as_warning, true)

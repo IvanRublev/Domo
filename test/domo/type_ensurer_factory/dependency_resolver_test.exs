@@ -178,7 +178,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @module_path2,
            @reference_path
          ]
-    test "touch and recompile depending module giving md5 hash of dependant module types mismatching one from deps file" do
+    test "touch and recompile depending module giving md5 hash of dependent module types mismatching one from deps file" do
       allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
 
       assert mtime(@module_path1) < mtime(@module_path2)
@@ -246,7 +246,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @module_path3,
            @reference_path
          ]
-    test "touch and recompile depending module if dependant modules have been recompiled" do
+    test "touch and recompile depending module if dependent modules have been recompiled" do
       allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
       assert mtime(@module_path1) < mtime(@reference_path)
       assert mtime(@module_path2) < mtime(@reference_path)

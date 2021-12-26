@@ -781,7 +781,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
         third: [quote(do: <<_::9>>)],
         # sequence of k*3 bits
         forth: [quote(do: <<_::_*3>>)],
-        # sequense of n + (k*4) bits
+        # sequence of n + (k*4) bits
         fifth: [quote(do: <<_::0, _::_*4>>)],
         sixth: [quote(do: <<_::5, _::_*4>>)]
       })

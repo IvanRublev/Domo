@@ -258,7 +258,7 @@ defmodule Customer do
     |> validate_type()
   end
 
-  # Domo adds typed_fields/0, required_fields/0 funcitons to the schema.
+  # Domo adds typed_fields/0, required_fields/0 functions to the schema.
   # Domo.Changeset defines validate_type/1 function.
 end
 ```
