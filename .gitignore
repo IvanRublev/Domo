@@ -23,9 +23,13 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 domo-*.tar
 
+# Temporary files, for example, from tests.
+/tmp/
+
 # VSCode
 /.elixir_ls
 /.vscode
 
+# Misc.
 .tool-versions
 mix.lock
