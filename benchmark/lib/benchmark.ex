@@ -6,25 +6,65 @@ defmodule Benchmark do
 
   alias Benchmark.{Inputs, Samples, Tweet}
 
+  @warmup_time_s 2
+  @cpu_time_s 8
+  @memory_time_s 2
+
   def run do
-    count = 10_000
-    puts_title("Generate #{count} inputs, may take a while.")
+    count = 3_000
+    puts_title("Generating #{count} inputs, may take a while.")
 
-    list = Enum.take(Stream.zip(Samples.tweet_map(), Samples.user_map()), count)
-    {:ok, maps_pid} = Inputs.start_link(list)
+    {tweet_maps, user_maps} =
+      [Samples.tweet_map(), Samples.user_map()]
+      |> Stream.zip()
+      |> Enum.take(count)
+      |> Enum.unzip()
 
-    tweet_user_list =
-      Enum.map(list, fn {tweet_map, user_map} ->
-        {struct(Tweet, Map.put(tweet_map, :user, nil)), struct(Tweet.User, user_map)}
-      end)
+    count = length(tweet_maps)
+    tweets_approx_size_kb = :erlang.term_to_binary(tweet_maps) |> byte_size() |> Kernel.*(2) |> div(3) |> div(1024)
+    users_approx_size_kb = :erlang.term_to_binary(user_maps) |> byte_size() |> Kernel.*(2) |> div(3) |> div(1024)
 
-    {:ok, tweet_user_pid} = Inputs.start_link(tweet_user_list)
+    tweet_maps_input1 = init_input(:tweet_maps1, tweet_maps, count)
+    tweet_maps_input2 = init_input(:tweet_maps2, tweet_maps, count)
+
+    tweets = Enum.map(tweet_maps, &Tweet.new!/1)
+    tweets_input1 = init_input(:tweet_maps1, tweets, count)
+    tweets_input2 = init_input(:tweet_maps2, tweets, count)
+
+    users = Enum.map(user_maps, &Tweet.User.new!/1)
+    users_input1 = init_input(:users1, users, count)
+    users_input2 = init_input(:users2, users, count)
+
+    puts_title("""
+    Generated #{count} tweet inputs with summary approx. size of #{tweets_approx_size_kb}KB.
+    Generated #{count} user inputs with summary approx. size of #{users_approx_size_kb}KB.\
+    """)
 
     for {title, fun} <- [
-          {"Construction of a struct", fn -> bench_construction(maps_pid) end},
-          {"A struct's field modification", fn -> bench_put(tweet_user_pid) end}
+          {"struct's construction",
+           fn ->
+             benchee(%{
+               "__MODULE__.new!(map)" => fn -> loop(fn -> Tweet.new!(next_random_value(tweet_maps_input1, count)) end) end,
+               "struct!(__MODULE__, map)" => fn -> loop(fn -> struct!(Tweet, next_random_value(tweet_maps_input2, count)) end) end
+             })
+           end},
+          {"struct's field modification",
+           fn ->
+             benchee(%{
+               "struct!(tweet, user: user) |> __MODULE__.ensure_type!()" => fn ->
+                 loop(fn ->
+                   struct!(next_random_value(tweets_input1, count), user: next_random_value(users_input1, count)) |> Tweet.ensure_type!()
+                 end)
+               end,
+               "struct!(tweet, user: user)" => fn ->
+                 loop(fn ->
+                   struct!(next_random_value(tweets_input1, count), user: next_random_value(users_input1, count))
+                 end)
+               end
+             })
+           end}
         ] do
-      puts_title(title)
+      puts_title("Benchmark #{title}")
       fun.()
     end
   end
@@ -35,59 +75,30 @@ defmodule Benchmark do
     IO.puts("=========================================")
   end
 
-  defp bench_construction(pid) do
-    Benchee.run(%{
-      "__MODULE__.new!(arg)" => fn ->
-        {tweet_map, user_map} = Inputs.next_input(pid)
-        Tweet.new!(Map.merge(tweet_map, %{user: Tweet.User.new!(user_map)}))
-      end,
-      "struct!(__MODULE__, arg)" => fn ->
-        {tweet_map, user_map} = Inputs.next_input(pid)
-        struct!(Tweet, Map.merge(tweet_map, %{user: struct!(Tweet.User, user_map)}))
-      end
-    })
+  def init_input(name, values, max_position) do
+    input_table = :ets.new(name, [:set, :public])
+
+    values_tuple =
+      values
+      |> List.to_tuple()
+      |> Tuple.insert_at(0, :values)
+
+    :ets.insert(input_table, values_tuple)
+    :ets.insert(input_table, {:position, max_position + 1})
+    input_table
   end
 
-  defp bench_put(pid) do
-    Benchee.run(%{
-      "%{tweet | user: arg} |> __MODULE__.ensure_type!()" => fn ->
-        {tweet, user} = Inputs.next_input(pid)
-        %{tweet | user: user} |> Tweet.ensure_type!()
-      end,
-      "struct!(tweet, user: arg)" => fn ->
-        {tweet, user} = Inputs.next_input(pid)
-        struct!(tweet, user: user)
-      end
-    })
-  end
-end
-
-defmodule Benchmark.Inputs do
-  use GenServer
-
-  def start_link(inputs) do
-    GenServer.start_link(__MODULE__, inputs)
+  def next_random_value(input_table, max_position) do
+    position = :ets.update_counter(input_table, :position, {2, -1, 1, max_position})
+    :ets.lookup_element(input_table, :values, position + 1)
   end
 
-  def next_input(pid) do
-    GenServer.call(pid, :next_input)
+  def benchee(plan) do
+    Benchee.run(plan, warmup: @warmup_time_s, time: @cpu_time_s, memory_time: @memory_time_s)
   end
 
-  @impl true
-  def init(list) when is_list(list) do
-    {:ok, {0, Enum.count(list), list}}
-  end
-
-  @impl true
-  def handle_call(:next_input, _caller, {idx, count, inputs}) do
-    new_idx = idx + 1
-
-    state = {
-      if(new_idx == count, do: 0, else: new_idx),
-      count,
-      inputs
-    }
-
-    {:reply, Enum.at(inputs, idx), state}
+  def loop(fun) do
+    # this makes the execution time close to 1ms
+    Enum.each(1..2000, fn _ -> fun.() end)
   end
 end

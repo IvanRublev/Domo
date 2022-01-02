@@ -183,6 +183,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic(error.file, message)
   end
 
+  defp diagnostic(%Error{compiler_module: Resolver, message: {:self_referencing_type, type_string}} = error) do
+    message = """
+    #{module_to_string(error.compiler_module)} failed to resolve fields type \
+    of the #{module_to_string(error.struct_module)} struct because of the self referencing type #{type_string}. \
+    Only struct types referencing themselves are supported.\
+    """
+
+    diagnostic(error.file, message)
+  end
+
   defp diagnostic(%Error{compiler_module: Resolver} = error) do
     message = """
     #{module_to_string(error.compiler_module)} failed to resolve fields type \

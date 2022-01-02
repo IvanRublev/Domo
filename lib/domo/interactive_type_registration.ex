@@ -5,6 +5,22 @@ defmodule Domo.InteractiveTypesRegistration do
 
   Should be used in interactive shell only. When Domo is launched
   with `mix compile` command, it reads module types from Beam files directly.
+
+  Example:
+
+      iex(1)> defmodule SharedTypes do
+         ...>   use Domo.InteractiveTypesRegistration
+         ...>
+         ...>   @type id :: String.t() | nil
+         ...> end
+
+  Now the `SharedTypes.id` can be referenced from a struct interactively:
+
+      iex(2)> defmodule MyStruct do
+         ...>   use Domo
+         ...>   defstruct [:id]
+         ...>   @type t :: %__MODULE__{id: SharedTypes.id()}
+         ...> end
   """
 
   alias Domo.CodeEvaluation

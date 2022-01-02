@@ -1,6 +1,8 @@
 defmodule Domo do
   @moduledoc Domo.Doc.readme_doc("<!-- Documentation -->")
 
+  @using_options Domo.Doc.readme_doc("<!-- using_options -->")
+
   @new_raise_doc Domo.Doc.readme_doc("<!-- new!/1 -->")
   @new_ok_doc Domo.Doc.readme_doc("<!-- new/2 -->")
   @ensure_type_raise_doc Domo.Doc.readme_doc("<!-- ensure_type!/1 -->")
@@ -78,28 +80,7 @@ defmodule Domo do
 
   ## Options
 
-    * `ensure_struct_defaults` - if set to `false`, disables the validation of
-      default values given with `defstruct/1` to conform to the `t()` type
-      at compile time. Default is `true`.
-
-    * `name_of_new_function` - the name of the constructor function added
-      to the module. The raising error function name is generated automatically
-      from the given one by adding trailing `!`.
-      Defaults are `new` and `new!` appropriately.
-
-    * `unexpected_type_error_as_warning` - if set to `true`, prints warning
-      instead of throwing an error for field type mismatch in the raising
-      functions. Default is `false`.
-
-    * `remote_types_as_any` - keyword list of type lists by modules that should
-      be treated as `any()`. F.e. `[{ExternalModule, [:t, :name]}, {OtherModule, :t}]`
-      Default is `nil`.
-
-  The option value given to the macro overrides one set globally in the
-  configuration with `config :domo, option: value`.
-
-  Run the `Application.put_env(:domo, :verbose_in_iex, true)` to enable verbose
-  messages from domo in Interactive Elixir console.
+  #{@using_options}
   """
   # credo:disable-for-lines:332
   defmacro __using__(opts) do

@@ -22,6 +22,8 @@ defmodule DomoTest do
       Customer,
       EctoPassenger,
       Game,
+      Leaf,
+      LeafHolder,
       Library,
       Library.Book,
       Library.Book.Author,
@@ -269,6 +271,38 @@ defmodule DomoTest do
 
                      _ = Customer.new!(delivery_info: delivery_info)
                    end
+    end
+
+    test "ensures data integrity of a struct with a field referencing the same struct" do
+      DomoMixTask.start_plan_collection()
+      compile_leaf_structs("LeafHolder.a_leaf() | nil")
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:ok, _} = Leaf.new(value: 0, next_leaf: Leaf.new!(value: 1, next_leaf: nil))
+      assert {:error, _} = Leaf.new(value: 0, next_leaf: :atom)
+
+      DomoMixTask.start_plan_collection()
+      compile_leaf_structs("t() | nil")
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+
+      assert {:ok, _} = Leaf.new(value: 0, next_leaf: Leaf.new!(value: 1, next_leaf: nil))
+      assert {:error, _} = Leaf.new(value: 0, next_leaf: :atom)
+    end
+
+    test "return error for Non struct type referencing itself" do
+      DomoMixTask.start_plan_collection()
+      compile_leaf_structs("LeafHolder.self_ref()")
+      assert {:error, [%{message: message}]} = DomoMixTask.process_plan({:ok, []}, [])
+
+      assert message =~
+               "Leaf struct because of the self referencing type LeafHolder.self_ref(). Only struct types referencing themselves are supported."
+
+      DomoMixTask.start_plan_collection()
+      compile_leaf_structs("LeafHolder.rem_self_ref()")
+      assert {:error, [%{message: message}]} = DomoMixTask.process_plan({:ok, []}, [])
+
+      assert message =~
+               "Leaf struct because of the self referencing type LeafHolder.rem_self_ref(). Only struct types referencing themselves are supported."
     end
 
     test "ensures Ecto schema" do
@@ -1022,7 +1056,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     test "returns error for | sum type with details about part that matches most deeply" do
       DomoMixTask.start_plan_collection()
       compile_article_struct()
-      DomoMixTask.process_plan({:ok, []}, [])
+      {:ok, _} = DomoMixTask.process_plan({:ok, []}, [])
 
       assert_raise ArgumentError,
                    """
@@ -1697,6 +1731,30 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     compile_with_elixir()
     [address_path, delivery_path, customer_path]
+  end
+
+  defp compile_leaf_structs(next_leaf_type) do
+    leaf_path = src_path("/leaf.ex")
+
+    File.write!(leaf_path, """
+    defmodule LeafHolder do
+      @type a_leaf :: Leaf.t()
+      @type self_ref :: {self_ref()}
+      @type rem_self_ref :: Leaf.rem_rem_self_ref()
+    end
+
+    defmodule Leaf do
+      use Domo, ensure_struct_defaults: false
+
+      defstruct [:value, :next_leaf]
+
+      @type t :: %__MODULE__{value: integer(), next_leaf: #{next_leaf_type}}
+      @type rem_rem_self_ref :: LeafHolder.rem_self_ref()
+    end
+    """)
+
+    compile_with_elixir()
+    [leaf_path]
   end
 
   defp compile_airplane_and_seat_structs do

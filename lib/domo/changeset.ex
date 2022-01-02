@@ -1,6 +1,6 @@
 defmodule Domo.Changeset do
   @moduledoc """
-  Validation functions for [Echo.Changeset](https://hexdocs.pm/ecto/Ecto.Changeset.html#module-validations-and-constraints).
+  Validation functions for [Ecto.Changeset](https://hexdocs.pm/ecto/Ecto.Changeset.html#module-validations-and-constraints).
 
   The `Ecto` schema changes can be validated to conform to types in `t()`
   and to fulfill appropriate preconditions.

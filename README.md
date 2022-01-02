@@ -1,41 +1,43 @@
 # Domo
 
-## Section
-
 |[![Build Status](https://travis-ci.com/IvanRublev/domo.svg?branch=master)](https://travis-ci.com/IvanRublev/domo)|[![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)|[![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)|
 |-|-|-|
 
-⚠️ This library generates code for structures that can bring suboptimal compilation times increased to approximately 20%
-
-🔗 JSON parsing and validation example is in https://github.com/IvanRublev/contentful-elixir-parse-example-nestru-domo repo.
-
-🔗 Commanded + Domo combo used in Event Sourcing and CQRS example app is in https://github.com/IvanRublev/bank-commanded-domo repo.
-
----
-
 <!-- Documentation -->
 
-A library to ensure the consistency of structs modelling a business domain via
-their `t()` types and associated precondition functions.
+A library to validate values of nested structs with their type spec `t()` 
+and associated precondition functions.
+
+### Example apps
+
+🔗 [JSON parsing and validation example](https://github.com/IvanRublev/contentful-elixir-parse-example-nestru-domo)
+
+🔗 [Commanded + Domo combo used in Event Sourcing and CQRS app](https://github.com/IvanRublev/bank-commanded-domo) 
+
+🔗 [Ecto + Domo combo in example_avialia app](https://github.com/IvanRublev/Domo/tree/master/example_avialia)
+
+🔗 [TypedStruct + Domo combo in example_typed_integrations app](https://github.com/IvanRublev/Domo/tree/master/example_typed_integrations)
+
+### Description
 
 Used in a struct's module, the library adds constructor, validation,
-and reflection functions. Constructor and validation functions
-guarantee the following at call time:
+and reflection functions. When called, constructor and validation functions
+guarantee the following:
 
-* A complex struct conforms to its `t()` type.
-* Structs are validated to be consistent to follow given business rules by
-  precondition functions associated with struct types.
+* A struct or a group of nested structs conforms to their `t()` types.
+* The struct's data consistently follows the business rules given 
+  by type-associated precondition functions.
 
 If the conditions described above are not met, the constructor
 and validation functions return an error.
 
-Because precondition function associates with type the validation can be shared
-across all structs referencing the type.
+The business rule expressed via the precondition function can be shared 
+across all structs referencing the appropriate type.
 
-In terms of Domain Driven Design the invariants relating structs to each other
-can be defined with types and associated precondition functions.
+In terms of Domain Driven Design, types and associated precondition functions
+define the invariants relating structs to each other.
 
----
+## Tour
 
 <p align="center">
   <a href="https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2FIvanRublev%2FDomo%2Fblob%2Fmaster%2FREADME.md">
@@ -44,10 +46,10 @@ can be defined with types and associated precondition functions.
 </p>
 
 ```elixir
+# Evaluate this section first!
+
 Mix.install([:domo], force: true)
 ```
-
----
 
 Let's say that we have a `LineItem` and `PurchaseOrder` structs with relating
 invariant that is the sum of line item amounts should be less then order's
@@ -130,10 +132,10 @@ PurchaseOrder.new(id: 500, items: [%LineItem{amount: -5}])
 ```
 
 The returned errors are verbose and are intended for debugging purposes.
-See the [User facing error messages](#user-facing-error-messages) section below
+See the [Error messages for a user](#error-messages-for-a-user) section below
 for more options.
 
-And manually updated struct can be validated like the following:
+The manually updated struct can be validated like the following:
 
 ```elixir
 po
@@ -167,7 +169,7 @@ PurchaseOrder.required_fields()
 
 See the [Callbacks](#callbacks) section for more details about functions added to the struct.
 
-## User facing error messages
+## Error messages for a user
 
 It's possible to attach error messages to types with the `precond` macro to display
 them later to the user. To filter such kinds of messages, pass
@@ -222,6 +224,68 @@ PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
 That output contains only a flattened list of precondition error messages
 from the deeply nested structure.
 
+## Compile-time and Run-time validations
+
+At the project's compile-time, Domo performs the following checks:
+
+* It automatically validates that the default values given with `defstruct/1`
+  conform to struct's type and fulfill preconditions (can be disabled, 
+  see `__using__/1` for more details).
+
+* It ensures that the struct using Domo built with `new(!)/1` function
+  to be a default argument for a function or a default value for a struct's field
+  matches its type and preconditions.
+
+At run-time, Domo validates structs matching their `t()` types. 
+
+Domo compiles `TypeEnsurer` module from struct's `t()` type to do all kinds 
+of validations. There is a generated function with pattern matchings 
+and guards for each struct's field. Constructor and validation functions
+of the struct delegate the work to the appropriate `TypeEnsurer` module.
+
+After the compilation, the flow of control of the nested `StructA` validation
+can look like the following:
+
+```
++--------------------+
+| PurchaseOrder      |     +---------------------------+
+|                    |     | PurchaseOrder.TypeEnsurer |
+| new(!)/1 ----------|--_  |                           |
+| ensure_type(!)/1 --|-----|-> ensure_field_type/1     |
++--------------------+     |   private functions       |
+                           +----|----------------------+
+                                |
++-----------------------+       |
+| LineItem              |       |  +-------------------------+
+|                       |       |  | LineItem.TypeEnsurer    |
+| new(!)/1              |       |  |                         |
+| ensure_type(!)/1      |       +--|-> ensure_field_type/1   |
++-----------------------+          |   private functions     |
+                                   +-------------------------+
+```
+
+In interactive mode (iex / livebook) Domo generates `TypeEnsurer` module 
+dynamically as the last step of struct's module definition.
+
+In mix compile mode Domo generates all `TypeEnsurer` modules after elixir compiler
+finishes its job. The generated code can be found 
+in `_build/MIX_ENV/domo_generated_code` folder. However, that is for information
+purposes only. The following compilation will overwrite all changes there.
+
+## Depending types tracking
+
+Let's suppose a structure field's type depends on a type defined in
+another module. When the latter type or its precondition changes,
+Domo recompiles the former module automatically to update its
+`TypeEnsurer` to keep the type validation up to date.
+
+Domo tracks type-depending modules and touches appropriate files
+during compilation. 
+
+That works for any number of intermediate modules
+between the module defining the struct's field and the module defining 
+the field's final type.
+
 ## Integration with Ecto
 
 Ecto schema changeset can be automatically validated to conform to `t()` type
@@ -266,49 +330,27 @@ end
 See `typed_fields/0`, `required_fields/0`, and `Domo.Changeset` module
 documentation for details.
 
-See detailed example is in the [./example_avialia](https://github.com/IvanRublev/Domo/tree/master/example_avialia) project.
+See detailed example is in the [example_avialia](https://github.com/IvanRublev/Domo/tree/master/example_avialia) project.
 
 ## Integration with libraries generating t() type for a struct
 
 Domo is compatible with most libraries that generate `t()` type for a struct
-or an Ecto schema. Just `use Domo` in the module, and that's it.
+and an Ecto schema, f.e. [typed_struct](https://hex.pm/packages/typed_struct) 
+and [typed_ecto_schema](https://hex.pm/packages/typed_ecto_schema) respectfully.
+Just `use Domo` in the module, and that's it.
 
-An advanced example is in the [./example_typed_integrations](https://github.com/IvanRublev/Domo/tree/master/example_typed_integrations) project.
+An example is in the [example_typed_integrations](https://github.com/IvanRublev/Domo/tree/master/example_typed_integrations) project.
 
-## Compile-time and Run-time validations
+TypedStruct's submodule generation with  `:module` option currently is not supported.
 
-At the project's compile-time, Domo can perform the following checks:
-
-* It automatically validates that the default values given with `defstruct/1`
-  conform to struct's type and fulfill preconditions.
-
-* It ensures that the struct using Domo built with `new!/1` function
-  to be a function's default argument or a struct field's default value
-  matches its type and preconditions.
-
-Domo validates struct type conformance with appropriate `TypeEnsurer` modules
-built during the project's compilation at the application's run-time.
-These modules rely on guards and pattern matchings. See `__using__/1` for
-more details.
-
-## Depending types tracking
-
-Suppose the given structure field's type depends on a type defined in
-another module. When the latter type or its precondition changes,
-Domo recompiles the former module automatically to update its
-`TypeEnsurer` to keep type validation in current state.
-
-That works similarly for any number of intermediate modules
-between module defining the struct's field and module defining the field's final type.
-
-## Setup
+## Installation
 
 To use Domo in a project, add the following line to `mix.exs` dependencies:
 
 <!-- livebook:{"force_markdown":true} -->
 
 ```elixir
-{:domo, "~> 1.2.0"}
+{:domo, "~> 1.5"}
 ```
 
 And the following line to the compilers:
@@ -316,7 +358,7 @@ And the following line to the compilers:
 <!-- livebook:{"force_markdown":true} -->
 
 ```elixir
-compilers: Mix.compilers() ++ [:domo_compiler]
+compilers: [:domo_compiler] ++ Mix.compilers()
 ```
 
 To avoid `mix format` putting extra parentheses around `precond/1` macro call,
@@ -330,17 +372,200 @@ add the following import to the `.formatter.exs`:
 ]
 ```
 
-## Setup for Phoenix hot reload
-
-To enable hot reload for type changes in structs using Domo, add the following
-line to the endpoint's configuration in the `config.exs` file:
+To enable [Phoenix](https://hexdocs.pm/phoenix) hot-reload for type changes in structs using Domo, 
+add the following line to the endpoint's configuration in the `config.exs` file:
 
 <!-- livebook:{"force_markdown":true} -->
 
 ```elixir
 config :my_app, MyApp.Endpoint,
-  reloadable_compilers: [:phoenix] ++ Mix.compilers() ++ [:domo_compiler]
+  reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers()
 ```
+
+## Configuration
+
+<!-- using_options -->
+
+The options listed below can be set globally in the configuration
+with `config :domo, option: value`. The value given
+with `use Domo, option: value` overrides the global setting.
+
+* `ensure_struct_defaults` - if set to `false`, disables the validation of
+  default values given with `defstruct/1` to conform to the `t()` type
+  at compile time. Default is `true`.
+
+* `name_of_new_function` - the name of the constructor function added
+  to the module. The raising error function name is generated automatically
+  from the given one by adding trailing `!`.
+  Defaults are `new` and `new!` appropriately.
+
+* `unexpected_type_error_as_warning` - if set to `true`, prints warning
+  instead of throwing an error for field type mismatch in the raising
+  functions. Default is `false`.
+
+* `remote_types_as_any` - keyword list of type lists by modules that should
+  be treated as `any()`. F.e. `[{ExternalModule, [:t, :name]}, {OtherModule, :t}]`
+  Default is `nil`.
+
+Run the `Application.put_env(:domo, :verbose_in_iex, true)` to enable verbose
+messages from domo in Interactive Elixir console.
+
+<!-- using_options -->
+
+## Performance 🐢
+
+Library affects the project's full recompilation time almost insignificantly.
+
+The compilation times for the business application with 38 structs 
+(8 fields each on average) having 158 modules in total are the following:
+
+```
+Mode       Average (by 3 measurements)  Deviation
+No Domo    14.826s                      11.92
+With Domo  15.711s                      7.34
+
+Comparison: 
+No Domo    14.826s 
+With Domo  15.711s - 1.06x slower
+```
+
+The library ensures the correctness of data types at run-time and
+that comes with the computation price. 
+
+For the Tweet struct having 13 fields, the validation takes 3x times longer 
+and 2x more memory then creating the struct with possibly invalid data. 
+And validation of the Tweet struct (13 fields) after nesting a User struct (18 fields)
+takes 6x times longer and 5x more memory than simple struct's altering. 
+That's a linear growth depending on the number of fields in the nested struct.
+
+It may seem plodding, and it may look like a non-performant to run in production. 
+It's not that. Validation can be executed wisely at the critical check-points 
+of the app where valuable. As a result, users get the application with correct
+states that are valid in many business contexts.
+
+The run-time benchmark can be executed after cloning the repo with `cd benchmark && mix benchmark`. 
+
+```
+Generating 3000 inputs, may take a while.
+=========================================
+
+Generated 3000 tweet inputs with summary approx. size of 1350KB.
+Generated 3000 user inputs with summary approx. size of 1287KB.
+=========================================
+
+Benchmark struct's construction
+=========================================
+Operating System: macOS
+CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
+Number of Available Cores: 8
+Available memory: 16 GB
+Elixir 1.13.1
+Erlang 24.1.5
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 8 s
+memory time: 2 s
+parallel: 1
+inputs: none specified
+Estimated total run time: 24 s
+
+Benchmarking __MODULE__.new!(map)...
+Benchmarking struct!(__MODULE__, map)...
+
+Name                               ips        average  deviation         median         99th %
+struct!(__MODULE__, map)        237.81        4.21 ms    ±11.18%        4.18 ms        5.37 ms
+__MODULE__.new!(map)             84.18       11.88 ms     ±5.75%       11.92 ms       13.31 ms
+
+Comparison: 
+struct!(__MODULE__, map)        237.81
+__MODULE__.new!(map)             84.18 - 2.83x slower +7.67 ms
+
+Memory usage statistics:
+
+Name                             average  deviation         median         99th %
+struct!(__MODULE__, map)         7.84 MB     ±0.09%        7.83 MB        7.84 MB
+__MODULE__.new!(map)            15.64 MB     ±0.02%       15.63 MB       15.64 MB
+
+Comparison: 
+struct!(__MODULE__, map)         7.83 MB
+__MODULE__.new!(map)            15.64 MB - 2.00x memory usage +7.80 MB
+
+Benchmark struct's field modification
+=========================================
+Operating System: macOS
+CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
+Number of Available Cores: 8
+Available memory: 16 GB
+Elixir 1.13.1
+Erlang 24.1.5
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 8 s
+memory time: 2 s
+parallel: 1
+inputs: none specified
+Estimated total run time: 24 s
+
+Benchmarking struct!(tweet, user: user)...
+Benchmarking struct!(tweet, user: user) |> __MODULE__.ensure_type!()...
+
+Name                                                              ips        average  deviation         median         99th %
+struct!(tweet, user: user)                                     407.83        2.45 ms     ±9.65%        2.42 ms        3.03 ms
+struct!(tweet, user: user) |> __MODULE__.ensure_type!()         63.98       15.63 ms     ±4.86%       15.29 ms       17.59 ms
+
+Comparison: 
+struct!(tweet, user: user)                                     407.83
+struct!(tweet, user: user) |> __MODULE__.ensure_type!()         63.98 - 6.37x slower +13.18 ms
+
+Memory usage statistics:
+
+Name                                                            average  deviation         median         99th %
+struct!(tweet, user: user)                                      2.98 MB     ±0.12%        2.98 MB        2.98 MB
+struct!(tweet, user: user) |> __MODULE__.ensure_type!()        14.59 MB     ±0.09%       14.59 MB       14.60 MB
+
+Comparison: 
+struct!(tweet, user: user)                                      2.98 MB
+struct!(tweet, user: user) |> __MODULE__.ensure_type!()        14.59 MB - 4.90x memory usage +11.61 MB
+```
+
+## Limitations
+
+Parametrized types are not supported because it adds lots of complexity.
+Library returns `{:type_not_found, :key}` error 
+for `@type dict(key, value) :: [{key, value}]` definition.
+Library returns error for type referencing parametrized type like
+`@type field :: container(integer())`.
+
+Primitive types referencing themselves are not supported. 
+Library returns an error for `@type leaf :: leaf | nil` definition. 
+On the other hand, structs referencing themselves are supported. 
+The library will build `TypeEnsurer` for the following definition
+`@type t :: %__MODULE__{leaf: t | nil}` and validate.
+
+## Migration
+
+To migrate to a new version of Domo, please, clean and recompile
+the project with `mix clean --deps && mix compile` command.
+
+## Adoption
+
+It's possible to adopt Domo library in the project having user-defined
+constructor functions named `new/1` that interferes with Domo generated 
+function name. Here's how:
+
+1. Add `:domo` dependency to the project, configure compilers as described in
+   the [installation](#installation) section
+2. Set the name of the Domo generated constructor function by adding
+   `config :domo, :name_of_new_function, :constructor_name` option into
+   the `confix.exs` file, to prevent conflict with user-defined constructor
+   function name
+3. Add `use Domo` to existing struct, f.e. `FirstStruct`
+4. Change all struct building calls to be done with Domo generated function with
+   the name set on step 3 f.e. `FistStruct.constructor_name(%{...})`
+5. Remove user-defined constructor function `new/1`
+6. Repeat for each struct in the project
 
 <!-- Documentation -->
 
@@ -471,110 +696,6 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 <!-- required_fields/1 -->
 
-## Limitations
-
-Parametrized types are not supported. Library returns `{:type_not_found, :key}`
-error for `@type dict(key, value) :: [{key, value}]` type definition.
-
-Domo returns error for type referencing parametrized type like
-`@type field :: container(integer())`.
-
-TypedStruct's submodule generation with `:module` option is not supported.
-
-## Migration
-
-To complete the migration to a new version of Domo, please, clean and recompile
-the project with `mix clean --deps && mix compile` command.
-
-## Adoption
-
-It's possible to adopt Domo library in the project having user-defined
-constructor functions as the following:
-
-1. Add `:domo` dependency to the project, configure compilers as described in
-   the [setup](#setup) section
-2. Set the name of the Domo generated constructor function by adding
-   `config :domo, :name_of_new_function, :constructor_name` option into
-   the `confix.exs` file, to prevent conflict with original constructor
-   function names if any
-3. Add `use Domo` to existing struct
-4. Change the calls to build the struct for Domo generated constructor
-   function with name set on step 3 and remove original constructor function
-5. Repeat for each struct in the project
-
-## Performance 🐢
-
-On the average, the current version of the library makes struct operations
-about 20% sower what may seem plodding. And it may look like non-performant
-to run in production.
-
-It's not that. The library ensures the correctness of data types at runtime and
-it comes with the price of computation. As the result users get the application
-with correct states at every update that is valid in many business contexts.
-
-The output of `mix benchmark` is following.
-
-```
-Generate 10000 inputs, may take a while.
-=========================================
-
-Construction of a struct
-=========================================
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
-Number of Available Cores: 8
-Available memory: 16 GB
-Elixir 1.13.0
-Erlang 24.1.5
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 5 s
-memory time: 0 ns
-parallel: 1
-inputs: none specified
-Estimated total run time: 14 s
-
-Benchmarking __MODULE__.new!(arg)...
-Benchmarking struct!(__MODULE__, arg)...
-
-Name                               ips        average  deviation         median         99th %
-struct!(__MODULE__, arg)       13.72 K       72.88 μs    ±64.17%          73 μs         168 μs
-__MODULE__.new!(arg)           11.33 K       88.24 μs    ±50.65%          91 μs         177 μs
-
-Comparison:
-struct!(__MODULE__, arg)       13.72 K
-__MODULE__.new!(arg)           11.33 K - 1.21x slower +15.36 μs
-
-A struct's field modification
-=========================================
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
-Number of Available Cores: 8
-Available memory: 16 GB
-Elixir 1.13.0
-Erlang 24.1.5
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 5 s
-memory time: 0 ns
-parallel: 1
-inputs: none specified
-Estimated total run time: 14 s
-
-Benchmarking %{tweet | user: arg} |> __MODULE__.ensure_type!()...
-Benchmarking struct!(tweet, user: arg)...
-
-Name                                                        ips        average  deviation         median         99th %
-struct!(tweet, user: arg)                               15.16 K       65.96 μs    ±65.51%          66 μs         148 μs
-%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K       75.44 μs    ±59.84%          76 μs         163 μs
-
-Comparison:
-struct!(tweet, user: arg)                               15.16 K
-%{tweet | user: arg} |> __MODULE__.ensure_type!()       13.26 K - 1.14x slower +9.48 μs
-```
-
 ## Contributing
 
 1. Fork the repository and make a feature branch
@@ -595,22 +716,23 @@ struct!(tweet, user: arg)                               15.16 K
 
 ## Changelog
 
+### v1.5.2 (2022-01-02)
+
+* Support of structs referencing themselves to build trees like `@type t :: %__MODULE__{left: t() | nil, right: t() | nil}`
+* Add project using Domo full recompilation time statistics
+* Fix the benchmark subproject to make result values deviation <12% 
+
 ### v1.5.1 (2021-12-12)
 
 * Fix to detect mix compile with more reliable `Code.can_await_module_compilation?`
-
 * Fix to make benchmark run again as sub-project
-
 * Make `:maybe_filter_precond_errors` option to lift precondition error messages from the nested structs
 
 ### v1.5.0 (2021-12-05)
 
 * Fix bug to return explicit file read error message during the compile time
-
 * Completely replace `apply()` with `.` for validation function calls to run faster
-
 * Link planner server to mix process for better state handling
-
 * Support of the interactive use in `iex` and `live book`
 
 Breaking change:
@@ -623,13 +745,11 @@ Breaking change:
 ### v1.4.1 (2021-11-16)
 
 * Improve compatibility with Elixir v1.13
-
 * Format string representations of an anonymous function passed to `precond/1` macro error message
 
 ### v1.4.0 (2021-11-15)
 
 * Fix bug to detect runtime mode correctly when launched under test.
-
 * Add support for `@opaque` types.
 
 Breaking changes:
@@ -637,48 +757,33 @@ Breaking changes:
 * Change `new_ok` constructor function name to `new` that is more convenient.
   Search and replace `new_ok(` -> `new(` in all files of the project
   using Domo to migrate.
-
 * Constructor function name generation procedure changes to adding `!`
   to the value of `:name_of_new_function` option. The defaults are `new` and `new!`.
 
 ### v1.3.4 (2021-10-13)
 
 * Make error messages to be more informative
-
 * Improve compatibility with `Ecto` 3.7.x
-
 * Explicitly define `:ecto` and `:decimal` as optional dependencies
-
 * Fix bug to pass `:remote_types_as_any` option with `use Domo`
-
 * Explicitly define that `MapSet` should be validated with `precond` function for custom user type, because parametrized `t(value)` types are not supported
-
 * Replace `apply()` with Module.function calls to run faster
 
 ### v1.3.3 (2021-10-07)
 
 * Support validation of `Decimal.t()`
-
 * Fix bug to define precondition function for user type referencing any() or term()
 
 ### v1.3.2 (2021-09-18)
 
 * Support remote types in erlang modules like `:inet.port_number()`
-
 * Shorten the invalid value output in the error message
-
 * Increase validation speed by skipping fields that are not in `t()` type spec or have the `any()` type
-
 * Fix bug to skip validation of struct's enforced keys default value because they are ignored during the construction anyway
-
 * Increase validation speed by generating `TypeEnsurer` modules for `Date`, `Date.Range`, `DateTime`, `File.Stat`, `File.Stream`, `GenEvent.Stream`, `IO.Stream`, `Macro.Env`, `NaiveDateTime`, `Range`, `Regex`, `Task`, `Time`, `URI`, and `Version` structs from the standard library at the first project compilation
-
 * Fix bug to call the `precond` function of the user type pointing to a struct
-
 * Increase validation speed by encouraging to use Domo or to make a `precond` function for struct referenced by a user type
-
 * Add `Domo.has_type_ensurer?/1` that checks whether a `TypeEnsurer` module was generated for the given struct.
-
 * Add example of parsing with validating of the Contentful JSON reply via `Jason` + `ExJSONPath` + `Domo`
 
 ### v1.3.1 (2021-08-19)
@@ -689,40 +794,32 @@ Breaking changes:
 
 * Change the default name of the constructor function to `new!` to follow Elixir naming convention.
   You can always change the name with the `config :domo, :name_of_new_function, :new_func_name_here` app configuration.
-
 * Fix bug to validate defaults for every required field in a struct except `__underscored__` fields at compile-time.
-
 * Check whether the precondition function associated with `t()` type returns `true` at compile time regarding defaults correctness check.
-
 * Add examples of integrations with `TypedStruct` and `TypedEctoSchema`.
 
 ### v1.2.9 (2021-08-09)
 
 * Fix bug to acknowledge that type has been changed after a failed compilation.
-
 * Fix bug to match structs not using Domo with a field of `any()` type with and without precondition.
-
 * Add `typed_fields/1` and `required_fields/1` functions.
-
 * Add `maybe_filter_precond_errors: true` option that filters errors from precondition functions for better output for the user.
+* Extracted `---/2` operator and tag chain functions from `Domo.TaggedTuple` into [tagged_tuple library](https://hex.pm/packages/tagged_tuple).
 
 ### v1.2.8 (2021-07-15)
 
-* Add `Domo.Changeset.validate_type/*` functions to validate Echo.Changeset field changes matching the t() type.
-
+* Add `Domo.Changeset.validate_type/*` functions to validate Ecto.Changeset field changes matching the t() type.
 * Fix the bug to return custom error from precondition function as underlying error for :| types.
 
 ### v1.2.7 (2021-07-05)
 
 * Fix the bug to make recompilation occur when fixing alias for remote type.
-
 * Support custom errors to be returned from functions defined with `precond/1`.
 
 ### v1.2.6 (2021-06-21)
 
 * Validates type conformance of default values given with `defstruct/1` to the
   struct's `t()` type at compile-time.
-
 * Includes only the most matching type error into the error message.
 
 ### v1.2.5 (2021-06-14)
@@ -759,7 +856,7 @@ Breaking changes:
 
 * Resolve all types at compile time and build `TypeEnsurer` modules for all structs
 * Make Domo library work with Elixir 1.11.x and take it as the required minimum version
-* Introduce `---/2` operator to make tag chains with `Domo.TaggedTuple` module
+* Introduce `---/2` operator to make tag chains with `Domo.TaggedTuple` module (will be removed in v1.2.9)
 
 ### v0.0.x - v1.0.x (2020-06-20)
 
@@ -787,9 +884,9 @@ Breaking changes:
 
 * [x] Support `precond/1` macro to specify a struct field value's contract with a boolean function.
 
-* [ ] Support types referencing itself for tree structures.
+* [x] Support struct types referencing itself for tree structures.
 
-* [ ] Evaluate full recompilation time for 1000 structs using Domo.
+* [x] Evaluate full recompilation time for a project using Domo.
 
 * [x] Add use option to specify names of the generated functions.
 
@@ -797,6 +894,6 @@ Breaking changes:
 
 ## License
 
-Copyright © 2021 Ivan Rublev
+Copyright © 2020-2022 Ivan Rublev
 
 This project is licensed under the [MIT license](./LICENSE.md).
