@@ -864,8 +864,6 @@ Breaking changes:
 
 ## Roadmap
 
-## Roadmap
-
 * [x] Check if the field values passed as an argument to the `new/1`, and `put/3` matches the field types defined in `typedstruct/1`.
 
 * [x] Support the keyword list as a possible argument for the `new/1`.
