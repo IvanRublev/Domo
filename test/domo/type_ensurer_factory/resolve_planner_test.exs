@@ -327,6 +327,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
           }
         })
 
+      File.mkdir_p!(Path.dirname(plan_path))
       File.write!(plan_path, plan_binary)
 
       {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
@@ -416,6 +417,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
     test "be able to merge preconds with the preconds from disk", %{plan_path: plan_path, preconds_path: preconds_path} do
       preconds_binary = :erlang.term_to_binary(%{IncorrectDefault => [field: "&byze_site(&1) == 150"]})
 
+      File.mkdir_p!(Path.dirname(preconds_path))
       File.write!(preconds_path, preconds_binary)
 
       {:ok, pid} = ResolvePlanner.start(plan_path, preconds_path, [])
