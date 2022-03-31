@@ -16,6 +16,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     types_content = tags.types_content
 
     unless is_nil(types_content) do
+      File.mkdir_p!(Path.dirname(types_file))
       File.write!(types_file, :erlang.term_to_binary(types_content))
     end
 
