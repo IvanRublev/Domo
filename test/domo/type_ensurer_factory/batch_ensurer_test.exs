@@ -73,6 +73,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
     end
 
     test "return the error if no fields in plan are found", %{plan_file: plan_file} do
+      File.mkdir_p!(Path.dirname(plan_file))
       File.write!(plan_file, :erlang.term_to_binary(%{}))
 
       assert {:error,
