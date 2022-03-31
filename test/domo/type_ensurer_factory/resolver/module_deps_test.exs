@@ -266,6 +266,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
         {SomeModule, ModuleInspector.beam_types_hash(SomeModule)}
       ]
 
+      File.mkdir_p!(Path.dirname(deps_file))
+
       File.write!(
         deps_file,
         :erlang.term_to_binary(%{
