@@ -317,7 +317,9 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
       plan_binary = :erlang.term_to_binary(state.plan)
       preconds_binary = :erlang.term_to_binary(state.preconds)
 
-      with :ok <- File.write(state.plan_path, plan_binary),
+      with :ok <- File.mkdir_p(Path.dirname(state.plan_path)),
+           :ok <- File.mkdir_p(Path.dirname(state.preconds_path)),
+           :ok <- File.write(state.plan_path, plan_binary),
            :ok <- File.write(state.preconds_path, preconds_binary) do
         if state.verbose? do
           IO.write("""
