@@ -673,6 +673,7 @@ defmodule Domo.MixTasksCompileDomoTest do
       deps_file: deps_file,
       code_path: code_path
     } do
+      File.mkdir_p!(Path.dirname(plan_file))
       File.touch!(plan_file)
       File.touch!(types_file)
       File.touch!(preconds_file)
