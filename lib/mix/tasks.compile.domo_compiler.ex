@@ -298,7 +298,23 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   def preconds_manifest, do: @preconds_manifest
 
   def manifest_path(mix_project, manifest_kind) do
-    Path.join(mix_project.build_path(), manifest(manifest_kind))
+    [
+      mix_project.build_path(),
+      "domo",
+      mix_application(mix_project),
+      manifest(manifest_kind)
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Path.join()
+  end
+
+  defp mix_application(mix_project) do
+    mix_project.config()
+    |> Keyword.get(:app, nil)
+    |> case do
+      nil -> nil
+      app -> to_string(app)
+    end
   end
 
   defp manifest(kind) do
