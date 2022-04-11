@@ -16,6 +16,10 @@ assignees: ''
 ### Actual behavior
 
 <!--
+Run the following command in your project's directory:
+
+mix clean && mix compile --verbose
+
 Describe the actual behaviour. If you are seeing an error, include the full message and stacktrace. If you can provide a link to sample app that reproduces the behaviour, even better!
 -->
 

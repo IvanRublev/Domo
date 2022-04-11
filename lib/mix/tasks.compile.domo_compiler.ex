@@ -56,7 +56,6 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     deps_path = manifest_path(@mix_project, :deps)
     code_path = generated_code_path(@mix_project)
 
-    TypeEnsurerFactory.maybe_collect_types_for_stdlib_structs(plan_path)
     TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(plan_path)
     TypeEnsurerFactory.print_global_anys(plan_path)
 
@@ -84,7 +83,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   end
 
   def generated_code_path(mix_project) do
-    Path.join(mix_project.build_path(), @generated_code_directory)
+    Path.join(mix_project.manifest_path(), @generated_code_directory)
   end
 
   defp build_ensurer_modules(paths, verbose?) do
@@ -298,7 +297,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   def preconds_manifest, do: @preconds_manifest
 
   def manifest_path(mix_project, manifest_kind) do
-    Path.join(mix_project.build_path(), manifest(manifest_kind))
+    Path.join(mix_project.manifest_path(), manifest(manifest_kind))
   end
 
   defp manifest(kind) do

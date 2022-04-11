@@ -5,5 +5,5 @@ defmodule MixProjectStubCorrect do
 
   def config, do: [compilers: [:domo_compiler, :elixir]]
 
-  def build_path, do: tmp_path()
+  def manifest_path, do: tmp_path()
 end

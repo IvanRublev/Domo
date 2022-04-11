@@ -10,24 +10,6 @@ defmodule DomoUseIexTest do
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias ModuleTypes
 
-  @collectable_standard_lib_modules [
-    Macro.Env,
-    IO.Stream,
-    GenEvent.Stream,
-    Date.Range,
-    Range,
-    Regex,
-    Task,
-    URI,
-    Version,
-    Date,
-    DateTime,
-    NaiveDateTime,
-    Time,
-    File.Stat,
-    File.Stream
-  ]
-  @collectable_optional_lib_modules [Decimal]
   @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
 
   @moduletag in_mix_compile?: false
@@ -114,7 +96,7 @@ defmodule DomoUseIexTest do
 
     test "collect types for Domo compiler", %{plan_path: plan_path} do
       defmodule Module do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: integer()}
@@ -125,7 +107,7 @@ defmodule DomoUseIexTest do
 
     test "build in memory only TypeEnsurer after compile" do
       defmodule Module do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: integer()}
@@ -139,7 +121,7 @@ defmodule DomoUseIexTest do
       allow Raises.maybe_raise_absence_of_domo_compiler!(any(), any()), meck_options: [:passthrough], return: :ok
 
       defmodule Module do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: integer()}
@@ -182,15 +164,6 @@ defmodule DomoUseIexTest do
       %{env: env, bytecode: bytecode}
     end
 
-    test "collect types for stdlib structs", %{env: env, bytecode: bytecode} do
-      Domo._build_in_memory_type_ensurer(env, bytecode)
-
-      for module_name <- @collectable_standard_lib_modules ++ @collectable_optional_lib_modules do
-        assert_called ResolvePlanner.keep_module_environment(:in_memory, module_name, any())
-        assert_called ResolvePlanner.plan_types_resolving(:in_memory, module_name, any(), any())
-      end
-    end
-
     test "collect types to treat as any", %{env: env, bytecode: bytecode} do
       Domo._build_in_memory_type_ensurer(env, bytecode)
 
@@ -206,7 +179,7 @@ defmodule DomoUseIexTest do
 
     test "clean plan after building of TypeEnsurers" do
       defmodule Module do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: integer()}

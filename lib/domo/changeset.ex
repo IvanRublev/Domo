@@ -7,7 +7,7 @@ defmodule Domo.Changeset do
 
       defmodule User do
         use Ecto.Schema
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         import Ecto.Changeset
         import Domo.Changeset
@@ -39,7 +39,7 @@ defmodule Domo.Changeset do
         end
       end
 
-  The `ensure_struct_defaults: false` option disables the validation of defaults
+  The `skip_defaults: true` option disables the validation of defaults
   to match to `t()` type at compile time. That is useful because any Ecto schema
   has all fields set to `nil` by default.
 

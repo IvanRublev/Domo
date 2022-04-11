@@ -7,7 +7,7 @@ defmodule Benchmark.Tweet do
   [Tweet object](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object)
   """
 
-  use Domo, ensure_struct_defaults: false
+  use Domo, skip_defaults: true
 
   defstruct [
     :created_at,
@@ -66,7 +66,7 @@ defmodule Benchmark.Tweet.User do
   [User object](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object)
   """
 
-  use Domo, ensure_struct_defaults: false
+  use Domo, skip_defaults: true
 
   defstruct [
     :created_at,

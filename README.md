@@ -1,6 +1,6 @@
 # Domo
 
-|[![Build Status](https://travis-ci.com/IvanRublev/domo.svg?branch=master)](https://travis-ci.com/IvanRublev/domo)|[![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)|[![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)|
+|[![Elixir CI](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml/badge.svg)](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml)|[![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)|[![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)|
 |-|-|-|
 
 <!-- Documentation -->
@@ -296,7 +296,7 @@ and associated preconditions. Then the changeset function can be like the follow
 ```elixir
 defmodule Customer do
   use Ecto.Schema
-  use Domo, ensure_struct_defaults: false
+  use Domo, skip_defaults: true
 
   import Ecto.Changeset
   import Domo.Changeset
@@ -353,7 +353,7 @@ To use Domo in a project, add the following line to `mix.exs` dependencies:
 {:domo, "~> 1.5"}
 ```
 
-And the following line to the compilers:
+And the following line to the project's `mix.exs` file:
 
 <!-- livebook:{"force_markdown":true} -->
 
@@ -382,6 +382,15 @@ config :my_app, MyApp.Endpoint,
   reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers()
 ```
 
+## Umbrella application
+
+Add the Domo dependency and compilers config as mentioned in the section above
+to the `mix.exs` file for each app using Domo.
+
+You may add the same compilers config line to the app itself and to the root 
+umbrella's `mix.exs` to enable `recompile` command to work correctly 
+for `iex -S mix` run in the root.
+
 ## Configuration
 
 <!-- using_options -->
@@ -390,9 +399,9 @@ The options listed below can be set globally in the configuration
 with `config :domo, option: value`. The value given
 with `use Domo, option: value` overrides the global setting.
 
-* `ensure_struct_defaults` - if set to `false`, disables the validation of
+* `skip_defaults` - if set to `true`, disables the validation of
   default values given with `defstruct/1` to conform to the `t()` type
-  at compile time. Default is `true`.
+  at compile time. Default is `false`.
 
 * `name_of_new_function` - the name of the constructor function added
   to the module. The raising error function name is generated automatically
@@ -715,6 +724,12 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 3. Make a PR to this repository
 
 ## Changelog
+
+### v1.5.3 (2022-04-10)
+    
+* Fix to generate type ensurers only in the scope of the given app in umbrella
+* Fix for Elixir v1.13 to recompile depending module's type ensurer on the change of type in another module by deleting `.beam` file
+* Deprecate `ensure_struct_defaults: false` for `skip_defaults: true`, the former option is supported till the next version. Please, migrate to the latter one.
 
 ### v1.5.2 (2022-01-02)
 

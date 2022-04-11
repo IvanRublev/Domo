@@ -37,7 +37,7 @@ defmodule DomoInMemoryTest do
 
     test "resolve types of module having local types only" do
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id]
 
         @type id :: String.t()
@@ -55,7 +55,7 @@ defmodule DomoInMemoryTest do
 
     test "resolve types of module referencing remote type in BEAM on disk" do
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id]
 
         @type t :: %__MODULE__{id: ModuleNested.mn_float()}
@@ -73,7 +73,7 @@ defmodule DomoInMemoryTest do
       end
 
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id]
 
         @type t :: %__MODULE__{id: ModuleMemoryTypes.id()}
@@ -100,7 +100,7 @@ defmodule DomoInMemoryTest do
       defmodule ModuleLocal do
         alias The.Nested.EmptyStruct
 
-        use Domo, remote_types_as_any: [{EmptyStruct, :t}, {CustomStructUsingDomo, [:t]}], ensure_struct_defaults: false
+        use Domo, remote_types_as_any: [{EmptyStruct, :t}, {CustomStructUsingDomo, [:t]}], skip_defaults: true
 
         defstruct [:placeholder, :custom_struct]
 
@@ -115,7 +115,7 @@ defmodule DomoInMemoryTest do
       Application.put_env(:domo, :remote_types_as_any, [{The.Nested.EmptyStruct, :t}])
 
       defmodule ModuleLocalMixed do
-        use Domo, remote_types_as_any: [{CustomStructUsingDomo, [:t]}], ensure_struct_defaults: false
+        use Domo, remote_types_as_any: [{CustomStructUsingDomo, [:t]}], skip_defaults: true
 
         defstruct [:placeholder, :custom_struct]
 
@@ -132,7 +132,7 @@ defmodule DomoInMemoryTest do
 
     test "ensure Ecto.Schema.Metadata.t() type as any coming as default behaviour" do
       defmodule SchemaHolder do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:schema]
 
@@ -175,7 +175,7 @@ defmodule DomoInMemoryTest do
       warning =
         capture_io(:stderr, fn ->
           defmodule ChildMemoryStruct do
-            use Domo, ensure_struct_defaults: false
+            use Domo, skip_defaults: true
 
             defstruct [:id]
             @type t :: %__MODULE__{id: id()}
@@ -186,7 +186,7 @@ defmodule DomoInMemoryTest do
       assert warning == ""
 
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id, :child_id]
 
         @type t :: %__MODULE__{id: ModuleMemoryTypes.id(), child_id: ChildMemoryStruct.id()}
@@ -210,7 +210,7 @@ defmodule DomoInMemoryTest do
       warning =
         capture_io(:stderr, fn ->
           defmodule ChildMemoryStruct do
-            use Domo, ensure_struct_defaults: false
+            use Domo, skip_defaults: true
 
             defstruct [:id]
             @type t :: %__MODULE__{id: id()}
@@ -233,7 +233,7 @@ defmodule DomoInMemoryTest do
       end
 
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id]
 
         @type t :: %__MODULE__{id: ModuleMemoryTypes.id()}
@@ -259,7 +259,7 @@ defmodule DomoInMemoryTest do
 
     test "invalidate type ensurers of depending module redefining dependency struct in memory" do
       defmodule ChildMemoryStruct do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: id()}
@@ -267,7 +267,7 @@ defmodule DomoInMemoryTest do
       end
 
       defmodule ModuleLocal do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
         defstruct [:id]
 
         @type t :: %__MODULE__{id: ChildMemoryStruct.id()}
@@ -276,7 +276,7 @@ defmodule DomoInMemoryTest do
       assert {:ok, _} = ModuleLocal.new(id: 125)
 
       defmodule ChildMemoryStruct do
-        use Domo, ensure_struct_defaults: false
+        use Domo, skip_defaults: true
 
         defstruct [:id]
         @type t :: %__MODULE__{id: id()}
@@ -318,7 +318,7 @@ defmodule DomoInMemoryTest do
       msg =
         capture_io(fn ->
           defmodule ModuleLocal do
-            use Domo, ensure_struct_defaults: false
+            use Domo, skip_defaults: true
             defstruct [:id]
 
             @type t :: %__MODULE__{id: integer()}

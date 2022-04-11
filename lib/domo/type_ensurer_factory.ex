@@ -33,6 +33,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   defdelegate module_name_string(module), to: Alias, as: :atom_to_string
   defdelegate start_resolve_planner(plan_path, preconds_path, opts), to: ResolvePlanner, as: :ensure_started
+  defdelegate strop_resolve_planner(plan_path), to: ResolvePlanner, as: :stop
   defdelegate get_plan_state(path), to: ResolvePlanner
   defdelegate clean_plan(path), to: ResolvePlanner
   defdelegate get_dependants(path, module), to: ResolvePlanner
@@ -166,12 +167,12 @@ defmodule Domo.TypeEnsurerFactory do
   end
 
   def plan_struct_defaults_ensurance(plan_path, env) do
-    global_ensure_struct_defaults = Application.get_env(:domo, :ensure_struct_defaults, true)
+    global_ensure_struct_defaults = Application.get_env(:domo, :ensure_struct_defaults, not Application.get_env(:domo, :skip_defaults, false))
 
     opts = Module.get_attribute(env.module, :domo_options, [])
-    ensure_struct_defaults = Keyword.get(opts, :ensure_struct_defaults, global_ensure_struct_defaults)
+    skip_defaults = Keyword.get(opts, :skip_defaults, not Keyword.get(opts, :ensure_struct_defaults, global_ensure_struct_defaults))
 
-    if ensure_struct_defaults do
+    unless skip_defaults do
       do_plan_struct_defaults_ensurance(plan_path, env)
     end
   end

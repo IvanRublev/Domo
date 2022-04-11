@@ -16,24 +16,6 @@ defmodule Domo.MixTasksCompileDomoTest do
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
-  @collectable_standard_lib_modules [
-    Macro.Env,
-    IO.Stream,
-    GenEvent.Stream,
-    Date.Range,
-    Range,
-    Regex,
-    Task,
-    URI,
-    Version,
-    Date,
-    DateTime,
-    NaiveDateTime,
-    Time,
-    File.Stat,
-    File.Stream
-  ]
-  @collectable_optional_lib_modules [Decimal]
   @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
 
   def env, do: __ENV__
@@ -149,35 +131,6 @@ defmodule Domo.MixTasksCompileDomoTest do
 
     test "return {:noop, []} when no plan file exists that is domo is not used" do
       assert {:noop, []} = DomoMixTask.process_plan({:ok, []}, [])
-    end
-
-    test "plan t types of Elixir standard library struct having no TypeEnsurer modules", %{plan_file: plan_file} do
-      allow ModuleInspector.ensure_loaded?(any()), meck_options: [:passthrough], return: true
-      allow ModuleInspector.has_type_ensurer?(any()), meck_options: [:passthrough], return: false
-
-      _ = DomoMixTask.process_plan({:ok, []}, [])
-
-      for module_name <- @collectable_standard_lib_modules ++ @collectable_optional_lib_modules do
-        assert_called ResolvePlanner.keep_module_environment(plan_file, module_name, any())
-        assert_called ResolvePlanner.plan_types_resolving(plan_file, module_name, any(), any())
-      end
-    end
-
-    test "only plan Elixir standard library structs missing TypeEnsurer module", %{plan_file: plan_file} do
-      allow ModuleInspector.has_type_ensurer?(any()),
-        meck_options: [:passthrough],
-        exec: fn
-          Range -> true
-          URI -> true
-          module -> module not in @collectable_standard_lib_modules
-        end
-
-      _ = DomoMixTask.process_plan({:ok, []}, [])
-
-      for module_name <- [Range, URI] do
-        refute_called(ResolvePlanner.keep_module_environment(plan_file, module_name, any()))
-        refute_called(ResolvePlanner.plan_types_resolving(plan_file, module_name, any(), any()))
-      end
     end
 
     @tag empty_plan_on_disk?: true

@@ -465,7 +465,7 @@ defmodule DomoFuncTest do
     path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 
     use_domo =
-      ["use Domo", use_arg, "ensure_struct_defaults: false"]
+      ["use Domo", use_arg, "skip_defaults: true"]
       |> Enum.reject(&is_nil/1)
       |> Enum.join(", ")
 
@@ -493,7 +493,7 @@ defmodule DomoFuncTest do
 
     File.write!(path, """
     defmodule #{module_name} do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:placeholder, :__hidden_any__, :__hidden_atom__, :__meta__, :custom_struct, :title]
       defstruct @enforce_keys

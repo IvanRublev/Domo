@@ -365,7 +365,6 @@ defmodule Domo do
 
     TypeEnsurerFactory.register_in_memory_types(env.module, bytecode)
     # struct's types are collected with separate _collect_types_for_domo_compiler call
-    TypeEnsurerFactory.maybe_collect_types_for_stdlib_structs(:in_memory)
     TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(:in_memory)
 
     {:ok, plan, preconds} = TypeEnsurerFactory.get_plan_state(:in_memory)

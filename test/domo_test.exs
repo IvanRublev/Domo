@@ -80,9 +80,6 @@ defmodule DomoTest do
     end
 
     test "generates TypeEnsurer modules for Elixir structs from standard library" do
-      DomoMixTask.start_plan_collection()
-      DomoMixTask.process_plan({:ok, []}, [])
-
       for elixir_module <- [
             Macro.Env,
             IO.Stream,
@@ -949,6 +946,32 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
+    test "skips ensurance of struct default values given skip_defaults: true option" do
+      Application.put_env(:domo, :skip_defaults, true)
+
+      DomoMixTask.start_plan_collection()
+      compile_struct_with_defaults(":id, field: :hello", enforce_keys: nil, t: "id: integer(), field: atom()")
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+
+      :code.purge(Elixir.Bar.TypeEnsurer)
+      :code.delete(Elixir.Bar.TypeEnsurer)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Bar.TypeEnsurer.beam"))
+
+      Application.put_env(:domo, :skip_defaults, false)
+
+      DomoMixTask.start_plan_collection()
+
+      compile_struct_with_defaults(":id, field: :hello",
+        use_opts: "skip_defaults: true",
+        enforce_keys: nil,
+        t: "id: integer(), field: atom()"
+      )
+
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+    after
+      Application.delete_env(:domo, :skip_defaults)
+    end
+
     test "skips ensurance of struct default values given ensure_struct_defaults: false option" do
       Application.put_env(:domo, :ensure_struct_defaults, false)
 
@@ -1139,7 +1162,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountAnyPrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct @enforce_keys
@@ -1160,7 +1183,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountOpaquePrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct @enforce_keys
@@ -1182,7 +1205,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountCustomErrors do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id, :name, :money]
       defstruct @enforce_keys
@@ -1212,7 +1235,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Account do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id, :name, :money]
       defstruct @enforce_keys
@@ -1240,7 +1263,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule PostFieldPrecond.CommentNoTPrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct @enforce_keys
@@ -1249,7 +1272,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule PostFieldPrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias PostFieldPrecond.CommentNoTPrecond
 
@@ -1263,7 +1286,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule PostNestedPecond.CommentTPrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct @enforce_keys
@@ -1273,7 +1296,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule PostNestedPecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias PostNestedPecond.CommentTPrecond
 
@@ -1293,7 +1316,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule PostFieldAndNestedPrecond do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias PostNestedPecond.CommentTPrecond
 
@@ -1316,7 +1339,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule AccountCustomizedMessages do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id, :money]
       defstruct @enforce_keys
@@ -1341,7 +1364,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule LineItem do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
       defstruct [:id, :amount]
 
       @type id :: integer()
@@ -1355,7 +1378,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Order do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
       defstruct [:items]
 
       @type t :: %__MODULE__{items: [item()]}
@@ -1413,7 +1436,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Money do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:amount]
       defstruct @enforce_keys
@@ -1437,7 +1460,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Article do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:metadata]
       defstruct @enforce_keys
@@ -1458,7 +1481,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Library do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias Library.Shelve
 
@@ -1469,7 +1492,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Shelve do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias Library.Book
 
@@ -1480,7 +1503,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Book do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias Library.Book.Author
 
@@ -1491,7 +1514,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Library.Book.Author do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:first_name, :second_name]
       defstruct @enforce_keys
@@ -1509,7 +1532,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Receiver do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:title, :name]
       defstruct [:title, :name, age: 0, module: Atom]
@@ -1530,7 +1553,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule ReceiverUserTypeAfterT do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:title, :name]
       defstruct [:title, :name, age: 0]
@@ -1551,7 +1574,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Game do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:status]
       defstruct [:status]
@@ -1572,7 +1595,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule Game do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:status]
       defstruct [:status]
@@ -1605,7 +1628,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(path, """
     defmodule WebService do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:port]
       defstruct @enforce_keys
@@ -1660,7 +1683,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     File.write!(path, """
     defmodule EctoPassenger do
       use Ecto.Schema
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       schema "passengers" do
         field :first_name, :string
@@ -1685,7 +1708,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(address_path, """
     defmodule Customer.Address do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:country, :city, :line1]
       defstruct [:country, :city, :line1, :line2]
@@ -1703,7 +1726,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(delivery_path, """
     defmodule Customer.DeliveryInfo do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias Customer.Address
 
@@ -1718,7 +1741,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(customer_path, """
     defmodule Customer do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       alias Customer.DeliveryInfo
 
@@ -1744,7 +1767,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
 
     defmodule Leaf do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       defstruct [:value, :next_leaf]
 
@@ -1762,7 +1785,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(airplane_path, """
     defmodule Airplane do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:seats]
       defstruct [:seats]
@@ -1775,7 +1798,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct [:id]
@@ -1794,7 +1817,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
-      use Domo, ensure_struct_defaults: false
+      use Domo, skip_defaults: true
 
       @enforce_keys [:id]
       defstruct [:id]

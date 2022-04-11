@@ -26,6 +26,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
 
   setup tags do
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
+    allow File.rm(any()), meck_options: [:passthrough], return: :ok
 
     File.mkdir_p!(@source_dir)
     File.write!(@deps_path, :erlang.term_to_binary(tags.deps))
@@ -178,7 +179,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
            @module_path2,
            @reference_path
          ]
-    test "touch and recompile depending module giving md5 hash of dependent module types mismatching one from deps file" do
+    test "touch, delete BEAM, and recompile depending module giving md5 hash of dependent module types mismatching one from deps file" do
       allow ElixirTask.recompile_with_elixir(any()), return: {:ok, [], []}
 
       assert mtime(@module_path1) < mtime(@module_path2)
@@ -188,6 +189,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
 
       assert mtime(@module_path1) > mtime(@reference_path)
       assert mtime(@module_path2) < mtime(@reference_path)
+      assert_called File.rm(is(&String.ends_with?(&1, "/ebin/Elixir.Location.beam")))
       assert_called ElixirTask.recompile_with_elixir(any())
     end
 

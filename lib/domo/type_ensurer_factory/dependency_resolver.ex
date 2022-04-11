@@ -154,19 +154,23 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
   end
 
   defp maybe_recompile(updated_deps, deps, type_hash_by_dependant_module, preconds_hash_by_module, verbose?) do
-    sources_to_recompile =
+    {modules_to_recompile, sources_to_recompile} =
       updated_deps
       |> sources_with_changed_dependants_type_hash(type_hash_by_dependant_module)
       |> add_sources_for_modules_of_changed_dependants(updated_deps, deps)
       |> add_sources_for_modules_of_changed_preconditions(updated_deps, preconds_hash_by_module)
       |> add_sources_dependind_on_changed_sources(deps)
-      |> Map.values()
-      |> Enum.uniq()
+      |> Enum.unzip()
 
     if Enum.empty?(sources_to_recompile) do
       {:ok, []}
     else
-      touch_and_recompile(sources_to_recompile, verbose?)
+      beams_to_recompile =
+        Enum.map(modules_to_recompile, fn module ->
+          module |> :code.which() |> List.to_string()
+        end)
+
+      touch_and_recompile(Enum.uniq(sources_to_recompile), Enum.uniq(beams_to_recompile), verbose?)
     end
   end
 
@@ -244,12 +248,15 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     end
   end
 
-  defp touch_and_recompile(sources_to_recompile, verbose?) do
+  defp touch_and_recompile(sources_to_recompile, beams_to_recompile, verbose?) do
     # Have to wait 1 second to touch files with later epoch time
     # and make elixir compiler to percept them as stale files.
     Process.sleep(1000)
 
     Enum.each(sources_to_recompile, &File.touch!/1)
+
+    # Since v1.13 Elixir expects missing .beam to recompile from source
+    Enum.each(beams_to_recompile, &File.rm/1)
 
     ElixirTask.recompile_with_elixir(verbose?)
   end

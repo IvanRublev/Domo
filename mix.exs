@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.2"
+  @version "1.5.3"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -46,7 +46,7 @@ defmodule Domo.MixProject do
 
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_), do: ["lib"]
+  defp elixirc_paths(_), do: ["lib", "lib_std"]
 
   defp compilers(_), do: Mix.compilers()
 

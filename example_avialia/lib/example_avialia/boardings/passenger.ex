@@ -1,6 +1,6 @@
 defmodule ExampleAvialia.Boardings.Passenger do
   use Ecto.Schema
-  use Domo, ensure_struct_defaults: false
+  use Domo, skip_defaults: true
 
   import Ecto.Changeset
   import Domo.Changeset

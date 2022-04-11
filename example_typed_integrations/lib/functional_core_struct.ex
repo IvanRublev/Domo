@@ -4,7 +4,7 @@ defmodule FunctionalCoreStruct do
   and [Domo](https://github.com/IvanRublev/Domo).
 
   It automatically validates default values during the compile-time unless the
-  `ensure_struct_defaults: false` flag is given to Domo.
+  `skip_defaults: true` flag is given to Domo.
 
   F.e. change the `:name` field's default value to `:invalid` in this file,
   and recompile the project. The compilation should fail because of the wrong type.

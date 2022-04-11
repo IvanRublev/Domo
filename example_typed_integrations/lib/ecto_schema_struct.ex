@@ -7,7 +7,7 @@ defmodule EctoSchemaStruct do
   the struct.
 
   Domo automatically validates default values during the compile-time unless the
-  `ensure_struct_defaults: false` flag is given.
+  `skip_defaults: true` flag is given.
 
   F.e. remove `default: "Joe"` option for the `:name` field in this file,
   and recompile the project. The compilation should fail because of `nil` that
