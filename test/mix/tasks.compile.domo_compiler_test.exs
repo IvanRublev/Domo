@@ -1,4 +1,4 @@
-defmodule Domo.MixTasksCompileDomoTest do
+defmodule Domo.MixTasksCompileDomoCompilerTest do
   use Domo.FileCase, async: false
   use Placebo
 
@@ -498,8 +498,8 @@ defmodule Domo.MixTasksCompileDomoTest do
       end)
 
     assert msg =~ ~r(Domo resolve planner started)
-    assert msg =~ ~r(Resolve types of Domo.MixTasksCompileDomoTest.Module)
-    assert msg =~ ~r(Compiled .*/domo_mix_tasks_compile_domo_test_module_type_ensurer.ex)
+    assert msg =~ ~r(Resolve types of Domo.MixTasksCompileDomoCompilerTest.Module)
+    assert msg =~ ~r(Compiled .*/domo_mix_tasks_compile_domo_compiler_test_module_type_ensurer.ex)
   end
 
   describe "Domo compiler task for compilation errors should" do

@@ -247,4 +247,15 @@ defmodule Domo.Raises do
     to make constructor, validation, and reflection functions to work again.\
     """
   end
+
+  def raise_no_elixir_compiler_was_run do
+    raise CompileError,
+      file: "domo_phoenix_hot_reload",
+      line: 0,
+      description: """
+      :elixir compiler wasn't run. Please, check if :domo_phoenix_hot_reload \
+      is placed after :elixir in the compilers list in the mix.exs file and \
+      in reloadable_compilers list in the configuration file.\
+      """
+  end
 end

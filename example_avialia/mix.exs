@@ -10,7 +10,9 @@ defmodule ExampleAvialia.MixProject do
       compilers: [:phoenix, :domo_compiler] ++ Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      # The following works since v1.13
+      test_coverage: [ignore_modules: [~r/\.TypeEnsurer$/]]
     ]
   end
 

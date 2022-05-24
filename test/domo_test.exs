@@ -1880,7 +1880,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   defp compile_with_elixir do
-    command = Mix.Utils.module_name_to_command("Mix.Tasks.Compile.Elixir", 2)
+    command = Mix.Task.task_name(Mix.Tasks.Compile.Elixir)
     Mix.Task.rerun(command, [])
   end
 end

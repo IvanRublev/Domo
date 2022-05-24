@@ -361,6 +361,15 @@ And the following line to the project's `mix.exs` file:
 compilers: [:domo_compiler] ++ Mix.compilers()
 ```
 
+To exclude the generated `TypeEnsurer` modules from `mix test --coverage` 
+add the following line, that works since Elixir v1.13, to the project's `mix.exs`:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+test_coverage: [ignore_modules: [~r/\.TypeEnsurer$/]]
+```
+
 To avoid `mix format` putting extra parentheses around `precond/1` macro call,
 add the following import to the `.formatter.exs`:
 
@@ -372,14 +381,24 @@ add the following import to the `.formatter.exs`:
 ]
 ```
 
-To enable [Phoenix](https://hexdocs.pm/phoenix) hot-reload for type changes in structs using Domo, 
-add the following line to the endpoint's configuration in the `config.exs` file:
+## Phoenix hot-reload
+
+To enable [Phoenix](https://hexdocs.pm/phoenix) hot-reload for struct's type ensurers built by Domo, 
+update the compilers in the `mix.exs` file like the following:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+compilers: [:domo_compiler] ++ Mix.compilers() ++ [:domo_phoenix_hot_reload]
+```
+
+And add the following line to the endpoint's configuration in the `config.exs` file:
 
 <!-- livebook:{"force_markdown":true} -->
 
 ```elixir
 config :my_app, MyApp.Endpoint,
-  reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers()
+  reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers() ++ [:domo_phoenix_hot_reload]
 ```
 
 ## Umbrella application
@@ -724,6 +743,11 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 3. Make a PR to this repository
 
 ## Changelog
+
+### v1.5.4 (2022-05-23)
+
+* Fix to reenable the support of Phoenix hot-reload. If you use it then, please, add `:domo_phoenix_hot_reload` after `:elixir` to `compilers` list in the mix.exs file and to `reloadable_compilers` list in the config file.
+* Add `test_coverage` configuration example to exclude generated `TypeEnsurer` modules from the test coverage report
 
 ### v1.5.3 (2022-04-10)
     
