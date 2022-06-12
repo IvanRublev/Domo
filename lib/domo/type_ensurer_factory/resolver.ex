@@ -63,10 +63,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
       {:ok, fields_envs} ->
         modules_count = map_size(fields)
 
-        IO.puts("""
-        Domo is compiling type ensurer for #{to_string(modules_count)} \
-        module#{if modules_count > 1, do: "s"} (.ex)\
-        """)
+        if modules_count > 0 do
+          IO.puts("""
+          Domo is compiling type ensurer for #{to_string(modules_count)} \
+          module#{if modules_count > 1, do: "s"} (.ex)\
+          """)
+        end
 
         anys_by_module = plan[:anys_by_module]
 

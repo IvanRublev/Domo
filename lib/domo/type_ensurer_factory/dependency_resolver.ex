@@ -108,7 +108,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
   defp maybe_cleanup_preconds(preconds_path, preconds, file_module) do
     updated_preconds =
       Enum.reduce(preconds, %{}, fn {module, type_precond_description}, map ->
-        if Kernel.function_exported?(module, :__precond__, 2) do
+        if Code.ensure_loaded?(module) and Kernel.function_exported?(module, :__precond__, 2) do
           Map.put(map, module, type_precond_description)
         else
           map
@@ -253,7 +253,21 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     # and make elixir compiler to percept them as stale files.
     Process.sleep(1000)
 
+    if verbose? do
+      IO.write("""
+      Domo marks files for recompilation by touching:
+      #{Enum.join(sources_to_recompile, "\n")}
+      """)
+    end
+
     Enum.each(sources_to_recompile, &File.touch!/1)
+
+    if verbose? do
+      IO.write("""
+      Domo meets Elixir's criteria for recompilation by removing:
+      #{Enum.join(beams_to_recompile, "\n")}
+      """)
+    end
 
     # Since v1.13 Elixir expects missing .beam to recompile from source
     Enum.each(beams_to_recompile, &File.rm/1)

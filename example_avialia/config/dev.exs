@@ -27,7 +27,7 @@ config :example_avialia, ExampleAvialiaWeb.Endpoint,
   http: [port: 4000],
   debug_errors: true,
   code_reloader: true,
-  reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers(),
+  reloadable_compilers: [:phoenix, :domo_compiler] ++ Mix.compilers() ++ [:domo_phoenix_hot_reload],
   check_origin: false,
   watchers: [
     node: [

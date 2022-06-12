@@ -7,7 +7,7 @@ defmodule ExampleAvialia.MixProject do
       version: "0.1.0",
       elixir: "~> 1.11",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:phoenix, :domo_compiler] ++ Mix.compilers(),
+      compilers: [:phoenix, :domo_compiler] ++ Mix.compilers() ++ [:domo_phoenix_hot_reload],
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),

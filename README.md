@@ -744,6 +744,10 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
+### v1.5.5 (2022-06-12)
+
+* Fix to repeatedly run `mix test` and `mix dialyzer` without crashes.
+
 ### v1.5.4 (2022-05-23)
 
 * Fix to reenable the support of Phoenix hot-reload. If you use it then, please, add `:domo_phoenix_hot_reload` after `:elixir` to `compilers` list in the mix.exs file and to `reloadable_compilers` list in the config file.
