@@ -213,29 +213,38 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   defp t_precondition_quoted(struct_module, t_precond) do
     struct_module_string = inspect(struct_module)
     value_var = if t_precond, do: quote(do: value), else: quote(do: _value)
+    ok_or_precond_call_quoted = Precondition.ok_or_precond_call_quoted(t_precond, quote(do: spec_string), quote(do: value))
 
-    quote do
-      def t_precondition(unquote(value_var)) do
-        spec_string = "#{unquote(struct_module_string)}.t()"
-
-        result = unquote(Precondition.ok_or_precond_call_quoted(t_precond, quote(do: spec_string), quote(do: value)))
-
-        case result do
-          :ok ->
-            :ok
-
-          {:error, value, [message]} ->
-            {:error,
-             {
-               :type_mismatch,
-               nil,
-               nil,
-               value,
-               [spec_string],
-               [message]
-             }}
+    case ok_or_precond_call_quoted do
+      :ok ->
+        quote do
+          def t_precondition(unquote(value_var)), do: :ok
         end
-      end
+
+      precond_call_quoted ->
+        quote do
+          def t_precondition(unquote(value_var)) do
+            spec_string = "#{unquote(struct_module_string)}.t()"
+
+            result = unquote(precond_call_quoted)
+
+            case result do
+              :ok ->
+                :ok
+
+              {:error, value, [message]} ->
+                {:error,
+                 {
+                   :type_mismatch,
+                   nil,
+                   nil,
+                   value,
+                   [spec_string],
+                   [message]
+                 }}
+            end
+          end
+        end
     end
   end
 
