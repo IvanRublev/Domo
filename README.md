@@ -744,6 +744,10 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
+### v1.5.6 (2022-06-12)
+
+* Fix to remove unnecessary code path to make `mix dialyzer` pass on generated code.
+
 ### v1.5.5 (2022-06-12)
 
 * Fix to repeatedly run `mix test` and `mix dialyzer` without crashes.

@@ -210,9 +210,17 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     String.starts_with?(field_string, underscore) and String.ends_with?(field_string, underscore)
   end
 
+  defp t_precondition_quoted(_struct_module, nil = _t_precond) do
+    quote do
+      def t_precondition(_value) do
+        :ok
+      end
+    end
+  end
+
   defp t_precondition_quoted(struct_module, t_precond) do
     struct_module_string = inspect(struct_module)
-    value_var = if t_precond, do: quote(do: value), else: quote(do: _value)
+    value_var = quote(do: value)
 
     quote do
       def t_precondition(unquote(value_var)) do

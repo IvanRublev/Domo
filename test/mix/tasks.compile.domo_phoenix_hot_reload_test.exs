@@ -2,8 +2,6 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
   use Domo.FileCase, async: false
   use Placebo
 
-  import ExUnit.CaptureIO
-
   alias Domo.CodeEvaluation
   alias Mix.Tasks.Compile.DomoCompiler
   alias Mix.Tasks.Compile.DomoPhoenixHotReload, as: DomoPhoenixMixTask
@@ -15,7 +13,7 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
                                                 in reloadable_compilers list in the configuration file.\
                                                 """)
 
-  setup tags do
+  setup do
     ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
 
