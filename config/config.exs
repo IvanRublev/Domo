@@ -2,10 +2,10 @@
 # is restricted to this project.
 
 # General application configuration
-use Mix.Config
+import Config
 
 config :domo, :test_structs_path, "test/struct_modules"
 
-if Mix.env() == :test do
+if config_env() == :test do
   config :domo, :mix_project, MixProjectStubCorrect
 end

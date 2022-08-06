@@ -279,7 +279,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp resolve_type({:mfa, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
-    joint_type = {quote(context: module, do: {{module(), nil}, {atom(), nil}, {0..255, nil}}), precond}
+    joint_type = {quote(context: module, do: {{atom(), nil}, {atom(), nil}, {0..255, nil}}), precond}
     {[joint_type | types], errs, deps}
   end
 

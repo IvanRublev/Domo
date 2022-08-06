@@ -159,7 +159,7 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: nonempty_list(any())),
     quote(context: TwoFieldStruct, do: maybe_improper_list(any(), any())),
     quote(context: TwoFieldStruct, do: nonempty_maybe_improper_list(any(), any())),
-    quote(context: TwoFieldStruct, do: {module(), atom(), 0..255}),
+    quote(context: TwoFieldStruct, do: {atom(), atom(), 0..255}),
     quote(context: TwoFieldStruct, do: atom()),
     quote(context: TwoFieldStruct, do: {}),
     quote(context: TwoFieldStruct, do: atom())

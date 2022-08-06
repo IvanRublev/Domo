@@ -1,5 +1,11 @@
 # Domo
 
+```elixir
+Mix.install([:domo], force: true)
+```
+
+## About
+
 |[![Elixir CI](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml/badge.svg)](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml)|[![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)|[![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)|
 |-|-|-|
 
@@ -39,17 +45,11 @@ define the invariants relating structs to each other.
 
 ## Tour
 
-<p align="center">
+<p align="center" class="hidden">
   <a href="https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2FIvanRublev%2FDomo%2Fblob%2Fmaster%2FREADME.md">
     <img src="https://livebook.dev/badge/v1/blue.svg" alt="Run in Livebook" />
   </a>
 </p>
-
-```elixir
-# Evaluate this section first!
-
-Mix.install([:domo], force: true)
-```
 
 Let's say that we have a `LineItem` and `PurchaseOrder` structs with relating
 invariant that is the sum of line item amounts should be less then order's
@@ -743,6 +743,11 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 3. Make a PR to this repository
 
 ## Changelog
+
+### v1.5.7 (2022-08-06)
+
+* Fix to resolve mfa() type.
+* Fix tests to acknowledge random order of keys in map.
 
 ### v1.5.6 (2022-06-12)
 

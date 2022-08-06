@@ -78,15 +78,21 @@ defmodule DomoFuncTest do
     end
 
     test "raises an error for arguments mismatching struct's field types with underlying errors" do
+      message_regex =
+        """
+        the following values should have types defined for fields of the RecipientNestedOrTypes struct:
+         * Invalid value %Recipient{__fields_pattern__} for field :title of %RecipientNestedOrTypes{}. \
+        Expected the value matching the :mr | %Recipient{} | :dr type.
+        Underlying errors:
+           - Value of field :title is invalid due to Invalid value "mr" for field :title of %Recipient{}. \
+        Expected the value matching the :mr | :ms | :dr type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__fields_pattern__", ".*age: 27.*")
+        |> Regex.compile!()
+
       assert_raise ArgumentError,
-                   """
-                   the following values should have types defined for fields of the RecipientNestedOrTypes struct:
-                    * Invalid value %Recipient{age: 27, name: "Bob", title: "mr"} for field :title of %RecipientNestedOrTypes{}. \
-                   Expected the value matching the :mr | %Recipient{} | :dr type.
-                   Underlying errors:
-                      - Value of field :title is invalid due to Invalid value "mr" for field :title of %Recipient{}. \
-                   Expected the value matching the :mr | :ms | :dr type.\
-                   """,
+                   message_regex,
                    fn ->
                      _ = RecipientNestedOrTypes.new!(title: %Recipient{title: "mr", name: "Bob", age: 27})
                    end
@@ -105,12 +111,18 @@ defmodule DomoFuncTest do
     end
 
     test "raises an error for arguments mismatching struct type precondition" do
+      message_regex =
+        """
+        Invalid value %RecipientWithPrecond{__fields_pattern__}. \
+        Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
+        function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__fields_pattern__", ".*age: 37.*")
+        |> Regex.compile!()
+
       assert_raise ArgumentError,
-                   """
-                   Invalid value %RecipientWithPrecond{age: 37, name: "Bob Thornton", title: :mr}. \
-                   Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
-                   function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
-                   """,
+                   message_regex,
                    fn ->
                      _ = RecipientWithPrecond.new!(title: :mr, name: "Bob Thornton", age: 37)
                    end
@@ -227,7 +239,7 @@ defmodule DomoFuncTest do
                      _ = Recipient.new!(name: "Bob", age: 27)
                    end
 
-      assert_raise KeyError, ~r/key :extra_key not found in: %Recipient/, fn ->
+      assert_raise KeyError, ~r/key :extra_key not found/, fn ->
         _ = Recipient.new!(title: :mr, name: "Bob", age: 27, extra_key: true)
       end
     end
@@ -270,13 +282,19 @@ defmodule DomoFuncTest do
     test "returns :error tuple for struct type precondition" do
       assert {:error, error} = RecipientWithPrecond.new(title: :mr, name: "Bob Thornton", age: 37)
 
-      assert error == [
-               t: """
-               Invalid value %RecipientWithPrecond{age: 37, name: "Bob Thornton", title: :mr}. \
-               Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
-               function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
-               """
-             ]
+      assert [t: message] = error
+
+      message_regex =
+        """
+        Invalid value %RecipientWithPrecond{__fields_pattern__}. \
+        Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
+        function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__fields_pattern__", ".*age: 37.*")
+        |> Regex.compile!()
+
+      assert message =~ message_regex
     end
 
     test "returns :error tuple for a missing key" do
@@ -338,12 +356,18 @@ defmodule DomoFuncTest do
     test "raises an error for arguments mismatching struct type precondition", %{joe: joe} do
       malformed_joe = %{joe | name: "Bob Thornton"}
 
+      message_regex =
+        """
+        Invalid value %RecipientWithPrecond{__fields_pattern__}. \
+        Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
+        function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__fields_pattern__", ".*age: 37.*")
+        |> Regex.compile!()
+
       assert_raise ArgumentError,
-                   """
-                   Invalid value %RecipientWithPrecond{age: 37, name: "Bob Thornton", title: :mr}. \
-                   Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
-                   function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
-                   """,
+                   message_regex,
                    fn ->
                      _ = RecipientWithPrecond.ensure_type!(malformed_joe)
                    end
@@ -412,12 +436,19 @@ defmodule DomoFuncTest do
     test "returns :error tuple for struct type precondition", %{joe: joe} do
       malformed_joe = %{joe | name: "Bob Thornton"}
 
-      assert {:error,
-              t: """
-              Invalid value %RecipientWithPrecond{age: 37, name: "Bob Thornton", title: :mr}. \
-              Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
-              function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
-              """} = RecipientWithPrecond.ensure_type(malformed_joe)
+      assert {:error, t: message} = RecipientWithPrecond.ensure_type(malformed_joe)
+
+      message_regex =
+        """
+        Invalid value %RecipientWithPrecond{__fields_pattern__}. \
+        Expected the value matching the RecipientWithPrecond.t() type. And a true value from the precondition \
+        function "&(String.length(&1.name) < 10)" defined for RecipientWithPrecond.t() type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__fields_pattern__", ".*age: 37.*")
+        |> Regex.compile!()
+
+      assert message =~ message_regex
     end
 
     test "raises an error if the passed struct's name differs from the module's name" do

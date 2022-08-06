@@ -337,7 +337,7 @@ defmodule DomoTest do
         _ = Account.new!(id: "ak47896", name: "John Smith", money: 2578)
       end
 
-      assert_raise ArgumentError, ~r/Invalid value %Account{id: \"adk-47896\", money: 2, name: \"John Smith\"}.*\
+      assert_raise ArgumentError, ~r/Invalid value %Account{.*id: \"adk-47896\".*}.*\
 a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         _ = Account.new!(id: "adk-47896", name: "John Smith", money: 2)
       end
@@ -348,7 +348,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         _ = %{account | money: -1} |> Account.ensure_type!()
       end
 
-      assert_raise ArgumentError, ~r/Invalid value %Account{id: \"adk-47896\", money: 3, name: \"John Smith\"}.*\
+      assert_raise ArgumentError, ~r/Invalid value %Account{.*id: \"adk-47896\".*}.*\
 a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
         _ = %{account | money: 3} |> Account.ensure_type!()
       end
@@ -936,7 +936,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
     test "skips enforced keys during the struct defaults values ensurance" do
       DomoMixTask.start_plan_collection()
-      compile_struct_with_defaults(":id, field: :hello", enforce_keys: ":id", t: "id: integer(), field: atom()")
+      compile_struct_with_defaults("id: 0, field: :hello", enforce_keys: ":id", t: "id: integer(), field: atom()")
       assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
@@ -1109,22 +1109,29 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       compile_library_struct()
       DomoMixTask.process_plan({:ok, []}, [])
 
+      message_regex =
+        """
+        the following values should have types defined for fields of the Library struct:
+         * Invalid value [%Library.Shelve{__a5_pattern__}, \
+        %Library.Shelve{__b1_pattern__}] for field :shelves of %Library{}. \
+        Expected the value matching the [%Library.Shelve{}] type.
+        Underlying errors:
+           - The element at index 1 has value %Library.Shelve{__b1_pattern__} that is invalid.
+           - Value of field :books is invalid due to the following:
+             - The element at index 1 has value %Library.Book{__howl_title_pattern__} that is invalid.
+             - Value of field :author is invalid due to Invalid value %Library.Book.Author{__name_allen_pattern__} for field :author of %Library.Book{}. \
+        Value of field :second_name is invalid due to Invalid value :ginsberg for field :second_name of %Library.Book.Author{}. Expected the value matching the <<_::_*8>> type.
+         * Invalid value 1 for field :name of %Library{}. Expected the value matching the <<_::_*8>> type.\
+        """
+        |> Regex.escape()
+        |> String.replace("__a5_pattern__", ".*address: \"A5\".*")
+        |> String.replace("__b1_pattern__", ".*address: \"B1\".*")
+        |> String.replace("__howl_title_pattern__", ".*title: \"Howl and Other Poems\".*")
+        |> String.replace("__name_allen_pattern__", ".*first_name: \"Allen\".*")
+        |> Regex.compile!()
+
       assert_raise ArgumentError,
-                   """
-                   the following values should have types defined for fields of the Library struct:
-                    * Invalid value [%Library.Shelve{address: "A5", books: [%Library.Book{author: %Library.Book.Author{first_name: "Jack", second_name: "Kerouac"}, title: "On the Road"}]}, \
-                   %Library.Shelve{address: "B1", books: [%Library.Book{author: %Library.Book.Author{first_name: "William S.", second_name: "Burroughs"}, title: "Naked Lunch"}, \
-                   %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"}]}] for field :shelves of %Library{}. \
-                   Expected the value matching the [%Library.Shelve{}] type.
-                   Underlying errors:
-                      - The element at index 1 has value %Library.Shelve{address: "B1", books: [%Library.Book{author: %Library.Book.Author{first_name: "William S.", second_name: "Burroughs"}, title: "Naked Lunch"}, \
-                   %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"}]} that is invalid.
-                      - Value of field :books is invalid due to the following:
-                        - The element at index 1 has value %Library.Book{author: %Library.Book.Author{first_name: "Allen", second_name: :ginsberg}, title: "Howl and Other Poems"} that is invalid.
-                        - Value of field :author is invalid due to Invalid value %Library.Book.Author{first_name: "Allen", second_name: :ginsberg} for field :author of %Library.Book{}. \
-                   Value of field :second_name is invalid due to Invalid value :ginsberg for field :second_name of %Library.Book.Author{}. Expected the value matching the <<_::_*8>> type.
-                    * Invalid value 1 for field :name of %Library{}. Expected the value matching the <<_::_*8>> type.\
-                   """,
+                   message_regex,
                    fn ->
                      alias Library.Shelve
                      alias Library.Book
