@@ -18,18 +18,6 @@ defmodule DomoFuncTest do
       Code.compiler_options(ignore_module_conflict: false)
     end)
 
-    DomoMixTask.start_plan_collection()
-
-    # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/struct_modules/lib/recipient.ex")
-    Code.eval_file("test/struct_modules/lib/recipient_with_precond.ex")
-    Code.eval_file("test/struct_modules/lib/empty_struct.ex")
-
-    {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
-
-    Placebo.unstub()
-    ResolverTestHelper.enable_raise_in_test_env()
-
     :ok
   end
 
@@ -204,24 +192,17 @@ defmodule DomoFuncTest do
     test "raises error for wrong formatted `remote_types_as_any` option" do
       Application.put_env(:domo, :remote_types_as_any, [The.Nested.EmptyStruct, CustomStructUsingDomo: [:t]])
 
-      DomoMixTask.start_plan_collection()
       return_value = compile_recipient_foreign_struct("RecipientForeignStructs")
-      DomoMixTask.process_plan({:ok, []}, [])
-
       assert {:error, [%{message: message}]} = return_value
       assert message =~ ":remote_types_as_any option value must be of the following shape"
 
       Application.delete_env(:domo, :remote_types_as_any)
-
-      DomoMixTask.start_plan_collection()
 
       return_value =
         compile_recipient_foreign_struct(
           "RecipientForeignStructsRemoteTypesAsAnyOverriden",
           "remote_types_as_any: [{Recipient, :name}, CustomStructUsingDomo: [1]]"
         )
-
-      DomoMixTask.process_plan({:ok, []}, [])
 
       assert {:error, [%{message: message}]} = return_value
       assert message =~ ":remote_types_as_any option value must be of the following shape"

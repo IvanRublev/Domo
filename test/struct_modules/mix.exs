@@ -22,7 +22,8 @@ defmodule TestStructModules.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:domo, path: "../.."}
+      {:domo, path: "../.."},
+      {:ecto, ">= 0.0.0", optional: true}
     ]
   end
 end

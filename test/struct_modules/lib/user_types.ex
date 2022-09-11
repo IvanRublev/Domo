@@ -109,6 +109,12 @@ defmodule UserTypes do
   @type a_port :: port()
   @type a_reference :: reference()
   @type remote_type :: RemoteUserType.t()
+  @type has_one_atom :: Ecto.Schema.has_one(:atom)
+  @type embeds_one_atom :: Ecto.Schema.embeds_one(:atom)
+  @type belongs_to_atom :: Ecto.Schema.belongs_to(:atom)
+  @type has_many_atom :: Ecto.Schema.has_many(:atom)
+  @type many_to_many_atom :: Ecto.Schema.many_to_many(:atom)
+  @type embeds_many_atom :: Ecto.Schema.embeds_many(:atom)
 
   def env, do: __ENV__
 

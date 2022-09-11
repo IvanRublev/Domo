@@ -307,12 +307,74 @@ defmodule DomoTest do
       compile_ecto_passenger_struct()
       {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
 
-      assert %{__struct__: EctoPassenger, __meta__: _} = EctoPassenger.new!(first_name: "John", last_name: "Smith")
+      assert %{__struct__: EctoPassenger, __meta__: _} =
+               EctoPassenger.new!(
+                 first_name: "John",
+                 belonging: 1,
+                 love: :one,
+                 items: [0.5, 0.6],
+                 list: [:one, :two],
+                 forest: 7,
+                 ideas: [0.1, 10.1]
+               )
+
+      not_loaded_association = %Ecto.Association.NotLoaded{
+        __field__: :filed,
+        __owner__: "owner",
+        __cardinality__: :cardinality
+      }
+
+      assert %{__struct__: EctoPassenger, __meta__: _} =
+               EctoPassenger.new!(
+                 first_name: "John",
+                 belonging: not_loaded_association,
+                 love: not_loaded_association,
+                 items: not_loaded_association,
+                 list: not_loaded_association,
+                 forest: not_loaded_association,
+                 ideas: not_loaded_association
+               )
 
       assert_raise ArgumentError,
                    ~r/Invalid value.*for field :first_name/s,
                    fn ->
-                     _ = EctoPassenger.new!(first_name: :john, last_name: "Smith")
+                     _ = EctoPassenger.new!(first_name: :john)
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :belonging/s,
+                   fn ->
+                     _ = EctoPassenger.new!(belonging: :john)
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :love/s,
+                   fn ->
+                     _ = EctoPassenger.new!(love: "one")
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :items/s,
+                   fn ->
+                     _ = EctoPassenger.new!(items: ["one"])
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :list/s,
+                   fn ->
+                     _ = EctoPassenger.new!(list: [1])
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :forest/s,
+                   fn ->
+                     _ = EctoPassenger.new!(forest: "tall")
+                   end
+
+      assert_raise ArgumentError,
+                   ~r/Invalid value.*for field :ideas/s,
+                   fn ->
+                     _ = EctoPassenger.new!(ideas: ["tall"])
                    end
     end
 
@@ -1692,16 +1754,28 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       use Ecto.Schema
       use Domo, skip_defaults: true
 
+      alias Ecto.Schema
+
       schema "passengers" do
         field :first_name, :string
-        field :last_name, :string
+        field :belonging, :string
+        field :love, :string
+        field :items, :string
+        field :list, :string
+        field :forest, :string
+        field :ideas, :string
 
         timestamps()
       end
 
       @type t :: %__MODULE__{
               first_name: String.t(),
-              last_name: String.t(),
+              belonging: Schema.belongs_to(integer()), # t
+              love: Schema.has_one(atom()), # t
+              items: Schema.has_many(float()), # [t]
+              list: Schema.many_to_many(atom()), # [t]
+              forest: Schema.embeds_one(integer()), # t
+              ideas: Schema.embeds_many(float()) # [t]
             }
     end
     """)

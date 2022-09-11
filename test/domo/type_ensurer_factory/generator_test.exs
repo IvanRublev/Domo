@@ -5,12 +5,15 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  import GeneratorTestHelper
 
   @moduletag types_content: %{}
+  @moduletag ecto_assocs_content: %{}
 
   setup tags do
     project = MixProjectStubCorrect
     types_file = DomoMixTask.manifest_path(project, :types)
+    ecto_assocs_file = DomoMixTask.manifest_path(project, :ecto_assocs)
     code_path = DomoMixTask.generated_code_path(project)
 
     types_content = tags.types_content
@@ -19,23 +22,30 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       File.write!(types_file, :erlang.term_to_binary(types_content))
     end
 
+    ecto_assocs_content = tags.ecto_assocs_content
+
+    unless is_nil(ecto_assocs_content) do
+      File.write!(ecto_assocs_file, :erlang.term_to_binary(ecto_assocs_content))
+    end
+
     on_exit(fn ->
       _ = File.rm(types_file)
     end)
 
-    %{types_file: types_file, code_path: code_path}
+    %{types_file: types_file, ecto_assocs_file: ecto_assocs_file, code_path: code_path}
   end
 
   describe "generate/2" do
-    test "makes code directory", %{types_file: types_file, code_path: code_path} do
+    test "makes code directory", %{types_file: types_file, ecto_assocs_file: ecto_assocs_file, code_path: code_path} do
       File.rm_rf(code_path)
 
-      Generator.generate(types_file, code_path)
+      Generator.generate(types_file, ecto_assocs_file, code_path)
       assert true == File.exists?(code_path)
     end
 
     test "returns error if make of the directory failed", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       defmodule FailingMkdirFile do
@@ -44,22 +54,23 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
 
       assert %Error{
                compiler_module: Generator,
-               file: ^types_file,
+               file: ^code_path,
                struct_module: nil,
                message: {:mkdir_output_folder, :enomem}
-             } = Generator.generate(types_file, code_path, FailingMkdirFile)
+             } = Generator.generate(types_file, ecto_assocs_file, code_path, FailingMkdirFile)
     end
 
-    @tag types_content: %{
-           Module => {%{first: [quote(do: integer())], second: [quote(do: float())]}, nil},
-           Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil},
-           EmptyStruct => {%{}, nil}
-         }
+    @tag types_content: types_by_module_content(%{
+           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+           Some.Nested.Module1 => %{former: [quote(do: integer())]},
+           EmptyStruct => %{}
+         })
     test "writes TypeEnsurer source code to code_path for each module from types file", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
-      assert {:ok, _paths} = Generator.generate(types_file, code_path)
+      assert {:ok, _paths} = Generator.generate(types_file, ecto_assocs_file, code_path)
 
       type_ensurer_path = Path.join(code_path, "/module_type_ensurer.ex")
       %File.Stat{size: size} = File.stat!(type_ensurer_path)
@@ -74,13 +85,14 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       assert size2 > 0
     end
 
-    @tag types_content: %{
-           Module => {%{first: [quote(do: integer())], second: [quote(do: float())]}, nil},
-           Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil},
-           EmptyStruct => {%{}, nil}
-         }
+    @tag types_content: types_by_module_content(%{
+           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+           Some.Nested.Module1 => %{former: [quote(do: integer())]},
+           EmptyStruct => %{}
+         })
     test "returns list of TypeEnsurer modules source code file paths", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       type_ensurer_path = Path.join(code_path, "/module_type_ensurer.ex")
@@ -92,12 +104,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                 type_ensurer2_path,
                 type_ensurer_path,
                 type_ensurer1_path
-              ]} == Generator.generate(types_file, code_path)
+              ]} == Generator.generate(types_file, ecto_assocs_file, code_path)
     end
 
     @tag types_content: nil
     test "returns error if read of types file failed", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       refute File.exists?(types_file)
@@ -107,11 +120,33 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                file: ^types_file,
                struct_module: nil,
                message: {:read_types, :enoent}
-             } = Generator.generate(types_file, code_path)
+             } = Generator.generate(types_file, ecto_assocs_file, code_path)
+    end
+
+    @tag types_content: types_by_module_content(%{
+      Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+      Some.Nested.Module1 => %{former: [quote(do: integer())]},
+      EmptyStruct => %{}
+    })
+    @tag ecto_assocs_content: nil
+    test "returns error if read of ecto assocs file failed", %{
+      types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
+      code_path: code_path
+    } do
+      refute File.exists?(ecto_assocs_file)
+
+      assert %Error{
+               compiler_module: Generator,
+               file: ^ecto_assocs_file,
+               struct_module: nil,
+               message: {:read_ecto_assocs, :enoent}
+             } = Generator.generate(types_file, ecto_assocs_file, code_path)
     end
 
     test "returns error if the content of the types file is corrupted", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       defmodule FailingTypesFile do
@@ -127,11 +162,39 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                file: ^types_file,
                struct_module: nil,
                message: {:decode_types_file, :malformed_binary}
-             } = Generator.generate(types_file, code_path, FailingTypesFile)
+             } = Generator.generate(types_file, ecto_assocs_file, code_path, FailingTypesFile)
+    end
+
+    test "returns error if the content of the ecto assocs file is corrupted", %{
+      types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
+      code_path: code_path
+    } do
+      defmodule FailingEctoAssocsFile do
+        def mkdir_p(_path), do: :ok
+
+        @types_file types_file
+
+        def read(@types_file) do
+          {:ok, :erlang.term_to_binary(%{})}
+        end
+
+        def read(_path) do
+          {:ok, <<0>>}
+        end
+      end
+
+      assert %Error{
+               compiler_module: Generator,
+               file: ^ecto_assocs_file,
+               struct_module: nil,
+               message: {:decode_ecto_assocs_file, :malformed_binary}
+             } = Generator.generate(types_file, ecto_assocs_file, code_path, FailingEctoAssocsFile)
     end
 
     test "returns error if write of the TypeEnsurer source code to code_path failed", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       defmodule FailingWriteFile do
@@ -139,9 +202,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
 
         def read(_path) do
           {:ok,
-           :erlang.term_to_binary(%{
-             Some.Nested.Module1 => {%{former: [quote(do: integer())]}, nil}
-           })}
+           :erlang.term_to_binary(types_by_module_content(%{
+             Some.Nested.Module1 => %{former: [quote(do: integer())]}
+           }))}
         end
 
         def write(_path, _content), do: {:error, :eaccess}
@@ -154,7 +217,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                file: ^expected_type_ensurer_path,
                struct_module: Some.Nested.Module1,
                message: {:write_type_ensurer_module, :eaccess}
-             } = Generator.generate(types_file, code_path, FailingWriteFile)
+             } = Generator.generate(types_file, ecto_assocs_file, code_path, FailingWriteFile)
     end
   end
 
@@ -162,7 +225,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} =
              Generator.generate_one(
                ParentModule,
-               {%{first: [quote(do: integer())]}, nil}
+               types_content_empty_precond(%{first: [quote(do: integer())]}),
+               []
              )
   end
 

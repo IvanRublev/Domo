@@ -21,6 +21,26 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       refute ModuleInspector.module_context?(%{module: nil, function: :function})
     end
 
+    test "detect struct module" do
+      case ElixirVersion.version() do
+        [1, minor, _] when minor < 12 ->
+          defmodule PrevModule do
+            Module.put_attribute(__MODULE__, :struct, true)
+            assert ModuleInspector.struct_module?(__MODULE__)
+          end
+
+        _ ->
+          defmodule CurrentModule do
+            Module.put_attribute(__MODULE__, :__struct__, true)
+            assert ModuleInspector.struct_module?(__MODULE__)
+          end
+      end
+
+      defmodule NonstructModule do
+        refute ModuleInspector.struct_module?(__MODULE__)
+      end
+    end
+
     test "return type ensurer module name for the given module" do
       assert ModuleInspector.type_ensurer(Module) == Module.TypeEnsurer
     end
@@ -63,8 +83,29 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} == ModuleInspector.beam_types(ModuleNested.Module.Submodule)
     end
 
-    test "return type_not_found error when can't find type in list" do
-      assert {:error, {:type_not_found, :t}} == ModuleInspector.find_type_quoted(:t, [])
+    test "return type_not_found error when can't find :t type in quoted types list" do
+      assert {:error, {:type_not_found, "t"}} == ModuleInspector.find_t_type([])
+    end
+
+    test "find :t type in quoted types list" do
+      type_list = [
+        {:"::", [], [{:my_atom, [], []}, {:atom, [line: 1], []}]},
+        {:"::", [line: 11],
+          [
+            {:t, [line: 11], nil},
+            {:%, [line: 11],
+              [
+                {:__MODULE__, [line: 11], nil},
+                {:%{}, [line: 11], [title: {:title, [line: 11], []}]}
+              ]}
+          ]}
+      ]
+
+      assert {:ok, _, []} = ModuleInspector.find_t_type(type_list)
+    end
+
+    test "return type_not_found error when can't find type in beam types list" do
+      assert {:error, {:type_not_found, "t"}} == ModuleInspector.find_beam_type_quoted(:t, [])
     end
 
     test "return parametrized_type_not_supported giving parametrized type to find" do
@@ -74,7 +115,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
         type: {:state, {:type, 38, :union, [{:atom, 0, :built}, {:atom, 0, :loaded}, {:atom, 0, :deleted}]}, []}
       ]
 
-      assert {:error, {:parametrized_type_not_supported, :t}} == ModuleInspector.find_type_quoted(:t, type_list)
+      assert {:error, {:parametrized_type_not_supported, :t}} == ModuleInspector.find_beam_type_quoted(:t, type_list)
     end
 
     test "return hash of module types giving loadable module" do
@@ -89,7 +130,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     test "find type by name and return it in quoted form" do
       type_list = [type: {:t, {:type, 1, :atom, []}, []}]
 
-      assert {:ok, quote(do: atom()), []} == ModuleInspector.find_type_quoted(:t, type_list)
+      assert {:ok, quote(do: atom()), []} == ModuleInspector.find_beam_type_quoted(:t, type_list)
     end
 
     test "find remote Elixir type by name and return it in the quoted form" do
@@ -98,7 +139,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       ]
 
       assert {:ok, {{:., [], [String, :t]}, [], []}, []} ==
-               ModuleInspector.find_type_quoted(:rem_str, type_list)
+               ModuleInspector.find_beam_type_quoted(:rem_str, type_list)
     end
 
     test "find remote Elixir type referenced by private local type and return it in the quoted form" do
@@ -108,7 +149,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       ]
 
       assert {:ok, {{:., [], [String, :t]}, [], []}, [:rem_str]} ==
-               ModuleInspector.find_type_quoted(:ut, type_list)
+               ModuleInspector.find_beam_type_quoted(:ut, type_list)
     end
 
     test "find remote user type by name and return it in the quoted form" do
@@ -117,7 +158,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       ]
 
       assert {:ok, {{:., [], [ModuleNested.Module.Submodule, :op]}, [], []}, []} ==
-               ModuleInspector.find_type_quoted(:rem_int, type_list)
+               ModuleInspector.find_beam_type_quoted(:rem_int, type_list)
     end
 
     test "find local user type in the list recursively and return it in quoted form" do
@@ -126,7 +167,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
         {:type, {:ut, {:user_type, 17, :priv_atom, []}, ''}}
       ]
 
-      assert {:ok, quote(do: atom()), [:priv_atom]} == ModuleInspector.find_type_quoted(:ut, type_list)
+      assert {:ok, quote(do: atom()), [:priv_atom]} == ModuleInspector.find_beam_type_quoted(:ut, type_list)
     end
 
     test "find local user type for integer or atom and return it in quoted form" do
@@ -135,8 +176,8 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
         {:type, {:number_one, {:integer, 0, 1}, []}}
       ]
 
-      assert {:ok, :hello, []} == ModuleInspector.find_type_quoted(:atom_hello, type_list)
-      assert {:ok, 1, []} == ModuleInspector.find_type_quoted(:number_one, type_list)
+      assert {:ok, :hello, []} == ModuleInspector.find_beam_type_quoted(:atom_hello, type_list)
+      assert {:ok, 1, []} == ModuleInspector.find_beam_type_quoted(:number_one, type_list)
     end
   end
 

@@ -20,7 +20,7 @@ defmodule ExampleAvialia.Cargos.Measurement do
 
   def changeset(%__MODULE__{} = item, attrs) do
     item
-    |> cast(attrs, typed_fields())
+    |> cast(attrs, __schema__(:fields))
     |> validate_type()
   end
 end

@@ -133,7 +133,7 @@ defmodule Domo.Raises do
     """
   end
 
-  def raise_incorrect_defaults({:batch_ensurer, {file, line, message}}) do
+  def raise_compilation_error({file, line, message}) do
     raise CompileError,
       file: file,
       line: line,
@@ -147,52 +147,63 @@ defmodule Domo.Raises do
     """
   end
 
-  def raise_not_in_a_struct_module!(caller_env) do
-    # In elixir v1.12.0 :struct is renamed to :__struct__ https://github.com/elixir-lang/elixir/pull/10354
-    unless Module.has_attribute?(caller_env.module, :__struct__) or Module.has_attribute?(caller_env.module, :struct) do
-      raise CompileError,
-        file: caller_env.file,
-        line: caller_env.line,
-        description: """
-        use Domo should be called from within the module \
-        defining a struct.
-        """
+  def maybe_raise_incorrect_placement!(caller_env) do
+    module = caller_env.module
+    file = caller_env.file
+    line = caller_env.line
+
+    types = Module.get_attribute(module, :type)
+    opaques = Module.get_attribute(module, :opaque)
+
+    quoted_types =
+      [types, opaques]
+      |> Enum.concat()
+      |> Enum.map(fn {_kind, quoted_type, _meta} -> quoted_type end)
+
+    in_struct? = ModuleInspector.struct_module?(module)
+
+    if in_struct? do
+      t_type = ModuleInspector.find_t_type(quoted_types)
+
+      unless struct_type?(t_type, module) do
+        raise(CompileError,
+          file: file,
+          line: line,
+          description: """
+          Type @type or @opaque t :: %__MODULE__{...} should be defined in the \
+          #{inspect(caller_env.module)} struct's module, \
+          that enables Domo to generate type ensurer module for the struct's data.\
+          """
+        )
+      end
+    else
+      has_parametrized_types? = Enum.any?(quoted_types, &match?({:"::", _, [_, [_ | _]]}, &1))
+
+      unless has_parametrized_types? do
+        raise CompileError,
+          line: line,
+          description: "use Domo should be called from within the module defining a struct."
+      end
     end
   end
 
-  def raise_no_type_t_defined!(caller_env) do
-    unless has_type_t?(caller_env) do
-      raise(CompileError,
-        file: caller_env.file,
-        line: caller_env.line,
-        description: """
-        Type @type or @opaque t :: %__MODULE__{...} should be defined in the \
-        #{inspect(caller_env.module)} struct's module, \
-        that enables Domo to generate type ensurer module for the struct's data.\
-        """
-      )
-    end
-  end
-
-  defp has_type_t?(caller_env) do
-    types = Module.get_attribute(caller_env.module, :type)
-    opaques = Module.get_attribute(caller_env.module, :opaque)
-
-    [types, opaques]
-    |> Enum.concat()
-    |> Enum.find_value(fn {kind, {:"::", _, spec}, _} when kind in [:type, :opaque] ->
-      with [{:t, _, _}, t_type] <- spec,
-           {:%, _, [module, {:%{}, _, _}]} <- t_type do
+  defp struct_type?({:ok, type_quoted, _}, expected_module) do
+    case type_quoted do
+      {:%, _, [module, {:%{}, _, _}]} ->
         case module do
           {:__MODULE__, _, _} -> true
-          {:__aliases__, _, _} = an_alias -> Alias.alias_to_atom(an_alias) == caller_env.module
-          module when is_atom(module) -> module == caller_env.module
+          {:__aliases__, _, _} = an_alias -> Alias.alias_to_atom(an_alias) == expected_module
+          module when is_atom(module) -> module == expected_module
           _typo_after_percentage -> false
         end
-      else
-        _ -> false
-      end
-    end)
+
+      _ ->
+        false
+    end
+  end
+
+  defp struct_type?(_type_quoted, _expected_module) do
+    false
   end
 
   def raise_no_schema_module do

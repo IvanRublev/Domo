@@ -4,6 +4,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorCleanupTest do
 
   alias Domo.TypeEnsurerFactory.Generator
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry
+  import GeneratorTestHelper
 
   test "Generator should free resource by stopping MatchFunRegistry server after TypeEnsurer module generation" do
     me = self()
@@ -22,7 +23,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorCleanupTest do
         :meck.passthrough([pid])
       end
 
-    Generator.generate_one(Elixir, {%{first: [quote(do: integer())]}, nil})
+    Generator.generate_one(Elixir, types_content_empty_precond(%{first: [quote(do: integer())]}), [])
 
     assert_received {:registry_start, {:ok, registry_pid}}
     assert_called MatchFunRegistry.stop(registry_pid)

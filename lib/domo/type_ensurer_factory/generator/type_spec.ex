@@ -7,8 +7,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.{
     Lists,
     Tuples,
-    Maps,
-    Structs
+    Maps
   }
 
   def match_spec_attributes(type_spec_precond) do
@@ -49,9 +48,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
 
         Maps.map_spec?(type_spec_precond) ->
           Maps.map_key_value_type(type_spec_precond, &filter_preconds/1)
-
-        Structs.struct_spec?(type_spec_precond) ->
-          Structs.map_key_value_type(type_spec_precond, &filter_preconds/1)
 
         true ->
           {spec, _precond} = split_spec_precond(type_spec_precond)

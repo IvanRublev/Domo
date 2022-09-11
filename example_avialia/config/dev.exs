@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 # Configure your database
 config :example_avialia, ExampleAvialia.BoardingsRepo,

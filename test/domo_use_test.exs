@@ -215,10 +215,7 @@ defmodule DomoUseTest do
 
     test "raise CompileError when it's in a module lacking defstruct" do
       assert_raise CompileError,
-                   Regex.compile!("""
-                   use Domo should be called from within the module \
-                   defining a struct.
-                   """),
+                   Regex.compile!("use Domo should be called from within the module defining a struct."),
                    fn ->
                      defmodule Module do
                        use Domo

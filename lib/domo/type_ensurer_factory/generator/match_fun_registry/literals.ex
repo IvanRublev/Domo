@@ -1,9 +1,10 @@
 defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
   @moduledoc false
 
-  alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Generator.TypeSpec
+  alias Domo.TypeEnsurerFactory.ModuleInspector
+  alias Domo.TypeEnsurerFactory.Precondition
 
   defguard is_any(type_spec) when type_spec == quote(do: any())
 
@@ -22,11 +23,13 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
     type_spec_atom = TypeSpec.to_atom(type_spec)
     precond_atom = if precond, do: Precondition.to_atom(precond)
     spec_string_var = if precond, do: quote(do: spec_string), else: quote(do: _spec_string)
+    precond_call = Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value))
+    value_var = if precond_call == :ok, do: quote(do: _value), else: quote(do: value)
 
     match_spec_functions_quoted =
       quote do
-        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, value, unquote(spec_string_var), _opts) do
-          unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
+        def do_match_spec({unquote(type_spec_atom), unquote(precond_atom)}, unquote(value_var), unquote(spec_string_var), _opts) do
+          unquote(precond_call)
         end
       end
 
@@ -139,8 +142,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
       {:%, [], [{:__aliases__, _, _} = module_alias, {:%{}, [], []}]} ->
         expected_module_name = Alias.alias_to_atom(module_alias)
-
-        quote(do: :erlang.map_get(:__struct__, unquote(variable_name)) == unquote(expected_module_name))
+        struct_attribute = ModuleInspector.struct_attribute()
+        quote(do: :erlang.map_get(unquote(struct_attribute), unquote(variable_name)) == unquote(expected_module_name))
     end
   end
 end

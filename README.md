@@ -289,7 +289,8 @@ the field's final type.
 ## Integration with Ecto
 
 Ecto schema changeset can be automatically validated to conform to `t()` type
-and associated preconditions. Then the changeset function can be like the following:
+and associated preconditions. Then the changeset function can be shortened 
+like the following:
 
 <!-- livebook:{"force_markdown":true} -->
 
@@ -317,18 +318,15 @@ defmodule Customer do
 
   def changeset(changeset, attrs) do
     changeset
-    |> cast(attrs, typed_fields())
-    |> validate_required(required_fields())
+    |> cast(attrs, __schema__(:fields))
+    # Domo.Changeset defines validate_type/1 function.
     |> validate_type()
-  end
-
-  # Domo adds typed_fields/0, required_fields/0 functions to the schema.
-  # Domo.Changeset defines validate_type/1 function.
+  end 
 end
 ```
 
-See `typed_fields/0`, `required_fields/0`, and `Domo.Changeset` module
-documentation for details.
+The Domo validation comes with the price of about 1.5x times slower than
+the equivalent Ecto's `validate_N` functions.
 
 See detailed example is in the [example_avialia](https://github.com/IvanRublev/Domo/tree/master/example_avialia) project.
 
@@ -442,6 +440,8 @@ messages from domo in Interactive Elixir console.
 
 ## Performance 🐢
 
+### Compilation-time
+
 Library affects the project's full recompilation time almost insignificantly.
 
 The compilation times for the business application with 38 structs 
@@ -457,38 +457,33 @@ No Domo    14.826s
 With Domo  15.711s - 1.06x slower
 ```
 
-The library ensures the correctness of data types at run-time and
-that comes with the computation price. 
+### Run-time
 
-For the Tweet struct having 13 fields, the validation takes 3x times longer 
-and 2x more memory then creating the struct with possibly invalid data. 
-And validation of the Tweet struct (13 fields) after nesting a User struct (18 fields)
-takes 6x times longer and 5x more memory than simple struct's altering. 
-That's a linear growth depending on the number of fields in the nested struct.
+The library ensures the correctness of data types at run-time, which comes 
+with the computation price.
 
-It may seem plodding, and it may look like a non-performant to run in production. 
-It's not that. Validation can be executed wisely at the critical check-points 
-of the app where valuable. As a result, users get the application with correct
-states that are valid in many business contexts.
+One of the standard tasks is translating the map with string values received
+as a form into a validated nested struct.
 
-The run-time benchmark can be executed after cloning the repo with `cd benchmark && mix benchmark`. 
+For benchmark, we use `Album` struct having many `Track` structs.
+
+When comparing `Domo` generated `new!/1` constructor function and `Ecto` changeset
+using a set of `validate_.../2` functions internally, both have equivalent execution
+times. However, in the former case, the memory consumption is about 25% bigger.
+
+In the case of `Ecto` changeset that uses `Domo.Changeset.validate_type/1` function
+the computation takes about 1.5x times longer.
+
+One of the benchmark results is shown below. The benchmark project is 
+[/benchmark_ecto_domo](https://github.com/IvanRublev/Domo/tree/master/benchmark_ecto_domo) folder. You can run it with `mix benchmark` command.
 
 ```
-Generating 3000 inputs, may take a while.
-=========================================
-
-Generated 3000 tweet inputs with summary approx. size of 1350KB.
-Generated 3000 user inputs with summary approx. size of 1287KB.
-=========================================
-
-Benchmark struct's construction
-=========================================
 Operating System: macOS
 CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
 Number of Available Cores: 8
 Available memory: 16 GB
-Elixir 1.13.1
-Erlang 24.1.5
+Elixir 1.11.0
+Erlang 24.3.3
 
 Benchmark suite executing with the following configuration:
 warmup: 2 s
@@ -496,66 +491,30 @@ time: 8 s
 memory time: 2 s
 parallel: 1
 inputs: none specified
-Estimated total run time: 24 s
+Estimated total run time: 36 s
 
-Benchmarking __MODULE__.new!(map)...
-Benchmarking struct!(__MODULE__, map)...
+Benchmarking Domo Album.new!/1...
+Benchmarking Domo.Changeset validate_type/1...
+Benchmarking Ecto.Changeset validate_.../1...
 
-Name                               ips        average  deviation         median         99th %
-struct!(__MODULE__, map)        237.81        4.21 ms    ±11.18%        4.18 ms        5.37 ms
-__MODULE__.new!(map)             84.18       11.88 ms     ±5.75%       11.92 ms       13.31 ms
+Name                                     ips        average  deviation         median         99th %
+Domo Album.new!/1                       5.31      188.25 ms     ±1.79%      188.28 ms      196.57 ms
+Ecto.Changeset validate_.../1           5.21      191.85 ms     ±1.94%      191.00 ms      202.22 ms
+Domo.Changeset validate_type/1          3.76      266.19 ms     ±1.20%      266.58 ms      271.01 ms
 
 Comparison: 
-struct!(__MODULE__, map)        237.81
-__MODULE__.new!(map)             84.18 - 2.83x slower +7.67 ms
+Domo Album.new!/1                       5.31
+Ecto.Changeset validate_.../1           5.21 - 1.02x slower +3.59 ms
+Domo.Changeset validate_type/1          3.76 - 1.41x slower +77.93 ms
 
 Memory usage statistics:
 
-Name                             average  deviation         median         99th %
-struct!(__MODULE__, map)         7.84 MB     ±0.09%        7.83 MB        7.84 MB
-__MODULE__.new!(map)            15.64 MB     ±0.02%       15.63 MB       15.64 MB
+Name                              Memory usage
+Domo Album.new!/1                    245.73 MB
+Ecto.Changeset validate_.../1        186.59 MB - 0.76x memory usage -59.13956 MB
+Domo.Changeset validate_type/1       238.69 MB - 0.97x memory usage -7.04444 MB
 
-Comparison: 
-struct!(__MODULE__, map)         7.83 MB
-__MODULE__.new!(map)            15.64 MB - 2.00x memory usage +7.80 MB
-
-Benchmark struct's field modification
-=========================================
-Operating System: macOS
-CPU Information: Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
-Number of Available Cores: 8
-Available memory: 16 GB
-Elixir 1.13.1
-Erlang 24.1.5
-
-Benchmark suite executing with the following configuration:
-warmup: 2 s
-time: 8 s
-memory time: 2 s
-parallel: 1
-inputs: none specified
-Estimated total run time: 24 s
-
-Benchmarking struct!(tweet, user: user)...
-Benchmarking struct!(tweet, user: user) |> __MODULE__.ensure_type!()...
-
-Name                                                              ips        average  deviation         median         99th %
-struct!(tweet, user: user)                                     407.83        2.45 ms     ±9.65%        2.42 ms        3.03 ms
-struct!(tweet, user: user) |> __MODULE__.ensure_type!()         63.98       15.63 ms     ±4.86%       15.29 ms       17.59 ms
-
-Comparison: 
-struct!(tweet, user: user)                                     407.83
-struct!(tweet, user: user) |> __MODULE__.ensure_type!()         63.98 - 6.37x slower +13.18 ms
-
-Memory usage statistics:
-
-Name                                                            average  deviation         median         99th %
-struct!(tweet, user: user)                                      2.98 MB     ±0.12%        2.98 MB        2.98 MB
-struct!(tweet, user: user) |> __MODULE__.ensure_type!()        14.59 MB     ±0.09%       14.59 MB       14.60 MB
-
-Comparison: 
-struct!(tweet, user: user)                                      2.98 MB
-struct!(tweet, user: user) |> __MODULE__.ensure_type!()        14.59 MB - 4.90x memory usage +11.61 MB
+**All measurements for memory usage were the same**
 ```
 
 ## Limitations
@@ -680,6 +639,8 @@ are fulfilled.
 Returns struct when it's valid in the shape of `{:ok, struct}`.
 Otherwise returns the error in the shape of `{:error, message_by_field}`.
 
+Takes the same options as `new/2`.
+
 Useful for struct validation when its fields changed with map syntax
 or with `Map` module functions.
 
@@ -743,6 +704,15 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 3. Make a PR to this repository
 
 ## Changelog
+
+### v1.5.8 (2022)
+
+* Support validation of the following `Ecto.Schema` types: `belongs_to(t)`, `has_one(t)`, `has_many(t)`, `many_to_many(t)`, `embeds_one(t)`, and `embeds_many(t)`.
+* The `validate_type/2` function for changesets:
+  * validates required fields automatically for the given `Ecto` schema.
+  * doesn't validate fields of `Ecto.Schema` types are listed above, so the user can explicitly call `cast_assoc/2/3` for these fields.
+* Validates any combination of the `term()` with other types as the `term()`.
+* Domo generated constructor functions `new!/1/0` and `new/2/1/0` become overridable.
 
 ### v1.5.7 (2022-08-06)
 

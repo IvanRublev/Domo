@@ -6,11 +6,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver.Fields
 
-  def resolve(plan_path, preconds_path, types_path, deps_path, write_file_module \\ File, verbose?) do
+  def resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, write_file_module \\ File, verbose?) do
     with {:ok, plan} <- read_plan(plan_path),
          {:ok, plan} <- join_preconds(preconds_path, plan),
-         {:ok, types, deps} <- resolve_plan(plan, plan_path, verbose?),
+         {:ok, types, deps, ecto_assocs} <- resolve_plan(plan, plan_path, verbose?),
          :ok <- write_resolved_types(types, types_path, write_file_module),
+         :ok <- write_ecto_assocs(ecto_assocs, ecto_assocs_path, write_file_module),
          :ok <- append_modules_deps(deps, deps_path, write_file_module) do
       :ok
     else
@@ -73,11 +74,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         anys_by_module = plan[:anys_by_module]
 
         case resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
-          {module_filed_types, [], module_deps} ->
+          {module_filed_types, [], module_deps, module_ecto_assocs} ->
             updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
-            {:ok, module_filed_types, updated_module_deps}
+            {:ok, module_filed_types, updated_module_deps, module_ecto_assocs}
 
-          {_module_filed_types, module_errors, _module_deps} ->
+          {_module_filed_types, module_errors, _module_deps, _module_ecto_assocs} ->
             {:error, wrap_module_errors(module_errors, envs)}
         end
 
@@ -110,7 +111,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
       |> Enum.reduce([], fn {module, _fields, _env}, acc -> [module | acc] end)
       |> MapSet.new()
 
-    Enum.reduce(fields_envs, {%{}, [], %{}}, fn {module, _fields, env} = mfe, {module_field_types, module_errors, module_deps} ->
+    Enum.reduce(fields_envs, {%{}, [], %{}, %{}}, fn {module, _fields, env} = mfe,
+                                                     {module_field_types, module_errors, module_deps, module_ecto_assocs} ->
       if verbose? do
         IO.puts("Resolve types of #{Alias.atom_to_string(module)}")
       end
@@ -122,7 +124,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
           fn _key, type_names_lhs, type_names_rhs -> List.flatten([type_names_rhs | type_names_lhs]) end
         )
 
-      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds, remote_types_as_any, resolvable_structs)
+      {module, field_types, field_errors, type_deps, ecto_assocs} = Fields.resolve(mfe, preconds, remote_types_as_any, resolvable_structs)
 
       updated_module_field_types = Map.put(module_field_types, module, field_types)
 
@@ -138,10 +140,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
           Map.put(module_deps, module, {env.file, filtered_type_deps})
         end
 
+      updated_module_ecto_assocs = Map.put(module_ecto_assocs, module, ecto_assocs)
+
       {
         updated_module_field_types,
         updated_module_errors,
-        updated_module_deps
+        updated_module_deps,
+        updated_module_ecto_assocs
       }
     end)
   end
@@ -201,6 +206,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     case file_module.write(types_path, binary) do
       :ok -> :ok
       {:error, err} -> {:error, %Error{file: types_path, message: {:types_manifest_failed, err}}}
+    end
+  end
+
+  defp write_ecto_assocs(map, types_path, file_module) do
+    binary = :erlang.term_to_binary(map)
+
+    case file_module.write(types_path, binary) do
+      :ok -> :ok
+      {:error, err} -> {:error, %Error{file: types_path, message: {:ecto_assocs_manifest_failed, err}}}
     end
   end
 

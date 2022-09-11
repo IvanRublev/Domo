@@ -8,4 +8,5 @@ config :domo, :test_structs_path, "test/struct_modules"
 
 if config_env() == :test do
   config :domo, :mix_project, MixProjectStubCorrect
+  config :mix_test_watch, clear: true
 end

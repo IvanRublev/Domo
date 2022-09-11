@@ -28,7 +28,7 @@ defmodule Domo.TypeEnsurerFactory do
     URI,
     Version
   ]
-  @optional_lib_modules [Decimal]
+  @optional_lib_modules [Decimal, Ecto.Association.NotLoaded]
   @treat_as_any_optional_lib_modules [Ecto.Schema.Metadata]
 
   defdelegate module_name_string(module), to: Alias, as: :atom_to_string
@@ -169,19 +169,22 @@ defmodule Domo.TypeEnsurerFactory do
   def plan_struct_defaults_ensurance(plan_path, env) do
     global_ensure_struct_defaults = Application.get_env(:domo, :ensure_struct_defaults, not Application.get_env(:domo, :skip_defaults, false))
 
-    opts = Module.get_attribute(env.module, :domo_options, [])
+    module = env.module
+    opts = Module.get_attribute(module, :domo_options, [])
     skip_defaults = Keyword.get(opts, :skip_defaults, not Keyword.get(opts, :ensure_struct_defaults, global_ensure_struct_defaults))
+    in_struct? = ModuleInspector.struct_module?(module)
 
-    unless skip_defaults do
+    unless skip_defaults or not in_struct? do
       do_plan_struct_defaults_ensurance(plan_path, env)
     end
   end
 
   defp do_plan_struct_defaults_ensurance(plan_path, env) do
-    struct = Module.get_attribute(env.module, :__struct__) || Module.get_attribute(env.module, :struct)
+    struct_attribute = ModuleInspector.struct_attribute()
+    struct = Module.get_attribute(env.module, struct_attribute)
     # Elixir ignores default values for enforced keys during the construction of the struct anyway
     enforce_keys = Module.get_attribute(env.module, :enforce_keys) || []
-    keys_to_drop = [:__struct__ | enforce_keys]
+    keys_to_drop = [struct_attribute | enforce_keys]
 
     defaults =
       struct
@@ -259,20 +262,20 @@ defmodule Domo.TypeEnsurerFactory do
     Resolver.resolve_plan(resolvable, :in_memory, verbose?)
   end
 
-  def resolve_types(plan_path, preconds_path, types_path, deps_path, verbose?) do
+  def resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
     if verbose? do
       IO.write("""
       Domo resolve collected types.
       """)
     end
 
-    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, verbose?) do
+    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
       :ok -> :ok
       {:error, message} -> {:error, {:resolve, message}}
     end
   end
 
-  def build_type_ensurers(module_filed_types, verbose?) do
+  def build_type_ensurers(module_filed_types, ecto_assocs_by_module, verbose?) do
     if verbose? do
       IO.write("""
       Domo generates TypeEnsurer modules source code and load them into memory.
@@ -280,7 +283,7 @@ defmodule Domo.TypeEnsurerFactory do
     end
 
     module_filed_types
-    |> Enum.map(fn {module, field_types} -> Generator.generate_one(module, field_types) end)
+    |> Enum.map(fn {module, field_types} -> Generator.generate_one(module, field_types, Map.get(ecto_assocs_by_module, module, [])) end)
     |> Code.eval_quoted()
 
     :ok
@@ -292,14 +295,14 @@ defmodule Domo.TypeEnsurerFactory do
     |> Code.eval_quoted()
   end
 
-  def generate_type_ensurers(types_path, code_path, verbose?) do
+  def generate_type_ensurers(types_path, ecto_assocs_path, code_path, verbose?) do
     if verbose? do
       IO.write("""
       Domo generates TypeEnsurer modules source code.
       """)
     end
 
-    case Generator.generate(types_path, code_path) do
+    case Generator.generate(types_path, ecto_assocs_path, code_path) do
       {:ok, _type_ensurer_paths} = ok -> ok
       {:error, message} -> {:error, {:generate, message}}
     end

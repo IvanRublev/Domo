@@ -4,6 +4,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
   alias Domo.TypeEnsurerFactory.Resolver
 
   import ResolverTestHelper
+  import GeneratorTestHelper
 
   setup [:setup_project_planner]
 
@@ -13,17 +14,18 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
-      deps_file: deps_file
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file
     } do
       plan(planner, LocalUserType, :field, quote(context: LocalUserType, do: indirect_int()))
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
 
       assert %{
                LocalUserType =>
-                 add_empty_precond_to_spec(%{
+                 types_content_empty_precond(%{
                    field: [quote(context: LocalUserType, do: integer())]
                  })
              } == read_types(types_file)
@@ -34,7 +36,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
-      deps_file: deps_file
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file
     } do
       plan(
         planner,
@@ -46,11 +49,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
 
       assert %{
                LocalUserType =>
-                 add_empty_precond_to_spec(%{
+                 types_content_empty_precond(%{
                    remote_field: [quote(context: LocalUserType, do: [float()])]
                  })
              } == read_types(types_file)
@@ -61,7 +64,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
-      deps_file: deps_file
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file
     } do
       plan(
         planner,
@@ -73,7 +77,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
 
       assert %{
                LocalUserType => {

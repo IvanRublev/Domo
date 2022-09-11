@@ -22,7 +22,7 @@ defmodule ExampleAvialia.Cargos.ShipmentDocument do
 
   def changeset(document_or_changeset, attrs) do
     document_or_changeset
-    |> cast(attrs, typed_fields())
+    |> cast(attrs, __schema__(:fields))
     |> validate_type()
   end
 end

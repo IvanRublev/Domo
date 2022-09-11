@@ -7,7 +7,7 @@ defmodule Domo.Changeset do
 
       defmodule User do
         use Ecto.Schema
-        use Domo, skip_defaults: true
+        use Domo, :changeset
 
         import Ecto.Changeset
         import Domo.Changeset
@@ -16,12 +16,14 @@ defmodule Domo.Changeset do
           field :first_name, :string
           field :last_name, :string
           field :age, :integer
+          has_many(:addresses, Address)
         end
 
         @type t :: %__MODULE__{
           first_name :: String.t() | nil,
           last_name :: String.t(),
           age :: age()
+          addresses :: Schema.has_many(Address)
         }
 
         @type age :: pos_integer()
@@ -33,18 +35,15 @@ defmodule Domo.Changeset do
 
         def changeset(user, attrs) do
           user
-          |> cast(attrs, typed_fields())
-          |> validate_required(required_fields())
+          |> cast(attrs, __schema__(:fields))
           |> validate_type(maybe_filter_precond_errors: true)
+          |> cast_assoc(:addresses)
         end
       end
 
   The `skip_defaults: true` option disables the validation of defaults
   to match to `t()` type at compile time. That is useful because any Ecto schema
   has all fields set to `nil` by default.
-
-  `typed_fields/1` and `required_fields/1` are added automatically to
-  the current module by using Domo.
 
   The `first_name` field is not required to have a value in the changeset
   because it has `nil` as one of the possible types defined.
@@ -58,13 +57,21 @@ defmodule Domo.Changeset do
   alias Domo.Raises
 
   @doc """
-  Validates changeset changes to conform to the schema's `t()` type and fulfill
-  preconditions.
+  Validates changeset changes except for assoc fields to conform to
+  the schema's `t()` type and fulfill preconditions.
 
-  The function performs validations within the call to Ecto's
-  `validate_change/3`. In case there's at least one error, the list of errors
-  will be appended to the `:errors` field of the changeset
-  and the `:valid?` flag will be set to `false`.
+  Adds error to the changeset for any missing field value required by `t()` type.
+
+  In case there's at least one error, the list of errors will be appended
+  to the `:errors` field of the changeset and the `:valid?` flag will
+  be set to `false`.
+
+  The function doesn't check for missing value or mismatching type of the fields
+  having the following `Ecto.Schema` types in t(): `belongs_to(t)`, `has_one(t)`,
+  `has_many(t)`, `many_to_many(t)`, `embeds_one(t)`, and `embeds_many(t)`.
+  Use `Ecto.Changeset.cast_assoc/2` or `Ecto.Changeset.cast_embed/3` explicitly
+  to delegate the validation to appropriate changeset function.
+  And pass `:required` option if the field with nested changeset is required.
 
   The function raises a `RuntimeError` if some of the changed fields are not defined
   in the `t()` type.
@@ -85,8 +92,9 @@ defmodule Domo.Changeset do
   ## Examples
 
       %User{}
-      |> cast(%{last_name: "Doe", age: 21}, [:last_name, :age])
+      |> cast(%{last_name: "Doe", age: 21, comments: [%{message: "hello"}]}, [:last_name, :age])
       |> validate_type()
+      |> cast_assoc(:comments)
   """
   def validate_type(changeset, opts \\ [])
 
@@ -110,7 +118,7 @@ defmodule Domo.Changeset do
   ## Examples
 
       {%{}, %{first_name: :string, last_name: :string, age: :integer}}
-      |> cast(%{last_name: "Doe", age: 21}, [:last_name, :age])
+      |> change(%{last_name: "Doe", age: 21})
       |> validate_schemaless_type(User)
   """
   if Code.ensure_loaded?(Ecto.Changeset) do
@@ -139,15 +147,18 @@ defmodule Domo.Changeset do
 
       fields = opts_fields || type_ensurer.fields(:typed_no_meta_no_any)
 
-      do_validate(changeset, type_ensurer, fields, opts)
-    end
-
-    defp do_validate(changeset, type_ensurer, fields, opts) do
       maybe_filter_precond_errors = Keyword.get(opts, :maybe_filter_precond_errors, false)
       take_error_fun = Keyword.get(opts, :take_error_fun, &List.first/1)
 
+      opts_trim = Enum.filter(opts, fn {key, _val} -> key == :trim end)
+
+      ecto_assocs = type_ensurer.fields(:ecto_assocs) || []
+      required_fields = type_ensurer.fields(:required_no_meta) -- ecto_assocs
+      validate_change_fields = fields -- ecto_assocs
+
       changeset
-      |> do_validate_field_types(type_ensurer, fields, maybe_filter_precond_errors, take_error_fun)
+      |> Ecto.Changeset.validate_required(required_fields, opts_trim)
+      |> do_validate_field_types(type_ensurer, validate_change_fields, maybe_filter_precond_errors, take_error_fun)
       |> maybe_validate(&do_validate_t_precondition(&1, type_ensurer, maybe_filter_precond_errors, take_error_fun))
     end
 
@@ -157,7 +168,11 @@ defmodule Domo.Changeset do
     defp do_validate_field_types(changeset, type_ensurer, fields, maybe_filter_precond_errors, take_error_fun) do
       Enum.reduce(fields, changeset, fn field, changeset ->
         Ecto.Changeset.validate_change(changeset, field, fn field, value ->
-          do_validate_field(type_ensurer, field, value, maybe_filter_precond_errors, take_error_fun)
+          if match?(%Ecto.Changeset{}, value) or match?([%Ecto.Changeset{} | _], value) do
+            []
+          else
+            do_validate_field(type_ensurer, field, value, maybe_filter_precond_errors, take_error_fun)
+          end
         end)
       end)
     end

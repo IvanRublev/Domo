@@ -62,6 +62,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     types_file = DomoMixTask.manifest_path(project, :types)
     deps_file = DomoMixTask.manifest_path(project, :deps)
     code_path = DomoMixTask.generated_code_path(project)
+    ecto_assocs_file = DomoMixTask.manifest_path(project, :ecto_assocs)
 
     if tags.empty_plan_on_disk? do
       ResolverTestHelper.write_empty_plan(plan_file, preconds_file)
@@ -73,7 +74,8 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      code_path: code_path
+      code_path: code_path,
+      ecto_assocs_file: ecto_assocs_file
     }
   end
 
@@ -95,9 +97,9 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     allow BatchEnsurer.ensure_struct_defaults(any()), return: :ok
     allow BatchEnsurer.ensure_struct_integrity(any()), return: :ok
 
-    allow Resolver.resolve(any(), any(), any(), any(), any()), return: :ok
+    allow Resolver.resolve(any(), any(), any(), any(), any(), any()), return: :ok
 
-    allow Generator.generate(any(), any()), return: {:ok, []}
+    allow Generator.generate(any(), any(), any()), return: {:ok, []}
     allow Generator.compile(any(), any()), return: {:ok, [], []}
 
     allow Cleaner.rm!(any()), return: nil
@@ -169,7 +171,8 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
-      deps_file: deps_file
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file
     } do
       DomoMixTask.start_plan_collection()
 
@@ -178,7 +181,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
       DomoMixTask.process_plan({:ok, []}, [])
 
-      assert_called Resolver.resolve(plan_file, preconds_file, types_file, deps_file, any())
+      assert_called Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, any())
     end
 
     test "return :error if resolve failed" do
@@ -186,7 +189,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
       :meck.unload(Resolver)
 
-      allow Resolver.resolve(any(), any(), any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any(), any(), any()),
         seq: [
           {:error,
            [
@@ -252,6 +255,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
     test "generate the TypeEnsurer module source code from types manifest file", %{
       types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
       code_path: code_path
     } do
       DomoMixTask.start_plan_collection()
@@ -259,13 +263,13 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       module1_one_field()
       DomoMixTask.process_plan({:ok, []}, [])
 
-      assert_called Generator.generate(types_file, code_path)
+      assert_called Generator.generate(types_file, ecto_assocs_file, code_path)
     end
 
     test "return error if module generation fails", %{code_path: code_path} do
       :meck.unload(Generator)
 
-      allow Generator.generate(any(), any()),
+      allow Generator.generate(any(), any(), any()),
         return:
           {:error,
            %Error{
@@ -294,9 +298,9 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     test "compile the TypeEnsurer modules" do
       :meck.unload(Generator)
 
-      allow Generator.generate(any(), any()),
+      allow Generator.generate(any(), any(), any()),
         meck_options: [:passthrough],
-        exec: fn _, code_path ->
+        exec: fn _, _, code_path ->
           File.mkdir_p(code_path)
 
           file_path = Path.join(code_path, "/module_type_ensurer.ex")
@@ -333,9 +337,9 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
       :meck.unload(Generator)
 
-      allow Generator.generate(any(), any()),
+      allow Generator.generate(any(), any(), any()),
         meck_options: [:passthrough],
-        exec: fn _, _code_path ->
+        exec: fn _, _, _code_path ->
           File.mkdir_p(code_path)
 
           File.write!(file_path, """
@@ -529,7 +533,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     test "print error giving a types resolve failure" do
       :meck.unload(Resolver)
 
-      allow Resolver.resolve(any(), any(), any(), any(), any()),
+      allow Resolver.resolve(any(), any(), any(), any(), any(), any()),
         return: {:error, %Error{compiler_module: Resolver, file: "/plan_path", message: :no_plan}}
 
       msg = capture_io(fn -> DomoMixTask.process_plan({:ok, []}, []) end)
@@ -541,7 +545,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     test "print error giving a type ensurer generator failure" do
       :meck.unload(Generator)
 
-      allow Generator.generate(any(), any()),
+      allow Generator.generate(any(), any(), any()),
         return:
           {:error,
            %Error{
@@ -558,7 +562,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
     test "print error giving a type ensurer compiltion failure" do
       :meck.unload(Generator)
-      allow Generator.generate(any(), any()), return: {:ok, []}
+      allow Generator.generate(any(), any(), any()), return: {:ok, []}
 
       allow Generator.compile(any(), any()),
         return: {:error, [{"/ensurer_path", 1, "some syntax error"}], []}
@@ -590,7 +594,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
            ]}
 
       :meck.unload(Generator)
-      allow Generator.generate(any(), any()), return: {:ok, []}
+      allow Generator.generate(any(), any(), any()), return: {:ok, []}
       allow Generator.compile(any(), any()), return: {:ok, [AModule], [{"/other_path", 2, "another warning"}]}
 
       capture_io(:stdio, fn ->

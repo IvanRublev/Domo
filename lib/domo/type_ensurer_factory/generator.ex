@@ -9,16 +9,19 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   alias Domo.TypeEnsurerFactory.Precondition
   alias Kernel.ParallelCompiler
 
-  def generate(types_path, output_folder, file_module \\ File) do
+  def generate(types_path, ecto_assocs_path, output_folder, file_module \\ File) do
     with :ok <- make_output_folder(file_module, output_folder),
-         {:ok, types_binary} <- read_types(file_module, types_path),
-         {:ok, fields_by_modules} <- decode_types(types_binary) do
-      write_type_ensurer_modules(fields_by_modules, output_folder, file_module)
+         {:ok, fields_by_module} <- decode_fields(file_module, types_path, {:read_types, :decode_types_file}),
+         {:ok, ecto_assocs_by_module} <- decode_fields(file_module, ecto_assocs_path, {:read_ecto_assocs, :decode_ecto_assocs_file}) do
+      case generate_many(fields_by_module, ecto_assocs_by_module, output_folder, file_module) do
+        {:ok, paths} -> {:ok, Enum.reverse(paths)}
+        error -> error
+      end
     else
-      {operation, {:error, error}} ->
+      {operation, {:error, error}, path} ->
         %Error{
           compiler_module: __MODULE__,
-          file: types_path,
+          file: path,
           struct_module: nil,
           message: {operation, error}
         }
@@ -28,58 +31,48 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   defp make_output_folder(file_module, output_folder) do
     case file_module.mkdir_p(output_folder) do
       :ok -> :ok
-      {:error, _message} = error -> {:mkdir_output_folder, error}
+      {:error, _message} = error -> {:mkdir_output_folder, error, output_folder}
     end
   end
 
-  defp read_types(file_module, types_path) do
-    case file_module.read(types_path) do
-      {:ok, _types_binary} = ok -> ok
-      {:error, _message} = error -> {:read_types, error}
+  defp decode_fields(file_module, path, {read_op, decode_op}) do
+    case file_module.read(path) do
+      {:ok, types_binary} ->
+        try do
+          {:ok, :erlang.binary_to_term(types_binary)}
+        rescue
+          _error -> {decode_op, {:error, :malformed_binary}, path}
+        end
+
+      {:error, _message} = error ->
+        {read_op, error, path}
     end
   end
 
-  defp decode_types(types_binary) do
-    try do
-      {:ok, :erlang.binary_to_term(types_binary)}
-    rescue
-      _error -> {:decode_types_file, {:error, :malformed_binary}}
-    end
-  end
+  defp generate_many(fields_by_module, ecto_assocs_by_module, output_folder, file_module) do
+    Enum.reduce_while(fields_by_module, {:ok, []}, fn {parent_module, fields_spec}, acc ->
+      ecto_assocs_fields = Map.get(ecto_assocs_by_module, parent_module, [])
 
-  defp write_type_ensurer_modules(fields_by_modules, output_folder, file_module) do
-    case Enum.reduce_while(
-           fields_by_modules,
-           {:ok, []},
-           &write_module_while(output_folder, &1, &2, file_module)
-         ) do
-      {:ok, paths} -> {:ok, Enum.reverse(paths)}
-      error -> error
-    end
-  end
+      module_ast = generate_one(parent_module, fields_spec, ecto_assocs_fields)
 
-  defp write_module_while(output_folder, item, acc, file_module) do
-    {parent_module, fields_spec} = item
+      module_path = Path.join(output_folder, module_filename(module_ast))
+      module_binary = Macro.to_string(module_ast) |> Code.format_string!()
 
-    module_ast = generate_one(parent_module, fields_spec)
+      case file_module.write(module_path, module_binary) do
+        :ok ->
+          {:ok, paths} = acc
+          {:cont, {:ok, [module_path | paths]}}
 
-    module_path = Path.join(output_folder, module_filename(module_ast))
-    module_binary = Macro.to_string(module_ast) |> Code.format_string!()
-
-    case file_module.write(module_path, module_binary) do
-      :ok ->
-        {:ok, paths} = acc
-        {:cont, {:ok, [module_path | paths]}}
-
-      {:error, error} ->
-        {:halt,
-         %Error{
-           compiler_module: __MODULE__,
-           file: module_path,
-           struct_module: parent_module,
-           message: {:write_type_ensurer_module, error}
-         }}
-    end
+        {:error, error} ->
+          {:halt,
+           %Error{
+             compiler_module: __MODULE__,
+             file: module_path,
+             struct_module: parent_module,
+             message: {:write_type_ensurer_module, error}
+           }}
+      end
+    end)
   end
 
   defp module_filename(module_ast) do
@@ -94,12 +87,16 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   # credo:disable-for-lines:118
-  def generate_one(parent_module, fields_spec_t_precond) do
+  def generate_one(parent_module, fields_spec_t_precond, ecto_assoc_fields) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
     {fields_spec, t_precond} = fields_spec_t_precond
 
-    field_kinds = Macro.escape(collect_field_name_by_kind(fields_spec))
+    field_kinds =
+      fields_spec
+      |> collect_field_name_by_kind()
+      |> Map.put(:ecto_assocs, ecto_assoc_fields)
+      |> Macro.escape()
 
     t_precond_quoted = t_precondition_quoted(parent_module, t_precond)
 

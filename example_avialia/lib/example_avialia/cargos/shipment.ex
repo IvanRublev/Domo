@@ -6,6 +6,7 @@ defmodule ExampleAvialia.Cargos.Shipment do
   import Domo.Changeset
 
   alias Ecto.Changeset
+  alias Ecto.Schema
   alias ExampleAvialia.Cargos.ShipmentKind
   alias ExampleAvialia.Cargos.ShipmentWeight
   alias ExampleAvialia.Cargos.ShipmentDocument
@@ -26,7 +27,7 @@ defmodule ExampleAvialia.Cargos.Shipment do
           kind: ShipmentKind.value(),
           weight: ShipmentWeight.value(),
           documents_count: non_neg_integer(),
-          documents: [ShipmentDocument.t()]
+          documents: Schema.has_many(ShipmentDocument.t())
         }
   precond t: &validate_shipment/1
 
@@ -47,14 +48,11 @@ defmodule ExampleAvialia.Cargos.Shipment do
   end
 
   def changeset(shipment_or_changeset, attrs) do
-    attribute_fields = typed_fields() |> List.delete(:documents)
-
     shipment_or_changeset
-    |> cast(attrs, attribute_fields)
-    |> validate_required(required_fields())
+    |> cast(attrs, __schema__(:fields))
     |> cast_assoc(:documents)
+    |> validate_type(maybe_filter_precond_errors: true)
     |> maybe_lift_first_error(:documents)
-    |> validate_type(fields: attribute_fields, maybe_filter_precond_errors: true)
   end
 
   defp maybe_lift_first_error(changeset, key) do

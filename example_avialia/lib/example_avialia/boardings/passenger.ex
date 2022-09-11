@@ -42,8 +42,7 @@ defmodule ExampleAvialia.Boardings.Passenger do
 
   def changeset(passenger_or_changeset, attrs) do
     passenger_or_changeset
-    |> cast(attrs, typed_fields())
-    |> validate_required(required_fields())
+    |> cast(attrs, __schema__(:fields))
     |> validate_type()
   end
 end

@@ -2,6 +2,7 @@ defmodule ResolverTestHelper do
   @moduledoc false
 
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   @project_stub MixProjectStubCorrect
@@ -32,6 +33,7 @@ defmodule ResolverTestHelper do
     types_file = DomoMixTask.manifest_path(@project_stub, :types)
     deps_file = DomoMixTask.manifest_path(@project_stub, :deps)
     preconds_file = DomoMixTask.manifest_path(@project_stub, :preconds)
+    ecto_assocs_file = DomoMixTask.manifest_path(@project_stub, :ecto_assocs)
 
     stop_project_palnner()
 
@@ -47,7 +49,8 @@ defmodule ResolverTestHelper do
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
-      deps_file: deps_file
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file
     }
   end
 
@@ -112,7 +115,7 @@ defmodule ResolverTestHelper do
 
   @literals_and_basic_dst [
     quote(context: TwoFieldStruct, do: {}),
-    quote(context: TwoFieldStruct, do: %{:__struct__ => atom(), optional(atom()) => any()}),
+    quote(context: TwoFieldStruct, do: %{unquote(ModuleInspector.struct_attribute()) => atom(), optional(atom()) => any()}),
     quote(context: TwoFieldStruct, do: nonempty_list(any()))
   ]
 
@@ -387,6 +390,12 @@ defmodule ResolverTestHelper do
 
   def read_deps(deps_file) do
     deps_file
+    |> File.read!()
+    |> :erlang.binary_to_term()
+  end
+
+  def read_ecto_assocs(assocs_file) do
+    assocs_file
     |> File.read!()
     |> :erlang.binary_to_term()
   end

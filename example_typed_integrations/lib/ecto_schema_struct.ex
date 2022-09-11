@@ -36,11 +36,11 @@ defmodule EctoSchemaStruct do
   precond last_name: &validate_required/1
 
   typed_schema "people" do
-    field(:name, :string, default: "Joe", null: false)
+    field :name, :string, default: "Joe", null: false
     field(:last_name, :string) :: last_name() | nil
     field(:age, :integer) :: non_neg_integer() | nil
-    field(:happy, :boolean, default: true, null: false)
-    field(:phone, :string)
+    field :happy, :boolean, default: true, null: false
+    field :phone, :string
     timestamps(type: :naive_datetime_usec)
   end
 
@@ -58,14 +58,11 @@ defmodule EctoSchemaStruct do
   end
 
   # See how the following functions by Domo used in `changeset/2` below:
-  # typed_fields() - added to the struct's module
-  # required_fields() - added to the struct's module
   # validate_type() - imported from Domo.Changeset
 
   def changeset(changeset, attrs) do
     changeset
-    |> cast(attrs, typed_fields())
-    |> validate_required(required_fields())
+    |> cast(attrs, __schema__(:fields))
     |> validate_type()
   end
 end

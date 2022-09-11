@@ -1,6 +1,6 @@
 test_structs_path = Application.fetch_env!(:domo, :test_structs_path)
 
-{output, code} = System.cmd("mix", ["compile"], cd: test_structs_path, env: [{"MIX_ENV", "test"}])
+{output, code} = System.cmd("mix", ["do", "deps.get,", "compile"], cd: test_structs_path, env: [{"MIX_ENV", "test"}], parallelism: false)
 
 unless code == 0 do
   raise output

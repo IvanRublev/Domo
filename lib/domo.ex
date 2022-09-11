@@ -86,6 +86,13 @@ defmodule Domo do
   defmacro __using__(opts) do
     Raises.raise_use_domo_out_of_module!(__CALLER__)
 
+    opts =
+      if opts == :changeset do
+        [changeset: true, skip_defaults: true]
+      else
+        opts
+      end
+
     in_mix_compile? = CodeEvaluation.in_mix_compile?()
     config = @mix_project.config()
 
@@ -162,6 +169,7 @@ defmodule Domo do
       @compile {:no_warn_undefined, unquote(type_ensurer)}
 
       import Domo, only: [precond: 1]
+      unquote(if Keyword.get(opts, :changeset), do: quote(do: import(Domo.Changeset)))
 
       @doc """
       #{unquote(@new_raise_doc)}
@@ -172,7 +180,9 @@ defmodule Domo do
 
           #{unquote(short_module)}.#{unquote(new_raise_fun_name)}(first_field: value1, second_field: value2, ...)
       """
-      def unquote(new_raise_fun_name)(enumerable \\ []) do
+      def unquote(new_raise_fun_name)(enumerable \\ [])
+
+      def unquote(new_raise_fun_name)(enumerable) do
         skip_ensurance? =
           if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, enumerable)
@@ -207,7 +217,9 @@ defmodule Domo do
 
           #{unquote(short_module)}.#{unquote(new_ok_fun_name)}(first_field: value1, second_field: value2, ...)
       """
-      def unquote(new_ok_fun_name)(enumerable \\ [], opts \\ []) do
+      def unquote(new_ok_fun_name)(enumerable \\ [], opts \\ [])
+
+      def unquote(new_ok_fun_name)(enumerable, opts) do
         skip_ensurance? =
           if CodeEvaluation.in_plan_collection?() do
             Domo._plan_struct_integrity_ensurance(__MODULE__, enumerable)
@@ -230,6 +242,14 @@ defmodule Domo do
           end
         end
       end
+
+      defoverridable [
+        {unquote(new_raise_fun_name), 0},
+        {unquote(new_raise_fun_name), 1},
+        {unquote(new_ok_fun_name), 0},
+        {unquote(new_ok_fun_name), 1},
+        {unquote(new_ok_fun_name), 2}
+      ]
 
       @doc """
       #{unquote(@ensure_type_raise_doc)}
@@ -338,8 +358,7 @@ defmodule Domo do
         unquote(type_ensurer).fields(field_kind)
       end
 
-      @before_compile {Raises, :raise_not_in_a_struct_module!}
-      @before_compile {Raises, :raise_no_type_t_defined!}
+      @before_compile {Raises, :maybe_raise_incorrect_placement!}
       @before_compile {Domo, :_plan_struct_defaults_ensurance}
 
       @after_compile {Domo, :_collect_types_for_domo_compiler}
@@ -369,8 +388,8 @@ defmodule Domo do
 
     {:ok, plan, preconds} = TypeEnsurerFactory.get_plan_state(:in_memory)
 
-    with {:ok, module_filed_types, dependencies_by_module} <- TypeEnsurerFactory.resolve_plan(plan, preconds, verbose?),
-         TypeEnsurerFactory.build_type_ensurers(module_filed_types, verbose?),
+    with {:ok, module_filed_types, dependencies_by_module, ecto_assocs_by_module} <- TypeEnsurerFactory.resolve_plan(plan, preconds, verbose?),
+         TypeEnsurerFactory.build_type_ensurers(module_filed_types, ecto_assocs_by_module, verbose?),
          :ok <- TypeEnsurerFactory.ensure_struct_defaults(plan, verbose?) do
       {:ok, dependants} = TypeEnsurerFactory.get_dependants(:in_memory, env.module)
 
@@ -383,8 +402,14 @@ defmodule Domo do
       TypeEnsurerFactory.clean_plan(:in_memory)
       :ok
     else
-      {:error, [%Error{message: {:no_types_registered, _} = error}]} -> Raises.raise_cant_find_type_in_memory(error)
-      {:error, {:batch_ensurer, _details} = message} -> Raises.raise_incorrect_defaults(message)
+      {:error, [%Error{message: {:no_types_registered, _} = error}]} ->
+        Raises.raise_cant_find_type_in_memory(error)
+
+      {:error, {:batch_ensurer, details}} ->
+        Raises.raise_compilation_error(details)
+
+      {:error, [%Error{file: file, message: message, struct_module: module}]} ->
+        Raises.raise_compilation_error({file, 0, "#{inspect(module)}: #{inspect(message)}"})
     end
   end
 

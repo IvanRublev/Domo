@@ -5,7 +5,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   alias Domo.ErrorBuilder
   alias Domo.TypeEnsurerFactory.Precondition
-  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do
     Code.compiler_options(ignore_module_conflict: true)
@@ -15,16 +14,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       File.rm_rf(tmp_path())
       Code.compiler_options(ignore_module_conflict: false)
     end)
-
-    ResolverTestHelper.disable_raise_in_test_env()
-    DomoMixTask.start_plan_collection()
-
-    # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/struct_modules/lib/empty_struct.ex")
-    Code.eval_file("test/struct_modules/lib/custom_struct.ex")
-
-    DomoMixTask.process_plan({:ok, []}, [])
-    ResolverTestHelper.enable_raise_in_test_env()
   end
 
   setup do
@@ -69,34 +58,40 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
         second: [quote(do: integer())],
         first: [quote(do: integer()), quote(do: nil)],
         third: [quote(do: any())],
-        fourth: [quote(do: term())]
-      })
+        fourth: [quote(do: term())],
+        ecto_assoc_1: [quote(do: [atom()])],
+        ecto_assoc_2: [quote(do: atom())],
+      }, [:ecto_assoc_1, :ecto_assoc_2])
 
       :ok
     end
 
-    test "has fields(:typed) return fields sorted alphabetically with specific types with __meta fields__ rejected" do
-      assert call_fields(:typed_no_meta_no_any) == [:first, :second]
+    test "fields(:typed) returns fields sorted alphabetically with specific types with __meta fields__ rejected" do
+      assert call_fields(:typed_no_meta_no_any) == [:ecto_assoc_1, :ecto_assoc_2, :first, :second]
     end
 
-    test "has fields(:typed_with_any) return fields sorted alphabetically with __meta fields__ rejected" do
-      assert call_fields(:typed_no_meta_with_any) == [:first, :fourth, :second, :third]
+    test "fields(:typed_with_any) returns fields sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:typed_no_meta_with_any) == [:ecto_assoc_1, :ecto_assoc_2, :first, :fourth, :second, :third]
     end
 
-    test "has fields(:typed_with_meta) return fields sorted alphabetically with specific types with __meta fields__ included" do
-      assert call_fields(:typed_with_meta_no_any) == [:__example_meta_field__, :first, :second]
+    test "fields(:typed_with_meta) returns fields sorted alphabetically with specific types with __meta fields__ included" do
+      assert call_fields(:typed_with_meta_no_any) == [:__example_meta_field__, :ecto_assoc_1, :ecto_assoc_2, :first, :second]
     end
 
-    test "has fields(:typed_with_meta_with_any) return fields sorted alphabetically with specific types with __meta fields__ included" do
-      assert call_fields(:typed_with_meta_with_any) == [:__any_meta_field__, :__example_meta_field__, :first, :fourth, :second, :third]
+    test "fields(:typed_with_meta_with_any) returns fields sorted alphabetically with specific types with __meta fields__ included" do
+      assert call_fields(:typed_with_meta_with_any) == [:__any_meta_field__, :__example_meta_field__, :ecto_assoc_1, :ecto_assoc_2, :first, :fourth, :second, :third]
     end
 
-    test "has fields(:required) return fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
-      assert call_fields(:required_no_meta) == [:second]
+    test "fields(:required) returns fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:required_no_meta) == [:ecto_assoc_1, :ecto_assoc_2, :second]
     end
 
-    test "has fields(:required_with_meta) return fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
-      assert call_fields(:required_with_meta) == [:__example_meta_field__, :second]
+    test "fields(:required_with_meta) returns fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
+      assert call_fields(:required_with_meta) == [:__example_meta_field__, :ecto_assoc_1, :ecto_assoc_2, :second]
+    end
+
+    test "fields(:ecto_assocs) returns only Ecto.Schema typed fields has_* embeds_*, many_to_many, belongs_to received from resolve phase" do
+      assert call_fields(:ecto_assocs) == [:ecto_assoc_1, :ecto_assoc_2]
     end
 
     test "has ensure_field_type/1 function for each field" do

@@ -6,10 +6,30 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
 
   @type_ensurer_atom :TypeEnsurer
 
+  elixir_version =
+    :elixir
+    |> Application.spec(:vsn)
+    |> to_string()
+    |> String.replace(~r/-.*$/, "")
+    |> String.split(".")
+    |> Enum.map(&String.to_integer/1)
+
+  @struct_attribute (case elixir_version do
+                       [1, minor, _] when minor < 12 -> :struct
+                       # In elixir v1.12.0 :struct is renamed to :__struct__ https://github.com/elixir-lang/elixir/pull/10354
+                       _ -> :__struct__
+                     end)
+
   defdelegate ensure_loaded?(module), to: Code
 
   def module_context?(env) do
     not is_nil(env.module) and is_nil(env.function)
+  end
+
+  def struct_attribute, do: @struct_attribute
+
+  def struct_module?(env_module) do
+    Module.has_attribute?(env_module, @struct_attribute)
   end
 
   def type_ensurer_atom, do: @type_ensurer_atom
@@ -29,23 +49,16 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   end
 
   def beam_types(module) do
-    case beam_types_from_file(module) do
-      {:ok, _types} = ok ->
+    case fetch_direct_types(module) do
+      {:ok, _type_list} = ok ->
         ok
 
-      {:error, {:no_beam_file, _module}} = error ->
+      :error ->
         if CodeEvaluation.in_mix_compile?() do
-          error
+          {:error, {:no_beam_file, module}}
         else
           ResolvePlanner.get_types(:in_memory, module)
         end
-    end
-  end
-
-  defp beam_types_from_file(module) do
-    case fetch_direct_types(module) do
-      {:ok, _type_list} = ok -> ok
-      :error -> {:error, {:no_beam_file, module}}
     end
   end
 
@@ -64,52 +77,66 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
     false
   end
 
-  def find_type_quoted(name, type_list, dereferenced_types \\ []) do
-    notfound = {:error, {:type_not_found, name}}
-    notsupported = {:error, {:parametrized_type_not_supported, name}}
+  def find_t_type(type_list) do
+    notfound = {:error, {:type_not_found, "t"}}
 
-    case Enum.find_value(type_list, notfound, &having_name(name, &1)) do
-      {:ok, :user_type, _target_name, {_, {:user_type, _, _, [_ | _] = _args}, _}} ->
-        notsupported
-
-      {:ok, :user_type, target_name, _type} ->
-        find_type_quoted(target_name, type_list, [target_name | dereferenced_types])
-
-      {:ok, :remote_type, _target_name, type} ->
-        quoted_type =
-          type
-          |> Code.Typespec.type_to_quoted()
-          |> target_type_quoted()
-          |> clean_remote_meta()
-
-        {:ok, quoted_type, Enum.reverse(dereferenced_types)}
-
-      {:ok, kind, _target_name, type} when kind in [:type, :atom, :integer] ->
-        quoted_type =
-          type
-          |> Code.Typespec.type_to_quoted()
-          |> target_type_quoted()
-          |> clean_meta()
-
-        {:ok, quoted_type, Enum.reverse(dereferenced_types)}
+    case Enum.find_value(type_list, notfound, &match_quoted_type(:t, &1)) do
+      {:ok, quoted_type} ->
+        {:"::", _, [{_name, _, _}, target_type]} = quoted_type
+        {:ok, clean_meta(target_type), []}
 
       {:error, _} = err ->
         err
     end
   end
 
-  defp having_name(name, {_kind, {name, {target_kind, _, target_name, _}, _} = spec}),
+  defp match_quoted_type(name, {:"::", _, [{name, _, _}, _target]} = type) do
+    {:ok, type}
+  end
+
+  defp match_quoted_type(_, _), do: nil
+
+  def find_beam_type_quoted(name, type_list, dereferenced_types \\ []) do
+    notfound = {:error, {:type_not_found, Atom.to_string(name)}}
+    notsupported = {:error, {:parametrized_type_not_supported, name}}
+
+    case Enum.find_value(type_list, notfound, &having_beam_name(name, &1)) do
+      {:ok, :user_type, _target_name, {_, {:user_type, _, _, [_ | _] = _args}, _}} ->
+        notsupported
+
+      {:ok, :user_type, target_name, _type} ->
+        find_beam_type_quoted(target_name, type_list, [target_name | dereferenced_types])
+
+      {:ok, _type_kind, _target_name, type} ->
+        {:"::", _, [_name, target_quoted_type]} = Code.Typespec.type_to_quoted(type)
+        {:ok, clean_meta(target_quoted_type), Enum.reverse(dereferenced_types)}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp having_beam_name(name, {_kind, {name, {target_kind, _, target_name, _}, _} = spec}),
     do: {:ok, target_kind, target_name, spec}
 
-  defp having_name(name, {_kind, {name, {target_kind, _, _}, _} = spec}),
+  defp having_beam_name(name, {_kind, {name, {target_kind, _, _}, _} = spec}),
     do: {:ok, target_kind, nil, spec}
 
-  defp having_name(_, _), do: nil
+  defp having_beam_name(_, _), do: nil
 
-  defp target_type_quoted({:"::", _, [_name, quoted_type]}), do: quoted_type
+  defp clean_meta({lhs, _meta, rhs}) do
+    {clean_meta(lhs), [], clean_meta(rhs)}
+  end
 
-  defp clean_remote_meta({{:., _meta1, aliases}, _meta2, arg3}), do: {{:., [], aliases}, [], arg3}
-  defp clean_remote_meta({_keyword_or_as_boolean, _meta1, _} = term), do: clean_meta(term)
+  defp clean_meta({lhs, rhs}) do
+    {clean_meta(lhs), clean_meta(rhs)}
+  end
 
-  defp clean_meta(term), do: Macro.update_meta(term, fn _meta -> [] end)
+  defp clean_meta([_ | _] = term) do
+    Enum.map(term, &clean_meta/1)
+  end
+
+  defp clean_meta(term) do
+    term
+  end
 end

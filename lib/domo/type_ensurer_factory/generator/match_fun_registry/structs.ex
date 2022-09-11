@@ -55,17 +55,4 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Structs do
 
     {match_spec_functions_quoted, []}
   end
-
-  def map_key_value_type({type_spec, precond}, fun) do
-    if type_spec == {:%{}, [], []} do
-      {type_spec, precond}
-    else
-      {:%, context, [struct_alias, map_spec]} = type_spec
-
-      {:%{}, map_context, kv_spec_list} = map_spec
-      updated_map_spec = {:%{}, map_context, Enum.map(kv_spec_list, fn {key, value} -> {key, fun.(value)} end)}
-
-      {{:%, context, [struct_alias, updated_map_spec]}, precond}
-    end
-  end
 end

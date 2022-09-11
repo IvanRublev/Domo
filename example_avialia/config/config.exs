@@ -5,7 +5,7 @@
 # is restricted to this project.
 
 # General application configuration
-use Mix.Config
+import Config
 
 config :example_avialia,
   ecto_repos: [ExampleAvialia.BoardingsRepo, ExampleAvialia.CargosRepo]

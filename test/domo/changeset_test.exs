@@ -3,7 +3,6 @@ defmodule Domo.ChangesetTest do
   use Placebo
 
   alias Domo.Changeset
-  alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
   setup_all do
     Code.compiler_options(ignore_module_conflict: true)
@@ -13,18 +12,6 @@ defmodule Domo.ChangesetTest do
       File.rm_rf(tmp_path())
       Code.compiler_options(ignore_module_conflict: false)
     end)
-
-    ResolverTestHelper.disable_raise_in_test_env()
-    DomoMixTask.start_plan_collection()
-
-    # Evaluate modules to prepare plan file for domo mix task
-    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo.ex")
-    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo_optional_field.ex")
-    Code.eval_file("test/struct_modules/lib/custom_struct_using_domo_meta_field.ex")
-    Code.eval_file("test/struct_modules/lib/recipient_with_precond.ex")
-
-    DomoMixTask.process_plan({:ok, []}, [])
-    ResolverTestHelper.enable_raise_in_test_env()
 
     :ok
   end
@@ -39,6 +26,55 @@ defmodule Domo.ChangesetTest do
                    fn ->
                      Changeset.validate_type(%{data: %{key: :value}})
                    end
+    end
+
+    test "calls validate_required/2 with most fields required by type @t" do
+      me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, fields, opts ->
+          send(me, {:validate_required_was_called, changeset, fields, opts})
+          changeset
+        end
+
+      allow CustomStructUsingDomoMetaField.TypeEnsurer.ensure_field_type(any(), any()),
+        meck_options: [:passthrough],
+        exec: fn _arg, _ -> :ok end
+
+      changeset = %Ecto.Changeset{
+        data: %CustomStructUsingDomoOptionalField{title: "hello"},
+        types: %{title: :string, subtitle: :string, age: :integer, tracks: :integer}
+      }
+
+      Changeset.validate_type(changeset, trim: true)
+
+      assert_receive {:validate_required_was_called, ^changeset, [:subtitle, :title], [trim: true]}
+    end
+
+    test "does not call validate_required/2 with Ecto.Schema typed fields of @t" do
+      me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, fields, opts ->
+          send(me, {:validate_required_was_called, changeset, fields, opts})
+          changeset
+        end
+
+      allow CustomStructUsingDomoMetaField.TypeEnsurer.ensure_field_type(any(), any()),
+        meck_options: [:passthrough],
+        exec: fn _arg, _ -> :ok end
+
+      changeset = %Ecto.Changeset{
+        data: %CustomStructUsingDomoOptionalField{title: "hello"},
+        types: %{title: :string, subtitle: :string, age: :integer, tracks: :integer}
+      }
+
+      Changeset.validate_type(changeset)
+
+      assert_receive {:validate_required_was_called, ^changeset, fields, []}
+      refute Enum.member?(fields, :tracks)
     end
 
     test "raises error if no type ensurer is for the schema module" do
@@ -100,8 +136,40 @@ defmodule Domo.ChangesetTest do
       assert_receive {:ensure_field_type_was_called, {:title, "hello"}}
     end
 
+    test "ignores Ecto.Schema typed fields in calling to Ecto.Changeset.validate_change/3" do
+      me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
+      allow Ecto.Changeset.validate_change(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, field, _fun ->
+          send(me, {:validate_change_was_called, field})
+          changeset
+        end
+
+      allow CustomStructUsingDomoMetaField.TypeEnsurer.ensure_field_type(any(), any()),
+        meck_options: [:passthrough],
+        exec: fn _arg, _ -> :ok end
+
+      changeset = %Ecto.Changeset{
+        data: %CustomStructUsingDomoOptionalField{title: "hello"},
+        types: %{title: :string, subtitle: :string, age: :integer, tracks: :integer}
+      }
+
+      Changeset.validate_type(changeset)
+
+      refute_receive {:validate_change_was_called, :tracks}
+    end
+
     test "validates t precondition by type ensurer and adds error in case" do
       me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
 
       allow Ecto.Changeset.apply_changes(any()),
         meck_options: [:passthrough],
@@ -147,7 +215,7 @@ defmodule Domo.ChangesetTest do
 
       Changeset.validate_type(changeset)
 
-      assert_receive {:apply_changes_was_called, ^changeset}
+      assert_receive {:apply_changes_was_called, changeset}
 
       assert_receive {:t_precondition_was_called, fields}
       assert %{title: "hello", name: "longer then 10 characters name", age: 12} = fields
@@ -185,6 +253,76 @@ defmodule Domo.ChangesetTest do
                         """
                       ]}
     end
+
+    test "returns only precond errors list back to Ecto.Changeset.validate_change/3 call given maybe_filter_precond_errors: true" do
+      me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
+      allow Ecto.Changeset.validate_change(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, field, fun ->
+          reply = fun.(field, Map.get(changeset.data, field))
+          send(me, {:validate_change_got_value, reply})
+          changeset
+        end
+
+      allow Ecto.Changeset.add_error(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, key, message ->
+          send(me, {:add_error_was_called, key, message})
+          changeset
+        end
+
+      changeset = %Ecto.Changeset{
+        valid?: false,
+        data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500},
+        types: %{title: :string, name: :string, age: :integer}
+      }
+
+      Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
+
+      assert_receive {:validate_change_got_value, [name: message]}
+      assert message =~ ":bob"
+      assert_receive {:validate_change_got_value, [age: message]}
+      assert message =~ "&(&1 < 300)"
+
+      changeset = %Ecto.Changeset{valid?: true, data: %RecipientWithPrecond{title: :mr, name: "Bob bob bob", age: 20}}
+
+      Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
+
+      assert_receive {:add_error_was_called, :t, message}
+      assert message =~ "&(String.length(&1.name) < 10)"
+    end
+
+    test "return error for field taken by the given function back to Ecto.Changeset.validate_change/3" do
+      me = self()
+
+      allow Ecto.Changeset.validate_change(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, field, fun ->
+          reply = fun.(field, Map.get(changeset.data, field))
+          send(me, {:validate_change_got_value, reply})
+          changeset
+        end
+
+      allow Ecto.Changeset.add_error(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _key, _message -> changeset end
+
+      changeset = %Ecto.Changeset{
+        valid?: false,
+        data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500},
+        types: %{title: :string, name: :string, age: :integer}
+      }
+
+      Changeset.validate_type(changeset, maybe_filter_precond_errors: true, take_error_fun: &String.length(List.first(&1)))
+
+      assert_receive {:validate_change_got_value, [name: 111]}
+      assert_receive {:validate_change_got_value, [age: 154]}
+    end
   end
 
   describe "validate_type/1 for fields given with :fields option" do
@@ -197,6 +335,10 @@ defmodule Domo.ChangesetTest do
 
     test "validates given fields by type ensurer in call to Ecto.Changeset.validate_change/3" do
       me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
 
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
@@ -213,7 +355,10 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %Ecto.Changeset{data: %CustomStructUsingDomoOptionalField{title: "hello"}}
+      changeset = %Ecto.Changeset{
+        data: %CustomStructUsingDomoOptionalField{title: "hello", subtitle: ""},
+        types: %{title: :string, subtitle: :string, age: :integer}
+      }
 
       Changeset.validate_type(changeset, fields: [:title, :subtitle])
 
@@ -314,7 +459,10 @@ defmodule Domo.ChangesetTest do
           :ok
         end
 
-      changeset = %Ecto.Changeset{data: %{title: "hello"}}
+      changeset = %Ecto.Changeset{
+        data: %{title: "hello"},
+        types: %{title: :string, name: :string, age: :integer}
+      }
 
       Changeset.validate_schemaless_type(changeset, CustomStructUsingDomo, fields: [:title])
 
@@ -323,64 +471,23 @@ defmodule Domo.ChangesetTest do
     end
   end
 
-  test "returns only precond errors list back to Ecto.Changeset.validate_change/3 call given maybe_filter_precond_errors: true" do
-    me = self()
+  test "import Changeset module using Domo with :changeset option" do
+    allow Ecto.Changeset.validate_required(any(), any(), any()),
+      meck_options: [:passthrough],
+      exec: fn changeset, _fields, _opts -> changeset end
 
     allow Ecto.Changeset.validate_change(any(), any(), any()),
       meck_options: [:passthrough],
-      exec: fn changeset, field, fun ->
-        reply = fun.(field, Map.get(changeset.data, field))
-        send(me, {:validate_change_got_value, reply})
-        changeset
-      end
-
-    allow Ecto.Changeset.add_error(any(), any(), any()),
-      meck_options: [:passthrough],
-      exec: fn changeset, key, message ->
-        send(me, {:add_error_was_called, key, message})
-        changeset
-      end
-
-    changeset = %Ecto.Changeset{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
-
-    Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
-
-    assert_receive {:validate_change_got_value, [name: message]}
-    assert message =~ ":bob"
-    assert_receive {:validate_change_got_value, [age: message]}
-    assert message =~ "&(&1 < 300)"
-
-    changeset = %Ecto.Changeset{valid?: true, data: %RecipientWithPrecond{title: :mr, name: "Bob bob bob", age: 20}}
-
-    Changeset.validate_type(changeset, maybe_filter_precond_errors: true)
-
-    assert_receive {:add_error_was_called, :t, message}
-    assert message =~ "&(String.length(&1.name) < 10)"
-  end
-
-  test "return error for field taken by the given function back to Ecto.Changeset.validate_change/3" do
-    me = self()
+      exec: fn changeset, _field, _fun -> changeset end
 
     allow Ecto.Changeset.validate_change(any(), any(), any()),
       meck_options: [:passthrough],
-      exec: fn changeset, field, fun ->
-        reply = fun.(field, Map.get(changeset.data, field))
-        send(me, {:validate_change_got_value, reply})
-        changeset
-      end
+      exec: fn changeset, _field, _fun -> changeset end
 
-    allow Ecto.Changeset.add_error(any(), any(), any()),
+    allow Ecto.Changeset.apply_changes(any()),
       meck_options: [:passthrough],
-      exec: fn changeset, key, message ->
-        send(me, {:add_error_was_called, key, message})
-        changeset
-      end
+      exec: fn changeset -> changeset end
 
-    changeset = %Ecto.Changeset{valid?: false, data: %RecipientWithPrecond{title: :mr, name: :bob, age: 500}}
-
-    Changeset.validate_type(changeset, maybe_filter_precond_errors: true, take_error_fun: &String.length(List.first(&1)))
-
-    assert_receive {:validate_change_got_value, [name: 111]}
-    assert_receive {:validate_change_got_value, [age: 154]}
+    assert CustomStructImportingChangeset.validate_type_imported?()
   end
 end
