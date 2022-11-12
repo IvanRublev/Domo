@@ -54,9 +54,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     envs = plan[:envs]
 
     if verbose? and map_size(plan[:anys_by_module]) > 0 do
-      IO.write("""
+      IO.puts("""
       Domo treats the following remote types as any() by module:
-      #{inspect(plan[:anys_by_module])}
+      #{inspect(plan[:anys_by_module])}\
       """)
     end
 

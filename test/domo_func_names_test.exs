@@ -32,8 +32,8 @@ defmodule DomoFuncNamesTest do
     Path.join([src_path(), path])
   end
 
-  test "generates constructor with name set with name_of_new_function option globally or overridden with use Domo" do
-    Application.put_env(:domo, :name_of_new_function, :custom_new)
+  test "generates constructor with name set with gen_constructor_name option globally or overridden with use Domo" do
+    Application.put_env(:domo, :gen_constructor_name, :custom_new)
 
     DomoMixTask.start_plan_collection()
     compile_titled_struct("TitleHolder")
@@ -41,12 +41,12 @@ defmodule DomoFuncNamesTest do
     assert Kernel.function_exported?(TitleHolder, :custom_new, 1)
     assert Kernel.function_exported?(TitleHolder, :custom_new!, 1)
 
-    compile_titled_struct("Titled", "name_of_new_function: :amazing_new")
+    compile_titled_struct("Titled", "gen_constructor_name: :amazing_new")
 
     assert Kernel.function_exported?(Titled, :amazing_new, 1)
     assert Kernel.function_exported?(Titled, :amazing_new!, 1)
   after
-    Application.delete_env(:domo, :name_of_new_function)
+    Application.delete_env(:domo, :gen_constructor_name)
     DomoMixTask.stop_plan_collection()
   end
 

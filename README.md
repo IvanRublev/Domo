@@ -224,6 +224,48 @@ PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
 That output contains only a flattened list of precondition error messages
 from the deeply nested structure.
 
+## Custom constructor function
+
+Sometimes a value for the struct's field can be generated during the construction.
+By default, Domo generates the `new(!)/1` constructor functions for you, 
+which can be composable with a custom one. 
+You can create the custom constructor function with the same name 
+by instructing Domo to use another one with `gen_constructor_name` option, 
+like the following:
+
+```elixir
+defmodule Foo do
+  use Domo, skip_defaults: true, gen_constructor_name: :_new
+
+  defstruct [:id, :token]
+
+  @type id :: non_neg_integer()
+  @type token :: String.t()
+  precond token: &byte_size(&1) == 8
+
+  @type t :: %__MODULE__{id: id(), token: token()}
+
+  def new(id) do
+    _new(id: id, token: random_string(8))
+  end
+
+  def new!(id) do
+    _new!(id: id, token: random_string(8))
+  end
+
+  defp random_string(length),
+    do: :crypto.strong_rand_bytes(length) |> Base.encode64() |> binary_part(0, length)
+end
+```
+
+```elixir
+Foo.new!(15245)
+```
+
+```output
+%Foo{id: 15245, token: "e8K9wP0e"}
+```
+
 ## Compile-time and Run-time validations
 
 At the project's compile-time, Domo performs the following checks:
@@ -404,9 +446,13 @@ config :my_app, MyApp.Endpoint,
 Add the Domo dependency and compilers config as mentioned in the section above
 to the `mix.exs` file for each app using Domo.
 
-You may add the same compilers config line to the app itself and to the root 
+You may add the same domo compiler config line to the app itself and to the root 
 umbrella's `mix.exs` to enable `recompile` command to work correctly 
 for `iex -S mix` run in the root.
+
+If you have the Phoenix hot-reload configured for one of the web apps in umbrella then
+the `:domo_phoenix_hot_reload` compiler should be added to all dependency apps
+used by the given web one.
 
 ## Configuration
 
@@ -420,7 +466,7 @@ with `use Domo, option: value` overrides the global setting.
   default values given with `defstruct/1` to conform to the `t()` type
   at compile time. Default is `false`.
 
-* `name_of_new_function` - the name of the constructor function added
+* `gen_constructor_name` - the name of the constructor function added
   to the module. The raising error function name is generated automatically
   from the given one by adding trailing `!`.
   Defaults are `new` and `new!` appropriately.
@@ -539,20 +585,23 @@ the project with `mix clean --deps && mix compile` command.
 ## Adoption
 
 It's possible to adopt Domo library in the project having user-defined
-constructor functions named `new/1` that interferes with Domo generated 
-function name. Here's how:
+constructor functions named `new/1` by refactoring to the Domo generated one.
+Here's how:
 
 1. Add `:domo` dependency to the project, configure compilers as described in
    the [installation](#installation) section
 2. Set the name of the Domo generated constructor function by adding
-   `config :domo, :name_of_new_function, :constructor_name` option into
+   `config :domo, :gen_constructor_name, :_new` option into
    the `confix.exs` file, to prevent conflict with user-defined constructor
    function name
 3. Add `use Domo` to existing struct, f.e. `FirstStruct`
 4. Change all struct building calls to be done with Domo generated function with
-   the name set on step 3 f.e. `FistStruct.constructor_name(%{...})`
-5. Remove user-defined constructor function `new/1`
-6. Repeat for each struct in the project
+   the name set on step 3 f.e. `FistStruct._new(%{...})`
+5. Repeat for each struct in the project
+6. Remove original `new/1` if it's not needed anymore 
+   and rename `_new` to `new` in the whole project
+7. Remove `config :domo, :gen_constructor_name` configuration 
+   because Domo generates constructor wiht `new` name by default.
 
 <!-- Documentation -->
 
@@ -705,7 +754,14 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
-### v1.5.8 (2022)
+### v1.5.9 (2022-11-11)
+
+* Fix to run with Phoenix server with hot reload enabled in the root of an umbrella app.
+* Fix to use the current group leader of the caller in `ResolvePlanner` server for printing verbose debugging messages.
+* Rename option `name_of_new_function` to `gen_constructor_name`. Please, update your project if you use it.
+* Make Domo generated `new!/1/0` and `new/2/1/0` composable instead of overridable, see [Custom constructor function](#custom-constructor-function) section in README.
+
+### v1.5.8 (2022-09-11)
 
 * Support validation of the following `Ecto.Schema` types: `belongs_to(t)`, `has_one(t)`, `has_many(t)`, `many_to_many(t)`, `embeds_one(t)`, and `embeds_many(t)`.
 * The `validate_type/2` function for changesets:

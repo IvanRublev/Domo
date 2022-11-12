@@ -356,6 +356,6 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
   defp each_file(file, cwd) do
     file = Path.relative_to(file, cwd)
-    IO.write("Compiled #{file}\n")
+    IO.puts("Compiled #{file}")
   end
 end

@@ -23,18 +23,6 @@ defmodule RecipientWarnOverriden do
   @type t :: %__MODULE__{title: title(), name: name(), age: age()}
 end
 
-defmodule RecipientNewOverriden do
-  use Domo, skip_defaults: true, name_of_new_function: :locally_set_new!
-
-  @enforce_keys [:title, :name]
-  defstruct [:title, :name, age: 0]
-
-  @type title :: :mr | :ms | :dr
-  @type name :: String.t()
-  @type age :: integer
-  @type t :: %__MODULE__{title: title(), name: name(), age: age()}
-end
-
 defmodule RecipientNestedOrTypes do
   use Domo, skip_defaults: true
 

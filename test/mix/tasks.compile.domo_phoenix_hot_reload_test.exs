@@ -32,6 +32,7 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
   describe "Domo compiler phoenix hot reload task should" do
     @moduletag in_plan_collection?: true
     @moduletag compile_elixir_run?: true
+    @moduletag project_config: [compilers: [:domo_compiler, :elixir, :domo_phoenix_hot_reload]]
 
     setup tags do
       allow CodeEvaluation.in_plan_collection?(), meck_options: [:passthrough], return: tags.in_plan_collection?
@@ -43,6 +44,8 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
         allow Agent.get(Mix.TasksServer, any(), any()), meck_options: [:passthrough], return: tags.compile_elixir_run?
       end
 
+      allow MixProjectStubCorrect.config(), meck_options: [:passthrough], return: tags.project_config
+
       :ok
     end
 
@@ -52,11 +55,18 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
       assert_called DomoCompiler.process_plan(any(), any())
     end
 
+    @tag project_config: []
+    test "skip running having no the compiler in compilers list (umbrella case)" do
+      DomoPhoenixMixTask.run(:ok)
+
+      refute_called DomoCompiler.process_plan(any(), any())
+    end
+
     @tag in_plan_collection?: false
     test "Not process plan being Not in collection mode" do
       DomoPhoenixMixTask.run(:ok)
 
-      refute_called(DomoCompiler.process_plan(any(), any()))
+      refute_called DomoCompiler.process_plan(any(), any())
     end
 
     test "raise No exception having elixir compiler executed before" do

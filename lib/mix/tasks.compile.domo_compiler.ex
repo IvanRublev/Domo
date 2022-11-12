@@ -101,9 +101,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
       Cleaner.rm!([plan_path, types_path])
 
       if verbose? do
-        IO.write("""
-        Domo removed plan file #{plan_path} and types file #{types_path}.
-        """)
+        IO.puts("Domo removed plan file #{plan_path} and types file #{types_path}.")
       end
 
       result = if(Enum.empty?(modules), do: :noop, else: :ok)
@@ -130,9 +128,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
       Cleaner.rmdir_if_exists!(code_path)
 
       if verbose? do
-        IO.write("""
-        Domo removed directory with generated code if existed #{code_path}.
-        """)
+        IO.puts("Domo removed directory with generated code if existed #{code_path}.")
       end
     end
   end

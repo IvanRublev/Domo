@@ -63,9 +63,7 @@ defmodule Domo.TypeEnsurerFactory do
     unless Enum.empty?(collectable_modules) do
       modules_string = Enum.map_join(collectable_modules, ", ", &Alias.atom_to_string/1)
 
-      IO.write("""
-      Domo makes type ensures for standard lib modules #{modules_string}.
-      """)
+      IO.puts("Domo makes type ensures for standard lib modules #{modules_string}.")
 
       Enum.each(collectable_modules, fn module ->
         env = simulated_env(module)
@@ -160,9 +158,7 @@ defmodule Domo.TypeEnsurerFactory do
         |> Enum.reverse()
         |> Enum.join(", ")
 
-      IO.write("""
-      Domo will treat the following types as any() globally: #{module_type_list}
-      """)
+      IO.puts("Domo will treat the following types as any() globally: #{module_type_list}.")
     end
   end
 
@@ -264,9 +260,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo resolve collected types.
-      """)
+      IO.puts("Domo resolve collected types. #{plan_path}")
     end
 
     case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
@@ -277,9 +271,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def build_type_ensurers(module_filed_types, ecto_assocs_by_module, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo generates TypeEnsurer modules source code and load them into memory.
-      """)
+      IO.puts("Domo generates TypeEnsurer modules source code and load them into memory.")
     end
 
     module_filed_types
@@ -297,9 +289,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def generate_type_ensurers(types_path, ecto_assocs_path, code_path, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo generates TypeEnsurer modules source code.
-      """)
+      IO.puts("Domo generates TypeEnsurer modules source code.")
     end
 
     case Generator.generate(types_path, ecto_assocs_path, code_path) do
@@ -310,9 +300,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def compile_type_ensurers(type_ensurer_paths, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo compiles TypeEnsurer modules.
-      """)
+      IO.puts("Domo compiles TypeEnsurer modules.")
     end
 
     case Generator.compile(type_ensurer_paths, verbose?) do
@@ -324,9 +312,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def ensure_struct_defaults(plan_or_path, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo validates structs defaults.
-      """)
+      IO.puts("Domo validates structs defaults.")
     end
 
     ensurable =
@@ -344,9 +330,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def ensure_structs_integrity(plan_path, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo validates structs constant values made at compile time.
-      """)
+      IO.puts("Domo validates structs constant values made at compile time.")
     end
 
     case BatchEnsurer.ensure_struct_integrity(plan_path) do
@@ -357,9 +341,7 @@ defmodule Domo.TypeEnsurerFactory do
 
   def recompile_depending_structs(plan_path, deps_path, preconds_path, verbose?) do
     if verbose? do
-      IO.write("""
-      Domo recompiles structs depending on structs with changed types if any.
-      """)
+      IO.puts("Domo recompiles structs depending on structs with changed types if any. #{plan_path}")
     end
 
     {:ok, _pid} = ResolvePlanner.ensure_started(plan_path, preconds_path, verbose?: verbose?)

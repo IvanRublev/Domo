@@ -144,8 +144,8 @@ defmodule Domo do
       TypeEnsurerFactory.collect_types_to_treat_as_any(plan_path, __CALLER__.module, global_anys, local_anys)
     end
 
-    global_new_func_name = Application.get_env(:domo, :name_of_new_function, :new)
-    new_ok_fun_name = Keyword.get(opts, :name_of_new_function, global_new_func_name)
+    global_new_func_name = Application.get_env(:domo, :gen_constructor_name, :new)
+    new_ok_fun_name = Keyword.get(opts, :gen_constructor_name, global_new_func_name)
 
     new_raise_fun_name =
       new_ok_fun_name
@@ -242,14 +242,6 @@ defmodule Domo do
           end
         end
       end
-
-      defoverridable [
-        {unquote(new_raise_fun_name), 0},
-        {unquote(new_raise_fun_name), 1},
-        {unquote(new_ok_fun_name), 0},
-        {unquote(new_ok_fun_name), 1},
-        {unquote(new_ok_fun_name), 2}
-      ]
 
       @doc """
       #{unquote(@ensure_type_raise_doc)}

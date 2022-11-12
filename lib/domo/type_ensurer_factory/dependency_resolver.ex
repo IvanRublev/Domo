@@ -254,18 +254,18 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     Process.sleep(1000)
 
     if verbose? do
-      IO.write("""
+      IO.puts("""
       Domo marks files for recompilation by touching:
-      #{Enum.join(sources_to_recompile, "\n")}
+      #{Enum.join(sources_to_recompile, "\n")}\
       """)
     end
 
     Enum.each(sources_to_recompile, &File.touch!/1)
 
     if verbose? do
-      IO.write("""
+      IO.puts("""
       Domo meets Elixir's criteria for recompilation by removing:
-      #{Enum.join(beams_to_recompile, "\n")}
+      #{Enum.join(beams_to_recompile, "\n")}\
       """)
     end
 

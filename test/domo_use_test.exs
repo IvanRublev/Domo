@@ -16,7 +16,7 @@ defmodule DomoUseTest do
   def env, do: __ENV__
 
   defp module_empty do
-    {:module, _, _bytecode, _} =
+    {:module, _, _, _} =
       defmodule Module do
         use Domo
 
@@ -26,7 +26,7 @@ defmodule DomoUseTest do
   end
 
   defp module_two_fields do
-    {:module, _, _bytecode, _} =
+    {:module, _, _, _} =
       defmodule Module do
         use Domo
 
@@ -36,7 +36,7 @@ defmodule DomoUseTest do
   end
 
   defp module_custom_struct_as_default_value do
-    {:module, _, _bytecode, _} =
+    {:module, _, _, _} =
       defmodule Module do
         defmodule Submodule do
           use Domo
@@ -50,7 +50,7 @@ defmodule DomoUseTest do
   end
 
   defp module_with_precond do
-    {:module, _, _bytecode, _} =
+    {:module, _, _, _} =
       defmodule Module do
         defmodule Ext do
           def value_valid?(_value), do: true
@@ -145,7 +145,7 @@ defmodule DomoUseTest do
           precond id: &(&1 != "")
         end
 
-      assert {:module, _, _bytecode, _} = module
+      assert {:module, _, _, _} = module
 
       module =
         defmodule Module do
@@ -155,7 +155,7 @@ defmodule DomoUseTest do
           @type t :: %__MODULE__{}
         end
 
-      assert {:module, _, _bytecode, _} = module
+      assert {:module, _, _, _} = module
     end
 
     @tag in_mix_compile?: false
@@ -232,7 +232,7 @@ defmodule DomoUseTest do
         """)
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -242,7 +242,7 @@ defmodule DomoUseTest do
       end
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -254,7 +254,7 @@ defmodule DomoUseTest do
       end
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -266,7 +266,7 @@ defmodule DomoUseTest do
       end
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -279,7 +279,7 @@ defmodule DomoUseTest do
       end
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -290,7 +290,7 @@ defmodule DomoUseTest do
           end
       end
 
-      {:module, _, _bytecode, _} =
+      {:module, _, _, _} =
         defmodule Module1 do
           use Domo
 
@@ -299,7 +299,7 @@ defmodule DomoUseTest do
         end
 
       assert_raise CompileError, message, fn ->
-        {:module, _, _bytecode, _} =
+        {:module, _, _, _} =
           defmodule Module do
             use Domo
 
@@ -325,7 +325,7 @@ defmodule DomoUseTest do
           @type t :: %__MODULE__{name: name(), title: title()}
         end
 
-      assert {:module, _, _bytecode, _} = module
+      assert {:module, _, _, _} = module
 
       module =
         defmodule ModuleOpaque do
@@ -339,7 +339,7 @@ defmodule DomoUseTest do
           @opaque t :: %__MODULE__{name: name(), title: title()}
         end
 
-      assert {:module, _, _bytecode, _} = module
+      assert {:module, _, _, _} = module
     end
   end
 
