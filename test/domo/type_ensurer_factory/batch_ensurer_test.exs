@@ -188,6 +188,23 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       assert mtime(@third_path) > third_mtime
     end
 
+    test "does not touch nonexisting files", %{
+      planner: planner,
+      plan_file: plan_file
+    } do
+      plan_struct_integrity_ensurance(
+        planner,
+        CustomStructUsingDomo,
+        [title: :world],
+        "src/elixir_compiler.erl",
+        9
+      )
+
+      flush(planner)
+
+      BatchEnsurer.ensure_struct_integrity(plan_file)
+    end
+
     @first_path Path.join(@source_dir, "/some_caller_module.ex")
     @second_path Path.join(@source_dir, "/other_caller_module.ex")
     @third_path Path.join(@source_dir, "/third_caller_module.ex")

@@ -103,7 +103,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     fields_spec
     |> Map.values()
     |> Enum.uniq()
-    |> Enum.reject(&any_spec?/1)
+    # TODO: this is not working and can be removed?
+    |> Enum.reject(&any_specs?/1)
     |> Enum.concat()
     |> Enum.each(&MatchFunRegistry.register_match_spec_fun(pid, &1))
 
@@ -247,16 +248,16 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   # credo:disable-for-lines:46
   defp ensure_type_function_quoted(struct_module, {field, spec_precond_list}) do
     cond do
-      any_spec?(spec_precond_list) ->
+      any_specs?(spec_precond_list) ->
         quote do
           def ensure_field_type({unquote(field), _value}, _opts), do: :ok
         end
 
       match?([_spec], spec_precond_list) ->
         [spec_precond] = spec_precond_list
-        {spec, precond} = TypeSpec.split_spec_precond(spec_precond)
+        {type_spec, precond} = TypeSpec.split_spec_precond(spec_precond)
 
-        spec_atom = TypeSpec.to_atom(spec)
+        spec_atom = TypeSpec.to_atom(type_spec)
         precond_atom = if precond, do: Precondition.to_atom(precond)
 
         spec_string =
@@ -316,8 +317,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     end
   end
 
-  defp any_spec?(type_spec),
-    do: Enum.any?(type_spec, &(&1 in [quote(do: any()), quote(do: term())]))
+  defp any_specs?(type_specs),
+    do: Enum.any?(type_specs, &(&1 in [quote(do: any()), quote(do: term())]))
 
   def compile(paths, verbose? \\ false) do
     project = Mix.Project.config()

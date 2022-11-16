@@ -754,6 +754,12 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
+## v1.5.10
+
+* Improve compatibility with ElixirLS.
+  After running `mix deps.update domo`, please, remove `.elixir_ls` in your 
+  project directory and reopen VSCode.
+
 ### v1.5.9 (2022-11-11)
 
 * Fix to run with Phoenix server with hot reload enabled in the root of an umbrella app.

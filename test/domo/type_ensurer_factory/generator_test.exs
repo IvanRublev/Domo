@@ -230,6 +230,15 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
              )
   end
 
+  test "generate_one/2 ignores meta of literal types when generating TypeEnsurer module" do
+    assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} =
+             Generator.generate_one(
+               ParentModule,
+               types_content_empty_precond(%{first: [[{:atom, [closing: [line: 355, column: 51], column: 46], []}]]}),
+               []
+             )
+  end
+
   test "generate_invalid/1 generates invalid TypeEnsurer module in the form of quoted code" do
     assert {:defmodule, _context, [{:__aliases__, [alias: false], [:ParentModule, :TypeEnsurer]} | _tail]} = Generator.generate_invalid(ParentModule)
   end

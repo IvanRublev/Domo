@@ -6,7 +6,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Precondition
 
-  defguard is_any(type_spec) when type_spec == quote(do: any())
+  # To ignore possible meta we check tuple size and first element
+  defguard is_any(type_spec) when tuple_size(type_spec) == 3 and elem(type_spec, 0) == :any
 
   def match_spec_function_quoted(type_spec) when is_any(type_spec) do
     type_spec_atom = TypeSpec.to_atom(type_spec)
@@ -55,40 +56,41 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
   # credo:disable-for-lines:91
   defp guard_quoted(type_spec, variable_name, context \\ __MODULE__) when is_atom(variable_name) do
+    type_spec = Macro.update_meta(type_spec, fn _ -> [] end)
     variable_name = Macro.var(variable_name, context)
 
     case type_spec do
-      quote(do: atom()) ->
+      {:atom, [], []} ->
         quote(do: is_atom(unquote(variable_name)))
 
       term when is_atom(term) ->
         quote(do: unquote(variable_name) === unquote(term))
 
-      quote(do: %{}) ->
+      {:%{}, [], []} ->
         quote(do: unquote(variable_name) === %{})
 
-      quote(do: map()) ->
+      {:map, [], []} ->
         quote(do: is_map(unquote(variable_name)))
 
-      quote(do: pid()) ->
+      {:pid, [], []} ->
         quote(do: is_pid(unquote(variable_name)))
 
-      quote(do: port()) ->
+      {:port, [], []} ->
         quote(do: is_port(unquote(variable_name)))
 
-      quote(do: reference()) ->
+      {:reference, [], []} ->
         quote(do: is_reference(unquote(variable_name)))
 
-      quote(do: tuple()) ->
+      {:tuple, [], []} ->
         quote(do: is_tuple(unquote(variable_name)))
 
-      quote(do: {}) ->
+      {:{}, [], []} ->
         quote(do: tuple_size(unquote(variable_name)) == 0)
 
-      quote(do: float()) ->
+      {:float, [], []} ->
         quote(do: is_float(unquote(variable_name)))
 
-      quote(do: integer()) ->
+      {:integer, [], []} ->
         quote(do: is_integer(unquote(variable_name)))
 
       term when is_integer(term) ->
@@ -100,16 +102,16 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
       {:.., _, [first, last]} ->
         quote(do: unquote(variable_name) in unquote(first)..unquote(last))
 
-      quote(do: neg_integer()) ->
+      {:neg_integer, [], []} ->
         quote(do: is_integer(unquote(variable_name)) and unquote(variable_name) < 0)
 
-      quote(do: non_neg_integer()) ->
+      {:non_neg_integer, [], []} ->
         quote(do: is_integer(unquote(variable_name)) and unquote(variable_name) >= 0)
 
-      quote(do: pos_integer()) ->
+      {:pos_integer, [], []} ->
         quote(do: is_integer(unquote(variable_name)) and unquote(variable_name) > 0)
 
-      quote(do: <<>>) ->
+      {:<<>>, [], []} ->
         quote(do: unquote(variable_name) === <<>>)
 
       {:<<>>, _, [{:"::", _, [{:_, _, _}, size]}]} when is_integer(size) ->

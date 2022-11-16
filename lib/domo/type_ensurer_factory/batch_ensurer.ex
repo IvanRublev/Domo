@@ -73,7 +73,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
     # Have to wait 1 second to touch files with later epoch time
     # and make elixir compiler to percept them as stale files.
     Process.sleep(1000)
-    Enum.map(files, &File.touch!(&1))
+    Enum.each(files, &File.touch(&1))
   end
 
   def ensure_struct_defaults(plan_path) when is_binary(plan_path) do
