@@ -119,6 +119,14 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       assert_called ResolvePlanner.ensure_flushed_and_stopped(any())
     end
 
+    test "pass on warnings from elixir" do
+      DomoMixTask.start_plan_collection()
+
+      warn = {:ok, [:diagnostic]}
+      assert DomoMixTask.process_plan(warn, []) == warn
+      assert_called ResolvePlanner.ensure_flushed_and_stopped(any())
+    end
+
     test "set the plan collection flag to true on run and to false on process plan" do
       assert CodeEvaluation.in_plan_collection?() == false
 
