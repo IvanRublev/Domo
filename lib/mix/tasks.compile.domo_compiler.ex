@@ -80,6 +80,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   defp merge_diagnostics({domo_status, domo_diagnostics}, {_elixir_status, elixir_diagnostics}) when domo_status in [:ok, :error] do
     {domo_status, domo_diagnostics ++ elixir_diagnostics}
   end
+
   defp merge_diagnostics({:noop, domo_diagnostics}, {elixir_status, elixir_diagnostics}) do
     {elixir_status, domo_diagnostics ++ elixir_diagnostics}
   end

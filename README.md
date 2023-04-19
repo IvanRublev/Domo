@@ -754,6 +754,10 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
+## v1.5.11
+
+* Make Domo compiler pass on Elixir warnings to ElixirLS. 
+
 ## v1.5.10
 
 * Improve compatibility with ElixirLS.
