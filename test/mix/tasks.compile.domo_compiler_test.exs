@@ -141,6 +141,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
 
     test "bypass status from previous compiler when no plan file exists (that is domo is not used)" do
       assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+      assert DomoMixTask.process_plan(:ok, []) == {:ok, []}
     end
 
     @tag empty_plan_on_disk?: true
@@ -228,6 +229,8 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       DomoMixTask.start_plan_collection()
       module_two_fields()
       assert {:error, [diagnostic]} = DomoMixTask.process_plan({:ok, []}, [])
+      # test the :ok response too
+      assert {:error, _} = DomoMixTask.process_plan(:ok, [])
 
       assert %Diagnostic{
                compiler_name: "Domo",

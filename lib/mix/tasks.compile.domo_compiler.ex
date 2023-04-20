@@ -81,8 +81,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     {domo_status, domo_diagnostics ++ elixir_diagnostics}
   end
 
+  defp merge_diagnostics({domo_status, domo_diagnostics}, status) when domo_status in [:ok, :error] and is_atom(status) do
+    {domo_status, domo_diagnostics}
+  end
+
   defp merge_diagnostics({:noop, domo_diagnostics}, {elixir_status, elixir_diagnostics}) do
     {elixir_status, domo_diagnostics ++ elixir_diagnostics}
+  end
+
+  defp merge_diagnostics({:noop, domo_diagnostics}, elixir_status) do
+    {elixir_status, domo_diagnostics}
   end
 
   def stop_plan_collection do
