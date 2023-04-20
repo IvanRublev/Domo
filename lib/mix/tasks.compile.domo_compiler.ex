@@ -50,7 +50,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     error
   end
 
-  def process_plan(_status_diagnostic, args) do
+  def process_plan(status_diagnostic, args) do
     plan_path = manifest_path(@mix_project, :plan)
     preconds_path = manifest_path(@mix_project, :preconds)
     types_path = manifest_path(@mix_project, :types)
@@ -74,7 +74,15 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
     maybe_print_errors(result)
 
-    result
+    merge_diagnostics(result, status_diagnostic)
+  end
+
+  defp merge_diagnostics({domo_status, domo_diagnostics}, {_elixir_status, elixir_diagnostics}) when domo_status in [:ok, :error] do
+    {domo_status, domo_diagnostics ++ elixir_diagnostics}
+  end
+
+  defp merge_diagnostics({:noop, domo_diagnostics}, {elixir_status, elixir_diagnostics}) do
+    {elixir_status, domo_diagnostics ++ elixir_diagnostics}
   end
 
   def stop_plan_collection do

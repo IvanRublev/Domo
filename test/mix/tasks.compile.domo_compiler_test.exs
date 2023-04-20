@@ -119,6 +119,14 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       assert_called ResolvePlanner.ensure_flushed_and_stopped(any())
     end
 
+    test "pass on warnings from elixir" do
+      DomoMixTask.start_plan_collection()
+
+      warn = {:ok, [:diagnostic]}
+      assert DomoMixTask.process_plan(warn, []) == warn
+      assert_called ResolvePlanner.ensure_flushed_and_stopped(any())
+    end
+
     test "set the plan collection flag to true on run and to false on process plan" do
       assert CodeEvaluation.in_plan_collection?() == false
 
@@ -131,8 +139,8 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
       assert CodeEvaluation.in_plan_collection?() == false
     end
 
-    test "return {:noop, []} when no plan file exists that is domo is not used" do
-      assert {:noop, []} = DomoMixTask.process_plan({:ok, []}, [])
+    test "bypass status from previous compiler when no plan file exists (that is domo is not used)" do
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
     @tag empty_plan_on_disk?: true
@@ -370,9 +378,9 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     end
 
     @tag empty_plan_on_disk?: true
-    test "returns {:noop, []} when no modules were compiled" do
+    test "returns status from previous compiler when no modules were compiled" do
       DomoMixTask.start_plan_collection()
-      assert {:noop, []} = DomoMixTask.process_plan({:ok, []}, [])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
 
     test "ensures struct defaults and struct integrity" do
