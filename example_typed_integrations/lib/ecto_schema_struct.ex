@@ -36,11 +36,11 @@ defmodule EctoSchemaStruct do
   precond last_name: &validate_required/1
 
   typed_schema "people" do
-    field :name, :string, default: "Joe", null: false
+    field(:name, :string, default: "Joe")
     field(:last_name, :string) :: last_name() | nil
     field(:age, :integer) :: non_neg_integer() | nil
-    field :happy, :boolean, default: true, null: false
-    field :phone, :string
+    field(:happy, :boolean, default: true)
+    field(:phone, :string)
     timestamps(type: :naive_datetime_usec)
   end
 
