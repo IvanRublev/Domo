@@ -13,8 +13,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
          {:ok, deps} <- decode_deps(content),
          {:ok, content} <- read_preconds(preconds_path, file_module),
          {:ok, preconds} <- decode_preconds(content),
-         type_hash_by_dependant_module = get_dependant_module_hashes(deps),
-         {:ok, updated_deps} <- maybe_cleanup_deps(deps_path, deps, type_hash_by_dependant_module, file_module),
+         {:ok, updated_deps, type_hash_by_dependant_module} <- maybe_cleanup_and_write_deps(deps_path, deps, file_module),
          {:ok, updated_preconds} <- maybe_cleanup_preconds(preconds_path, preconds, file_module) do
       preconds_hash_by_module = get_precond_hashes(updated_preconds)
       maybe_recompile(updated_deps, deps, type_hash_by_dependant_module, preconds_hash_by_module, opts[:verbose?] || false)
@@ -92,14 +91,16 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     |> Enum.into(%{})
   end
 
-  defp maybe_cleanup_deps(deps_path, deps, type_hash_by_dependant_module, file_module) do
-    updated_deps = remove_modules_with_unloadable_types(deps, type_hash_by_dependant_module)
+  defp maybe_cleanup_and_write_deps(deps_path, deps, file_module) do
+    loadable_deps = remove_unloadable_modules(deps)
+    type_hash_by_dependant_module = get_dependant_module_hashes(loadable_deps)
+    updated_deps = remove_modules_with_unloadable_types(loadable_deps, type_hash_by_dependant_module)
 
     if updated_deps == deps do
-      {:ok, updated_deps}
+      {:ok, updated_deps, type_hash_by_dependant_module}
     else
       case file_module.write(deps_path, :erlang.term_to_binary(updated_deps)) do
-        :ok -> {:ok, updated_deps}
+        :ok -> {:ok, updated_deps, type_hash_by_dependant_module}
         {:error, message} -> {:error, {:update_deps, message}}
       end
     end
@@ -123,6 +124,23 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     else
       {:ok, preconds}
     end
+  end
+
+  defp remove_unloadable_modules(deps) do
+    Enum.reduce(deps, %{}, fn {module, {path, dependants}}, acc ->
+      if Code.ensure_loaded?(module) do
+        updated_dependants = remove_unloadable_dependant_modules(dependants)
+        Map.put(acc, module, {path, updated_dependants})
+      else
+        acc
+      end
+    end)
+  end
+
+  defp remove_unloadable_dependant_modules(dependants) do
+    Enum.filter(dependants, fn {dependant_module, _type_old_hash, _precond_old_hash} ->
+      Code.ensure_loaded?(dependant_module)
+    end)
   end
 
   defp remove_modules_with_unloadable_types(deps, type_hash_by_dependant_module) do
