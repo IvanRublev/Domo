@@ -756,7 +756,7 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## v1.5.12
 
-* Fix to pass the compilation after removing the unreferenced module using Domo from the project.
+* Fix to pass the compilation after removing the unreferenced module using Domo from the project. Tanks to https://github.com/graupe and https://github.com/xpgdk !
 
 ## v1.5.11
 
