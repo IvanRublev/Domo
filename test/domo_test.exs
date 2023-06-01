@@ -6,6 +6,7 @@ defmodule DomoTest do
 
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.CodeEvaluation
 
   Code.compiler_options(
     no_warn_undefined: [
@@ -1099,6 +1100,36 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert [path] == arena_paths
       assert message =~ expected_output
+    end
+
+    test "pass without crash when the struct using Domo and its dependencies were removed" do
+      DomoMixTask.start_plan_collection([])
+      [airplane_path, seat_path] = compile_airplane_and_seat_structs()
+      {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
+
+      seat = struct!(Airplane.Seat, id: "A2")
+      assert _ = Airplane.new!(seats: [seat])
+
+      File.rm!(seat_path)
+      :code.purge(Airplane.Seat)
+      :code.delete(Airplane.Seat)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.Seat.TypeEnsurer.beam"))
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.Seat.beam"))
+      File.rm!(airplane_path)
+      :code.purge(Airplane)
+      :code.delete(Airplane)
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.TypeEnsurer.beam"))
+      File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.beam"))
+
+      # when a module was removed and no other module was compiled -> Elixir hasn't been activated -> im_mix_compile?/0 returns false and that were leading to crash
+      allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
+
+      on_exit(fn ->
+        Placebo.unstub()
+      end)
+
+      DomoMixTask.start_plan_collection([])
+      assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
   end
 
