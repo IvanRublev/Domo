@@ -25,6 +25,17 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       :ok
     end
 
+    test "report if it is running" do
+      plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
+      preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)
+
+      refute ResolvePlanner.started?(plan_path)
+
+      {:ok, _pid} = ResolvePlanner.start(plan_path, preconds_path, [])
+
+      assert ResolvePlanner.started?(plan_path)
+    end
+
     test "be started once for a plan file" do
       plan_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :plan)
       preconds_path = DomoMixTask.manifest_path(MixProjectStubCorrect, :preconds)

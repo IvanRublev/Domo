@@ -1,7 +1,6 @@
 defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   @moduledoc false
 
-  alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   @type_ensurer_atom :TypeEnsurer
@@ -54,10 +53,15 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
         ok
 
       :error ->
-        if CodeEvaluation.in_mix_compile?() do
-          {:error, {:no_beam_file, module}}
-        else
+        # We use the presences of the :in_memory ResolvePlanner as a
+        # proxy for whether we're running outside of `mix compile` or
+        # not. We can not reliably use CodeEvaluation.in_mix_compile?,
+        # because it will return false if code got deleted and no
+        # compilation was necessary.
+        if ResolvePlanner.started?(:in_memory) do
           ResolvePlanner.get_types(:in_memory, module)
+        else
+          {:error, {:no_beam_file, module}}
         end
     end
   end

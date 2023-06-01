@@ -45,6 +45,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
     GenServer.start_link(__MODULE__, state, name: via(plan_path))
   end
 
+  def started?(plan_path) do
+    name = via(plan_path)
+    pid = GenServer.whereis(name)
+    pid != nil
+  end
+
   defguard is_plan(value)
            when is_map_key(value, :filed_types_to_resolve) and
                   is_map_key(value, :environments) and

@@ -5,6 +5,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
   alias Domo.CodeEvaluation
   alias Domo.TypeEnsurerFactory
   alias Domo.TypeEnsurerFactory.ModuleInspector
+  alias Domo.TypeEnsurerFactory.ResolvePlanner
 
   @moduletag in_mix_compile?: false
 
@@ -60,6 +61,14 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       assert {:ok, [type: {:id, {:type, _, :integer, []}, []}]} = ModuleInspector.fetch_direct_types(bytecode)
       assert :error = ModuleInspector.fetch_direct_types(NonexistentModule)
     end
+
+    test "should NOT fall-back to resolving types from memory, unless in-memory resolve planner is actually started" do
+      allow ResolvePlanner.started?(:in_memory), meck_options: [:passthrough], return: false
+      allow ResolvePlanner.get_types(:in_memory, NonexistentModule), return: {:error, :no_types_registered}
+
+      ModuleInspector.beam_types(NonexistentModule)
+      refute_called ResolvePlanner.get_types([:in_memory, NonexistentModule])
+    end
   end
 
   describe "ModuleInspector for types in mix task should" do
@@ -80,7 +89,9 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
     test "return no_beam_file error if no beam file can be found for module or no types can be loaded" do
       allow Code.Typespec.fetch_types(any()), meck_options: [:passthrough], return: :error
+      allow ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:no_beam_file, ModuleNested.Module.Submodule}
       assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} == ModuleInspector.beam_types(ModuleNested.Module.Submodule)
+      refute_called ResolvePlanner.get_types(:in_memory, ModuleNested.Module.Submodule)
     end
 
     test "return type_not_found error when can't find :t type in quoted types list" do
@@ -188,6 +199,14 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       on_exit(fn -> ResolverTestHelper.stop_in_memory_planner() end)
     end
 
+    test "should resolve types from memory if in-memory resolve planner is started" do
+      allow ResolvePlanner.started?(:in_memory), meck_options: [:passthrough], return: true
+      expect ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered}
+
+      TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, [])
+      ModuleInspector.beam_types(NonexistentModule)
+    end
+
     test "load types from kept in memory and from beam file for the module" do
       assert {:ok, []} = ModuleInspector.beam_types(NoTypesModule)
 
@@ -202,6 +221,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     end
 
     test "return error not finding module in memory or in beam" do
+      expect ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered}
       TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, [])
       assert {:error, :no_types_registered} == ModuleInspector.beam_types(NonexistentModule)
     end

@@ -754,6 +754,10 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 
 ## Changelog
 
+## v1.5.12
+
+* Fix to pass the compilation after removing the unreferenced module using Domo from the project. Tanks to https://github.com/graupe and https://github.com/xpgdk !
+
 ## v1.5.11
 
 * Make Domo compiler pass on Elixir warnings to ElixirLS. 
