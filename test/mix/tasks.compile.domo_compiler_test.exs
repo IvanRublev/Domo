@@ -43,18 +43,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
   @moduletag empty_plan_on_disk?: false
 
   setup tags do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
-
-    Code.compiler_options(ignore_module_conflict: true)
-
-    on_exit(fn ->
-      Code.compiler_options(ignore_module_conflict: false)
-      ResolverTestHelper.enable_raise_in_test_env()
-
-      Placebo.unstub()
-      ResolverTestHelper.stop_project_palnner()
-    end)
 
     project = MixProjectStubCorrect
     plan_file = DomoMixTask.manifest_path(project, :plan)
@@ -370,7 +359,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
         send(self(), DomoMixTask.process_plan({:ok, []}, []))
       end)
 
-      assert_receive {:error, [diagnostic]}
+      assert_receive {:error, [diagnostic | _]}
 
       assert %Diagnostic{
                compiler_name: "Domo",

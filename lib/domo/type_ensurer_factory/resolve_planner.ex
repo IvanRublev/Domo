@@ -3,6 +3,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   use GenServer
 
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Atomizer
 
   @default_plan %{
@@ -86,7 +87,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   defp binary_to_term(binary) do
     try do
-      {:ok, :erlang.binary_to_term(binary)}
+      {:ok, TermSerializer.binary_to_term(binary)}
     rescue
       _error -> {:error, :malformed_binary}
     end
@@ -361,8 +362,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   defp do_flush(state) do
     if anything_to_persist?(state) do
-      plan_binary = :erlang.term_to_binary(state.plan)
-      preconds_binary = :erlang.term_to_binary(state.preconds)
+      plan_binary = TermSerializer.term_to_binary(state.plan)
+      preconds_binary = TermSerializer.term_to_binary(state.preconds)
 
       with :ok <- File.write(state.plan_path, plan_binary),
            :ok <- File.write(state.preconds_path, preconds_binary) do

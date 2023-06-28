@@ -4,32 +4,11 @@ defmodule DomoFuncNamesTest do
 
   alias Domo.CodeEvaluation
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.MixProject
 
   setup do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
-
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(src_path())
-
-    on_exit(fn ->
-      Code.compiler_options(ignore_module_conflict: false)
-      ResolverTestHelper.enable_raise_in_test_env()
-    end)
-
-    config = Mix.Project.config()
-    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
-    allow Mix.Project.config(), meck_options: [:passthrough], return: config
-
     :ok
-  end
-
-  defp src_path do
-    tmp_path("/src")
-  end
-
-  defp src_path(path) do
-    Path.join([src_path(), path])
   end
 
   test "generates constructor with name set with gen_constructor_name option globally or overridden with use Domo" do
@@ -51,7 +30,7 @@ defmodule DomoFuncNamesTest do
   end
 
   defp compile_titled_struct(module_name, use_arg \\ nil) do
-    path = src_path("/titled_#{Enum.random(100..100_000)}.ex")
+    path = MixProject.out_of_project_tmp_path("/titled_#{Enum.random(100..100_000)}.ex")
 
     use_domo =
       ["use Domo", use_arg]
@@ -69,11 +48,6 @@ defmodule DomoFuncNamesTest do
     end
     """)
 
-    compile_with_elixir()
-  end
-
-  defp compile_with_elixir do
-    command = Mix.Task.task_name(Mix.Tasks.Compile.Elixir)
-    Mix.Task.rerun(command, [])
+    CompilerHelpers.compile_with_elixir()
   end
 end

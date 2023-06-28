@@ -1,6 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Resolver do
   @moduledoc false
 
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.ModuleInspector
@@ -23,7 +24,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->
-        map = :erlang.binary_to_term(binary)
+        map = TermSerializer.binary_to_term(binary)
 
         {:ok,
          [
@@ -40,7 +41,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   defp join_preconds(preconds_path, plan) do
     case File.read(preconds_path) do
       {:ok, binary} ->
-        map = :erlang.binary_to_term(binary)
+        map = TermSerializer.binary_to_term(binary)
         {:ok, Keyword.put(plan, :preconds, map)}
 
       _err ->
@@ -75,6 +76,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
 
         case resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
           {module_filed_types, [], module_deps, module_ecto_assocs} ->
+            if verbose? do
+              IO.puts("Dependencies: #{inspect(module_deps)}")
+            end
+
             updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
             {:ok, module_filed_types, updated_module_deps, module_ecto_assocs}
 
@@ -201,7 +206,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   end
 
   defp write_resolved_types(map, types_path, file_module) do
-    binary = :erlang.term_to_binary(map)
+    binary = TermSerializer.term_to_binary(map)
 
     case file_module.write(types_path, binary) do
       :ok -> :ok
@@ -210,7 +215,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   end
 
   defp write_ecto_assocs(map, types_path, file_module) do
-    binary = :erlang.term_to_binary(map)
+    binary = TermSerializer.term_to_binary(map)
 
     case file_module.write(types_path, binary) do
       :ok -> :ok
@@ -225,13 +230,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
 
   defp merge_map_from_file(file, map, file_module) do
     case file_module.read(file) do
-      {:ok, binary} -> Map.merge(:erlang.binary_to_term(binary), map)
+      {:ok, binary} -> Map.merge(TermSerializer.binary_to_term(binary), map)
       _ -> map
     end
   end
 
   defp write_map(map, file, file_module) do
-    case file_module.write(file, :erlang.term_to_binary(map)) do
+    case file_module.write(file, TermSerializer.term_to_binary(map)) do
       :ok -> :ok
       {:error, err} -> {:error, %Error{file: file, message: {:deps_manifest_failed, err}}}
     end

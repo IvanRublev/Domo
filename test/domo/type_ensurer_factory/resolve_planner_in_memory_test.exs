@@ -3,16 +3,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
 
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
-  setup_all do
-    ResolverTestHelper.disable_raise_in_test_env()
-
-    on_exit(fn ->
-      ResolverTestHelper.enable_raise_in_test_env()
-    end)
-
-    :ok
-  end
-
   describe "ResolvePlanner for sake of start should" do
     setup do
       on_exit(fn ->

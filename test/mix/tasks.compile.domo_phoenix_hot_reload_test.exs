@@ -14,18 +14,7 @@ defmodule Domo.MixTasksCompileDomoPhoenixHotReloadTest do
                                                 """)
 
   setup do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
-
-    Code.compiler_options(ignore_module_conflict: true)
-
-    on_exit(fn ->
-      Code.compiler_options(ignore_module_conflict: false)
-      ResolverTestHelper.enable_raise_in_test_env()
-
-      Placebo.unstub()
-    end)
-
     :ok
   end
 

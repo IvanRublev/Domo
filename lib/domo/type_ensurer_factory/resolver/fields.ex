@@ -5,6 +5,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
   alias Domo.TypeEnsurerFactory.ModuleInspector
+  alias Domo.TermSerializer
 
   @max_arg_combinations_count 4096
 
@@ -34,9 +35,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {module, {field_types, struct_precondition}, field_errors, all_deps, all_ecto_assocs}
   end
 
-  def preconditions_hash(types_precond_description) do
-    types_precond_description |> :erlang.term_to_binary() |> :erlang.md5()
-  end
+  defdelegate preconditions_hash(types_precond_description), to: TermSerializer, as: :term_md5
 
   defp get_precondition(preconds, module, type_name) do
     preconds

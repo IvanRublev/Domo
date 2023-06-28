@@ -15,14 +15,7 @@ defmodule DomoUseIexTest do
   @moduletag in_mix_compile?: false
 
   setup tags do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: tags.in_mix_compile?
-
-    Code.compiler_options(ignore_module_conflict: true)
-
-    on_exit(fn ->
-      Code.compiler_options(ignore_module_conflict: false)
-    end)
 
     if tags.in_mix_compile? do
       DomoMixTask.start_plan_collection()
@@ -32,8 +25,6 @@ defmodule DomoUseIexTest do
       if tags.in_mix_compile? do
         DomoMixTask.stop_plan_collection()
       end
-
-      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     %{

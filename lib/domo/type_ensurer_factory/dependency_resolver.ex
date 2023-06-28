@@ -1,6 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.DependencyResolver do
   @moduledoc false
 
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.DependencyResolver.ElixirTask
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.ModuleInspector
@@ -58,7 +59,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
 
   defp decode_deps(binary) do
     try do
-      {:ok, :erlang.binary_to_term(binary)}
+      {:ok, TermSerializer.binary_to_term(binary)}
     rescue
       _error -> {:error, {:decode_deps, :malformed_binary}}
     end
@@ -66,7 +67,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
 
   defp decode_preconds(binary) do
     try do
-      {:ok, :erlang.binary_to_term(binary)}
+      {:ok, TermSerializer.binary_to_term(binary)}
     rescue
       _error -> {:error, {:decode_preconds, :malformed_binary}}
     end
@@ -99,7 +100,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
     if updated_deps == deps do
       {:ok, updated_deps, type_hash_by_dependant_module}
     else
-      case file_module.write(deps_path, :erlang.term_to_binary(updated_deps)) do
+      case file_module.write(deps_path, TermSerializer.term_to_binary(updated_deps)) do
         :ok -> {:ok, updated_deps, type_hash_by_dependant_module}
         {:error, message} -> {:error, {:update_deps, message}}
       end
@@ -117,7 +118,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolver do
       end)
 
     if map_size(updated_preconds) != map_size(preconds) do
-      case file_module.write(preconds_path, :erlang.term_to_binary(updated_preconds)) do
+      case file_module.write(preconds_path, TermSerializer.term_to_binary(updated_preconds)) do
         :ok -> {:ok, updated_preconds}
         {:error, message} -> {:error, {:update_preconds, message}}
       end

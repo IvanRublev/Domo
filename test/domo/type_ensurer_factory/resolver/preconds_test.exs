@@ -1,8 +1,9 @@
-defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
-  use Domo.FileCase
+defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
+  use Domo.FileCase, async: false
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Resolver
@@ -24,7 +25,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
       deps_file: deps_file,
       ecto_assocs_file: ecto_assocs_file
     } do
-      File.write!(plan_file, :erlang.term_to_binary(%{filed_types_to_resolve: nil, environments: nil, remote_types_as_any_by_module: nil}))
+      File.write!(plan_file, TermSerializer.term_to_binary(%{filed_types_to_resolve: nil, environments: nil, remote_types_as_any_by_module: nil}))
 
       assert {:error,
               [
@@ -387,13 +388,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       flush(planner)
 
-      assert {:error,
-              [
-                %Error{struct_module: UserTypes, message: "Precondition for value of iodata() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of iolist() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of identifier() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of timeout() type is not allowed."}
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert [
+        %Error{struct_module: UserTypes, message: "Precondition for value of identifier() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of iodata() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of iolist() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of timeout() type is not allowed."}
+      ] = Enum.sort(list)
     end
 
     test "return precondition is not supported error for Ecto.Schema types", %{
@@ -424,15 +425,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       flush(planner)
 
-      assert {:error,
-              [
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.belongs_to(t) type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.embeds_many(t) type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.embeds_one(t) type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.has_many(t) type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.has_one(t) type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.many_to_many(t) type is not allowed."},
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert [
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.belongs_to(t) type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.embeds_many(t) type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.embeds_one(t) type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.has_many(t) type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.has_one(t) type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.many_to_many(t) type is not allowed."},
+      ] = Enum.sort(list)
     end
 
     test "return precondition is not supported error for primitive types", %{
@@ -477,21 +478,21 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       flush(planner)
 
-      assert {:error,
-              [
-                %Error{struct_module: UserTypes, message: "Precondition for value of %{} type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of {} type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of <<>> type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of [] type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of boolean() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of :hello type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of 1 type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of reference() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of port() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of pid() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of no_return() type is not allowed."},
-                %Error{struct_module: UserTypes, message: "Precondition for value of none() type is not allowed."}
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert [
+        %Error{struct_module: UserTypes, message: "Precondition for value of %{} type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of 1 type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of :hello type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of <<>> type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of [] type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of boolean() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of no_return() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of none() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of pid() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of port() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of reference() type is not allowed."},
+        %Error{struct_module: UserTypes, message: "Precondition for value of {} type is not allowed."}
+      ] = Enum.sort(list)
     end
 
     test "register precondition for any/term type", %{

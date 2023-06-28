@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.12"
+  @version "1.5.13"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -45,8 +45,16 @@ defmodule Domo.MixProject do
   end
 
   # Specifies which paths to compile per environment.
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:test), do: ["lib", "test/support", out_of_project_tmp_path()]
   defp elixirc_paths(_), do: ["lib", "lib_std"]
+
+  def out_of_project_tmp_path do
+    Path.expand("../Domo_tmp", __DIR__)
+  end
+
+  def out_of_project_tmp_path(path) do
+    Path.join([out_of_project_tmp_path(), path])
+  end
 
   defp compilers(_), do: Mix.compilers()
 
@@ -54,7 +62,7 @@ defmodule Domo.MixProject do
     [
       # Development and test dependencies
       {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.0", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
@@ -70,13 +78,18 @@ defmodule Domo.MixProject do
   defp aliases do
     [
       benchmark: "cmd --cd ./benchmark_ecto_domo mix benchmark",
-      clean: ["clean", "cmd --cd ./benchmark_ecto_domo mix clean --deps", &clean_test_structs/1]
+      clean: ["clean", "cmd --cd ./benchmark_ecto_domo mix clean --deps", &clean_test_structs/1, &clean_out_of_project_tmp_path/1],
+      test: [&clean_out_of_project_tmp_path/1, "test"]
     ]
   end
 
   defp clean_test_structs(_) do
     path = Application.fetch_env!(:domo, :test_structs_path)
     Mix.shell().cmd("mix clean --deps", cd: path, env: [{"MIX_ENV", "test"}])
+  end
+
+  defp clean_out_of_project_tmp_path(_) do
+    File.rm_rf(out_of_project_tmp_path())
   end
 
   defp cli_env do

@@ -1,16 +1,18 @@
 defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
-  use Domo.FileCase
+  use Domo.FileCase, async: false
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.DependencyResolver.ElixirTask
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.DependencyResolver
   alias Domo.TypeEnsurerFactory.Error
+  alias Domo.MixProject
 
   import ResolverTestHelper
 
-  @source_dir tmp_path("/#{__MODULE__}")
+  @source_dir MixProject.out_of_project_tmp_path("/#{__MODULE__}")
 
   @module_path1 Path.join(@source_dir, "/module_path1.ex")
   @module_path2 Path.join(@source_dir, "/module_path2.ex")
@@ -29,8 +31,8 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
     allow File.rm(any()), meck_options: [:passthrough], return: :ok
 
     File.mkdir_p!(@source_dir)
-    File.write!(@deps_path, :erlang.term_to_binary(tags.deps))
-    File.write!(@preconds_path, :erlang.term_to_binary(tags.preconds))
+    File.write!(@deps_path, TermSerializer.term_to_binary(tags.deps))
+    File.write!(@preconds_path, TermSerializer.term_to_binary(tags.preconds))
 
     # December 11, 2018
     base_time = 1_544_519_753
@@ -56,8 +58,8 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
 
   describe "Dependency Resolver should" do
     test "return ok giving no deps file, that is Domo is not used" do
-      deps_path = tmp_path("nonexistent.dat")
-      preconds_path = tmp_path("preconds.dat")
+      deps_path = MixProject.out_of_project_tmp_path("nonexistent.dat")
+      preconds_path = MixProject.out_of_project_tmp_path("preconds.dat")
       refute File.exists?(deps_path)
 
       assert {:ok, []} = DependencyResolver.maybe_recompile_depending_structs(deps_path, preconds_path, [])
@@ -69,7 +71,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
           if String.ends_with?(path, "/deps.dat") do
             {:ok, <<0>>}
           else
-            {:ok, :erlang.term_to_binary(%{})}
+            {:ok, TermSerializer.term_to_binary(%{})}
           end
         end
       end
@@ -88,7 +90,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
           if String.ends_with?(path, "/preconds.dat") do
             {:ok, <<0>>}
           else
-            {:ok, :erlang.term_to_binary(%{})}
+            {:ok, TermSerializer.term_to_binary(%{})}
           end
         end
       end
@@ -289,7 +291,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
 
       assert @deps_path
              |> File.read!()
-             |> :erlang.binary_to_term() == %{
+             |> TermSerializer.binary_to_term() == %{
                Location => {@module_path1, []}
              }
 
@@ -324,7 +326,7 @@ defmodule Domo.TypeEnsurerFactory.DependencyResolverTest do
 
       assert @preconds_path
              |> File.read!()
-             |> :erlang.binary_to_term() == %{}
+             |> TermSerializer.binary_to_term() == %{}
 
       assert mtime(@module_path1) > mtime(@reference_path)
       assert_called ElixirTask.recompile_with_elixir(any())

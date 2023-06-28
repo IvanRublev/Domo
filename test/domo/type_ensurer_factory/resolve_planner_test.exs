@@ -1,18 +1,9 @@
 defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
-  use Domo.FileCase
+  use Domo.FileCase, async: false
 
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.ResolvePlanner
-
-  setup_all do
-    ResolverTestHelper.disable_raise_in_test_env()
-
-    on_exit(fn ->
-      ResolverTestHelper.enable_raise_in_test_env()
-    end)
-
-    :ok
-  end
 
   describe "ResolvePlanner for sake of start should" do
     setup do
@@ -243,7 +234,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       plan =
         plan_path
         |> File.read!()
-        |> :erlang.binary_to_term()
+        |> TermSerializer.binary_to_term()
 
       assert %{
                filed_types_to_resolve: %{
@@ -279,7 +270,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       preconds =
         preconds_path
         |> File.read!()
-        |> :erlang.binary_to_term()
+        |> TermSerializer.binary_to_term()
 
       assert %{
                TwoFieldStruct => [
@@ -311,7 +302,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       plan =
         plan_path
         |> File.read!()
-        |> :erlang.binary_to_term()
+        |> TermSerializer.binary_to_term()
 
       expected_field_types = %{TwoFieldStruct => %{first: atom_type}}
       assert %{filed_types_to_resolve: ^expected_field_types} = plan
@@ -322,7 +313,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       incorrect_default_env = %{__ENV__ | module: IncorrectDefault}
 
       plan_binary =
-        :erlang.term_to_binary(%{
+        TermSerializer.term_to_binary(%{
           filed_types_to_resolve: %{IncorrectDefault => %{second: quote(do: Generator.a_str())}},
           environments: %{IncorrectDefault => incorrect_default_env},
           structs_to_ensure: [
@@ -396,7 +387,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       plan =
         plan_path
         |> File.read!()
-        |> :erlang.binary_to_term()
+        |> TermSerializer.binary_to_term()
 
       assert %{
                filed_types_to_resolve: %{
@@ -425,7 +416,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
 
     @tag start_server: false
     test "be able to merge preconds with the preconds from disk", %{plan_path: plan_path, preconds_path: preconds_path} do
-      preconds_binary = :erlang.term_to_binary(%{IncorrectDefault => [field: "&byze_site(&1) == 150"]})
+      preconds_binary = TermSerializer.term_to_binary(%{IncorrectDefault => [field: "&byze_site(&1) == 150"]})
 
       File.write!(preconds_path, preconds_binary)
 
@@ -447,7 +438,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerTest do
       preconds =
         preconds_path
         |> File.read!()
-        |> :erlang.binary_to_term()
+        |> TermSerializer.binary_to_term()
 
       assert %{
                IncorrectDefault => [field: "&byze_site(&1) == 150"],

@@ -1,6 +1,7 @@
 defmodule Domo.TypeEnsurerFactory.Generator do
   @moduledoc false
 
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry
@@ -39,7 +40,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     case file_module.read(path) do
       {:ok, types_binary} ->
         try do
-          {:ok, :erlang.binary_to_term(types_binary)}
+          {:ok, TermSerializer.binary_to_term(types_binary)}
         rescue
           _error -> {decode_op, {:error, :malformed_binary}, path}
         end

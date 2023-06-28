@@ -7,9 +7,11 @@ defmodule DomoTest do
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias Domo.CodeEvaluation
+  alias Domo.MixProject
 
-  Code.compiler_options(
-    no_warn_undefined: [
+  CompilerHelpers.join_compiler_option(
+    :no_warn_undefined,
+    [
       Account,
       AccountAnyPrecond,
       AccountCustomErrors,
@@ -44,29 +46,6 @@ defmodule DomoTest do
       WebService
     ]
   )
-
-  setup do
-    ResolverTestHelper.disable_raise_in_test_env()
-
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(src_path())
-
-    on_exit(fn ->
-      File.rm_rf(tmp_path())
-      Code.compiler_options(ignore_module_conflict: false)
-      ResolverTestHelper.enable_raise_in_test_env()
-    end)
-
-    on_exit(fn ->
-      ResolverTestHelper.stop_project_palnner()
-    end)
-
-    config = Mix.Project.config()
-    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
-    allow Mix.Project.config(), meck_options: [:passthrough], return: config
-
-    :ok
-  end
 
   describe "Domo library" do
     test "adds the constructor and verification functions to a struct" do
@@ -1124,10 +1103,6 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       # when a module was removed and no other module was compiled -> Elixir hasn't been activated -> im_mix_compile?/0 returns false and that were leading to crash
       allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
 
-      on_exit(fn ->
-        Placebo.unstub()
-      end)
-
       DomoMixTask.start_plan_collection([])
       assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
@@ -1258,7 +1233,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   defp compile_account_any_precond_struct do
-    path = src_path("/account_any_precond.ex")
+    path = MixProject.out_of_project_tmp_path("/account_any_precond.ex")
 
     File.write!(path, """
     defmodule AccountAnyPrecond do
@@ -1274,12 +1249,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_account_opaque_precond_struct do
-    path = src_path("/account_opaque_precond.ex")
+    path = MixProject.out_of_project_tmp_path("/account_opaque_precond.ex")
 
     File.write!(path, """
     defmodule AccountOpaquePrecond do
@@ -1296,12 +1271,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_account_custom_errors_struct do
-    path = src_path("/account_custom_errors.ex")
+    path = MixProject.out_of_project_tmp_path("/account_custom_errors.ex")
 
     File.write!(path, """
     defmodule AccountCustomErrors do
@@ -1326,12 +1301,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_account_struct do
-    path = src_path("/account.ex")
+    path = MixProject.out_of_project_tmp_path("/account.ex")
 
     File.write!(path, """
     defmodule Account do
@@ -1354,12 +1329,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_post_comment_structs do
-    path = src_path("/post_comment.ex")
+    path = MixProject.out_of_project_tmp_path("/post_comment.ex")
 
     File.write!(path, """
     defmodule PostFieldPrecond.CommentNoTPrecond do
@@ -1407,12 +1382,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_post_field_and_nested_precond_struct do
-    path = src_path("/post_field_and_nested_precond.ex")
+    path = MixProject.out_of_project_tmp_path("/post_field_and_nested_precond.ex")
 
     File.write!(path, """
     defmodule PostFieldAndNestedPrecond do
@@ -1430,12 +1405,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_account_customized_messages_struct do
-    path = src_path("/account_customized_messages.ex")
+    path = MixProject.out_of_project_tmp_path("/account_customized_messages.ex")
 
     File.write!(path, """
     defmodule AccountCustomizedMessages do
@@ -1455,12 +1430,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_line_item_order_structs(precond_line_item_id, precond_line_item_t, precond_ref_t) do
-    path = src_path("/line_order.ex")
+    path = MixProject.out_of_project_tmp_path("/line_order.ex")
 
     File.write!(path, """
     defmodule LineItem do
@@ -1488,12 +1463,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_public_library_struct do
-    path = src_path("/public_library.ex")
+    path = MixProject.out_of_project_tmp_path("/public_library.ex")
 
     File.write!(path, """
     defmodule Book do
@@ -1527,12 +1502,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_money_struct do
-    path = src_path("/money.ex")
+    path = MixProject.out_of_project_tmp_path("/money.ex")
 
     File.write!(path, """
     defmodule Money do
@@ -1551,12 +1526,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_article_struct do
-    path = src_path("/article.ex")
+    path = MixProject.out_of_project_tmp_path("/article.ex")
 
     File.write!(path, """
     defmodule Article do
@@ -1572,12 +1547,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_library_struct do
-    path = src_path("/library.ex")
+    path = MixProject.out_of_project_tmp_path("/library.ex")
 
     File.write!(path, """
     defmodule Library do
@@ -1623,12 +1598,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_receiver_struct do
-    path = src_path("/receiver.ex")
+    path = MixProject.out_of_project_tmp_path("/receiver.ex")
 
     File.write!(path, """
     defmodule Receiver do
@@ -1644,12 +1619,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_receiver_user_type_after_t_struct do
-    path = src_path("/receiver_user_type_after_t.ex")
+    path = MixProject.out_of_project_tmp_path("/receiver_user_type_after_t.ex")
 
     File.write!(path, """
     defmodule ReceiverUserTypeAfterT do
@@ -1665,12 +1640,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_game_struct do
-    path = src_path("/game.ex")
+    path = MixProject.out_of_project_tmp_path("/game.ex")
 
     File.write!(path, """
     defmodule Game do
@@ -1686,12 +1661,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_game_with_string_status do
-    path = src_path("/game.ex")
+    path = MixProject.out_of_project_tmp_path("/game.ex")
 
     File.write!(path, """
     defmodule Game do
@@ -1704,12 +1679,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_arena_struct do
-    path = src_path("/arena.ex")
+    path = MixProject.out_of_project_tmp_path("/arena.ex")
 
     File.write!(path, """
     defmodule Arena do
@@ -1719,12 +1694,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_web_service_struct do
-    path = src_path("/web_service.ex")
+    path = MixProject.out_of_project_tmp_path("/web_service.ex")
 
     File.write!(path, """
     defmodule WebService do
@@ -1737,12 +1712,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_mapset_holder_struct do
-    path = src_path("/mapset_holder.ex")
+    path = MixProject.out_of_project_tmp_path("/mapset_holder.ex")
 
     File.write!(path, """
     defmodule MapSetHolder do
@@ -1754,12 +1729,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_parametrized_field_struct do
-    path = src_path("/parametrized_field.ex")
+    path = MixProject.out_of_project_tmp_path("/parametrized_field.ex")
 
     File.write!(path, """
     defmodule ParametrizedField do
@@ -1773,12 +1748,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_ecto_passenger_struct do
-    path = src_path("/ecto_passenger.ex")
+    path = MixProject.out_of_project_tmp_path("/ecto_passenger.ex")
 
     File.write!(path, """
     defmodule EctoPassenger do
@@ -1811,12 +1786,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_customer_structs do
-    address_path = src_path("/address.ex")
+    address_path = MixProject.out_of_project_tmp_path("/address.ex")
 
     File.write!(address_path, """
     defmodule Customer.Address do
@@ -1834,7 +1809,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    delivery_path = src_path("/delivery.ex")
+    delivery_path = MixProject.out_of_project_tmp_path("/delivery.ex")
 
     File.write!(delivery_path, """
     defmodule Customer.DeliveryInfo do
@@ -1849,7 +1824,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    customer_path = src_path("/customer.ex")
+    customer_path = MixProject.out_of_project_tmp_path("/customer.ex")
 
     File.write!(customer_path, """
     defmodule Customer do
@@ -1864,12 +1839,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [address_path, delivery_path, customer_path]
   end
 
   defp compile_leaf_structs(next_leaf_type) do
-    leaf_path = src_path("/leaf.ex")
+    leaf_path = MixProject.out_of_project_tmp_path("/leaf.ex")
 
     File.write!(leaf_path, """
     defmodule LeafHolder do
@@ -1888,12 +1863,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [leaf_path]
   end
 
   defp compile_airplane_and_seat_structs do
-    airplane_path = src_path("/airplane.ex")
+    airplane_path = MixProject.out_of_project_tmp_path("/airplane.ex")
 
     File.write!(airplane_path, """
     defmodule Airplane do
@@ -1906,7 +1881,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    seat_path = src_path("/seat.ex")
+    seat_path = MixProject.out_of_project_tmp_path("/seat.ex")
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
@@ -1919,13 +1894,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
-
+    CompilerHelpers.compile_with_elixir()
     [airplane_path, seat_path]
   end
 
   defp compile_seat_with_atom_id do
-    seat_path = src_path("/seat_atom_id.ex")
+    seat_path = MixProject.out_of_project_tmp_path("/seat.ex")
 
     File.write!(seat_path, """
     defmodule Airplane.Seat do
@@ -1938,13 +1912,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
-
+    CompilerHelpers.compile_with_elixir()
     [seat_path]
   end
 
   defp compile_module_with_default_struct(default_command) do
-    path = src_path("/valid_foo_default.ex")
+    path = MixProject.out_of_project_tmp_path("/valid_foo_default.ex")
 
     File.write!(path, """
     defmodule Foo do
@@ -1960,12 +1933,12 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
   end
 
   defp compile_struct_with_defaults(fields, opts) do
-    path = src_path("/valid_bar_default.ex")
+    path = MixProject.out_of_project_tmp_path("/valid_bar_default.ex")
 
     File.write!(path, """
     defmodule Bar do
@@ -1979,20 +1952,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
     [path]
-  end
-
-  defp src_path do
-    tmp_path("/src")
-  end
-
-  defp src_path(path) do
-    Path.join([src_path(), path])
-  end
-
-  defp compile_with_elixir do
-    command = Mix.Task.task_name(Mix.Tasks.Compile.Elixir)
-    Mix.Task.rerun(command, [])
   end
 end

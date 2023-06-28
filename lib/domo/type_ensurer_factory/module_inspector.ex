@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
   @moduledoc false
 
   alias Domo.TypeEnsurerFactory.ResolvePlanner
+  alias Domo.TermSerializer
 
   @type_ensurer_atom :TypeEnsurer
 
@@ -37,7 +38,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspector do
 
   def beam_types_hash(module) do
     case beam_types(module) do
-      {:ok, type_list} -> type_list |> :erlang.term_to_binary() |> :erlang.md5()
+      {:ok, type_list} -> TermSerializer.term_md5(type_list)
       _error -> nil
     end
   end

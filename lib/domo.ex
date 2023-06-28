@@ -1,5 +1,9 @@
 defmodule Domo do
-  @moduledoc Domo.Doc.readme_doc("<!-- Documentation -->")
+  @moduledoc """
+  #{Domo.Doc.readme_doc("<!-- Documentation0 -->")}
+  #{Domo.Doc.readme_doc("<!-- Documentation1 -->")}
+  #{Domo.Doc.readme_doc("<!-- Documentation2 -->") |> String.replace("(#configuration)", "(./readme.html#configuration)")}
+  """
 
   @using_options Domo.Doc.readme_doc("<!-- using_options -->")
 

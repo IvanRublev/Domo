@@ -250,21 +250,20 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       remote_user_type_file = RemoteUserType.env().file
       nonexisting_module_file = __ENV__.file
 
-      assert {:error,
-              [
-                %Error{
-                  compiler_module: Resolver,
-                  file: ^remote_user_type_file,
-                  struct_module: RemoteUserType,
-                  message: {:type_not_found, {RemoteUserType, "nonexistent_type", "RemoteUserType.nonexistent_type()"}}
-                },
-                %Error{
-                  compiler_module: Resolver,
-                  file: ^nonexisting_module_file,
-                  struct_module: NonexistingModule,
-                  message: {:no_beam_file, NonexistingModule}
-                }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert [
+        %Error{
+          compiler_module: Resolver,
+          file: nonexisting_module_file,
+          struct_module: NonexistingModule,
+          message: {:no_beam_file, NonexistingModule}
+        },
+        %Error{
+        compiler_module: Resolver,
+        file: remote_user_type_file,
+        struct_module: RemoteUserType,
+        message: {:type_not_found, {RemoteUserType, "nonexistent_type", "RemoteUserType.nonexistent_type()"}}
+      }] == Enum.sort(list)
     end
   end
 end

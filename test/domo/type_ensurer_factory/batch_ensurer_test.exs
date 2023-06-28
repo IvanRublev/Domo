@@ -3,38 +3,33 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.MixProject
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.BatchEnsurer
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
 
-  import ResolverTestHelper
-
   setup_all do
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(tmp_path())
-
-    on_exit(fn ->
-      File.rm_rf(tmp_path())
-      Code.compiler_options(ignore_module_conflict: false)
-    end)
-
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
-    disable_raise_in_test_env()
+
+    ResolverTestHelper.disable_raise_in_test_env()
     DomoMixTask.start_plan_collection()
 
     # Evaluate modules to prepare plan file for domo mix task
     Code.eval_file("test/struct_modules/lib/custom_struct_using_domo.ex")
 
     DomoMixTask.process_plan({:ok, []}, [])
-    enable_raise_in_test_env()
+    ResolverTestHelper.enable_raise_in_test_env()
 
     :ok
   end
 
-  setup [:setup_project_planner]
-
-  @source_dir tmp_path("/#{__MODULE__}")
+  @source_dir MixProject.out_of_project_tmp_path("/#{__MODULE__}")
   @moduletag touch_paths: []
+
+  setup context do
+    ResolverTestHelper.setup_project_planner(context)
+  end
 
   setup tags do
     File.mkdir_p!(@source_dir)
@@ -54,8 +49,6 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       File.rm_rf(@source_dir)
     end)
 
-    allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: false
-
     :ok
   end
 
@@ -73,7 +66,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
     end
 
     test "return the error if no fields in plan are found", %{plan_file: plan_file} do
-      File.write!(plan_file, :erlang.term_to_binary(%{}))
+      File.write!(plan_file, TermSerializer.term_to_binary(%{}))
 
       assert {:error,
               [
@@ -100,7 +93,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       planner: planner,
       plan_file: plan_file
     } do
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: "hello"],
@@ -108,7 +101,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         9
       )
 
-      flush(planner)
+      ResolverTestHelper.flush(planner)
 
       assert :ok == BatchEnsurer.ensure_struct_integrity(plan_file)
     end
@@ -119,7 +112,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
     } do
       file = Path.join(@source_dir, "/some_caller_module.ex")
 
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: :hello],
@@ -127,7 +120,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         9
       )
 
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: :world],
@@ -135,7 +128,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         12
       )
 
-      flush(planner)
+      ResolverTestHelper.flush(planner)
 
       assert {:error, {^file, 9, message}} = BatchEnsurer.ensure_struct_integrity(plan_file)
 
@@ -151,7 +144,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       planner: planner,
       plan_file: plan_file
     } do
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: "hello"],
@@ -159,7 +152,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         9
       )
 
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: :hello],
@@ -167,7 +160,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         10
       )
 
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: :world],
@@ -175,7 +168,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         12
       )
 
-      flush(planner)
+      ResolverTestHelper.flush(planner)
 
       some_mtime = mtime(@first_path)
       other_mtime = mtime(@second_path)
@@ -192,7 +185,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       planner: planner,
       plan_file: plan_file
     } do
-      plan_struct_integrity_ensurance(
+      ResolverTestHelper.plan_struct_integrity_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: :world],
@@ -200,7 +193,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         9
       )
 
-      flush(planner)
+      ResolverTestHelper.flush(planner)
 
       BatchEnsurer.ensure_struct_integrity(plan_file)
     end
@@ -213,7 +206,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       planner: planner,
       plan_file: plan_file
     } do
-      plan_struct_defaults_ensurance(
+      ResolverTestHelper.plan_struct_defaults_ensurance(
         planner,
         CustomStructUsingDomo,
         [title: "hello"],
@@ -221,7 +214,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         8
       )
 
-      plan_struct_defaults_ensurance(
+      ResolverTestHelper.plan_struct_defaults_ensurance(
         planner,
         Recipient,
         [title: "hello"],
@@ -229,7 +222,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         9
       )
 
-      plan_struct_defaults_ensurance(
+      ResolverTestHelper.plan_struct_defaults_ensurance(
         planner,
         RecipientWarnOverriden,
         [title: "world"],
@@ -237,7 +230,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
         11
       )
 
-      flush(planner)
+      ResolverTestHelper.flush(planner)
 
       some_mtime = mtime(@first_path)
       other_mtime = mtime(@second_path)

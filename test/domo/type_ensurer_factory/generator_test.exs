@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   use Domo.FileCase, async: false
   use Placebo
 
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.Generator
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
@@ -19,13 +20,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
     types_content = tags.types_content
 
     unless is_nil(types_content) do
-      File.write!(types_file, :erlang.term_to_binary(types_content))
+      File.write!(types_file, TermSerializer.term_to_binary(types_content))
     end
 
     ecto_assocs_content = tags.ecto_assocs_content
 
     unless is_nil(ecto_assocs_content) do
-      File.write!(ecto_assocs_file, :erlang.term_to_binary(ecto_assocs_content))
+      File.write!(ecto_assocs_file, TermSerializer.term_to_binary(ecto_assocs_content))
     end
 
     on_exit(fn ->
@@ -99,12 +100,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       type_ensurer1_path = Path.join(code_path, "/some_nested_module1_type_ensurer.ex")
       type_ensurer2_path = Path.join(code_path, "/empty_struct_type_ensurer.ex")
 
-      assert {:ok,
-              [
-                type_ensurer2_path,
-                type_ensurer_path,
-                type_ensurer1_path
-              ]} == Generator.generate(types_file, ecto_assocs_file, code_path)
+      assert {:ok, list} = Generator.generate(types_file, ecto_assocs_file, code_path)
+      assert [
+        type_ensurer2_path,
+        type_ensurer_path,
+        type_ensurer1_path
+      ] == Enum.sort(list)
     end
 
     @tag types_content: nil
@@ -176,7 +177,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
         @types_file types_file
 
         def read(@types_file) do
-          {:ok, :erlang.term_to_binary(%{})}
+          {:ok, TermSerializer.term_to_binary(%{})}
         end
 
         def read(_path) do
@@ -202,7 +203,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
 
         def read(_path) do
           {:ok,
-           :erlang.term_to_binary(types_by_module_content(%{
+           TermSerializer.term_to_binary(types_by_module_content(%{
              Some.Nested.Module1 => %{former: [quote(do: integer())]}
            }))}
         end

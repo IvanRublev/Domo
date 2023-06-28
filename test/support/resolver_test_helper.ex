@@ -2,6 +2,7 @@ defmodule ResolverTestHelper do
   @moduledoc false
 
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.ResolvePlanner
 
@@ -67,7 +68,7 @@ defmodule ResolverTestHelper do
   end
 
   def preconds_hash(descriptions) when is_list(descriptions) do
-    descriptions |> :erlang.term_to_binary() |> :erlang.md5()
+    TermSerializer.term_md5(descriptions)
   end
 
   @literals_and_basic [
@@ -96,7 +97,9 @@ defmodule ResolverTestHelper do
     quote(context: TwoFieldStruct, do: <<_::9>>),
     quote(context: TwoFieldStruct, do: <<_::_*8>>),
     quote(context: TwoFieldStruct, do: <<_::8, _::_*2>>),
-    quote(context: TwoFieldStruct, do: (() -> any())),
+    # formatting without first () in Elixir 1.15
+    # because of that put tuple instead of quote(context: TwoFieldStruct, do: (() -> any())),
+    [{:->, [], [[], {:any, [], []}]}],
     quote(context: TwoFieldStruct, do: (... -> any())),
     quote(context: TwoFieldStruct, do: []),
     quote(context: TwoFieldStruct, do: %NoFieldsStruct{}),
@@ -385,18 +388,18 @@ defmodule ResolverTestHelper do
   def read_types(types_file) do
     types_file
     |> File.read!()
-    |> :erlang.binary_to_term()
+    |> TermSerializer.binary_to_term()
   end
 
   def read_deps(deps_file) do
     deps_file
     |> File.read!()
-    |> :erlang.binary_to_term()
+    |> TermSerializer.binary_to_term()
   end
 
   def read_ecto_assocs(assocs_file) do
     assocs_file
     |> File.read!()
-    |> :erlang.binary_to_term()
+    |> TermSerializer.binary_to_term()
   end
 end

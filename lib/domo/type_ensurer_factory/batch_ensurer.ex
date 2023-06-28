@@ -2,6 +2,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   @moduledoc false
 
   alias Domo.ErrorBuilder
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Alias
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Error
@@ -23,7 +24,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp read_plan(plan_path) do
     case File.read(plan_path) do
       {:ok, binary} ->
-        {:ok, :erlang.binary_to_term(binary)}
+        {:ok, TermSerializer.binary_to_term(binary)}
 
       _err ->
         {:error, %Error{file: plan_path, message: :no_plan}}

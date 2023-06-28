@@ -63,14 +63,14 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
     stop_plan_collection()
 
-    prev_ignore_module_conflict = Map.get(Code.compiler_options(), :ignore_module_conflict, false)
-    Code.compiler_options(ignore_module_conflict: true)
+    prev_ignore_module_conflict = Code.get_compiler_option(:ignore_module_conflict)
+    Code.put_compiler_option(:ignore_module_conflict, true)
 
     paths = {plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, code_path}
     verbose? = Enum.member?(args, "--verbose")
     result = build_ensurer_modules(paths, verbose?)
 
-    Code.compiler_options(ignore_module_conflict: prev_ignore_module_conflict)
+    Code.put_compiler_option(:ignore_module_conflict, prev_ignore_module_conflict)
 
     maybe_print_errors(result)
 

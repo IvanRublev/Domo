@@ -6,37 +6,12 @@ defmodule DomoFuncTest do
 
   alias Domo.CodeEvaluation
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
+  alias Domo.MixProject
 
   setup_all do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), meck_options: [:passthrough], return: true
 
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(tmp_path())
-
-    on_exit(fn ->
-      Code.compiler_options(ignore_module_conflict: false)
-    end)
-
     :ok
-  end
-
-  setup do
-    File.mkdir_p!(src_path())
-
-    config = Mix.Project.config()
-    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
-    allow Mix.Project.config(), meck_options: [:passthrough], return: config
-
-    :ok
-  end
-
-  defp src_path do
-    tmp_path("/src")
-  end
-
-  defp src_path(path) do
-    Path.join([src_path(), path])
   end
 
   def build_sample_structs(_context) do
@@ -474,7 +449,7 @@ defmodule DomoFuncTest do
   end
 
   defp compile_recipient_foreign_struct(module_name, use_arg \\ nil, pre_use \\ "") do
-    path = src_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
+    path = MixProject.out_of_project_tmp_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 
     use_domo =
       ["use Domo", use_arg, "skip_defaults: true"]
@@ -497,11 +472,11 @@ defmodule DomoFuncTest do
     end
     """)
 
-    compile_with_elixir()
+    CompilerHelpers.compile_with_elixir()
   end
 
   defp compile_meta_fields_struct(module_name) do
-    path = src_path("/meta_fields_#{Enum.random(100..100_000)}.ex")
+    path = MixProject.out_of_project_tmp_path("/meta_fields_#{Enum.random(100..100_000)}.ex")
 
     File.write!(path, """
     defmodule #{module_name} do
@@ -521,11 +496,6 @@ defmodule DomoFuncTest do
     end
     """)
 
-    compile_with_elixir()
-  end
-
-  defp compile_with_elixir do
-    command = Mix.Task.task_name(Mix.Tasks.Compile.Elixir)
-    Mix.Task.rerun(command, [])
+    CompilerHelpers.compile_with_elixir()
   end
 end

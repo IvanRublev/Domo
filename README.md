@@ -9,10 +9,12 @@ Mix.install([:domo], force: true)
 |[![Elixir CI](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml/badge.svg)](https://github.com/IvanRublev/Domo/actions/workflows/ci.yml)|[![Method TDD](https://img.shields.io/badge/method-TDD-blue)](#domo)|[![hex.pm version](http://img.shields.io/hexpm/v/domo.svg?style=flat)](https://hex.pm/packages/domo)|
 |-|-|-|
 
-<!-- Documentation -->
+<!-- Documentation0 -->
 
 A library to validate values of nested structs with their type spec `t()` 
 and associated precondition functions.
+
+<!-- Documentation0 -->
 
 ### Example apps
 
@@ -24,24 +26,36 @@ and associated precondition functions.
 
 🔗 [TypedStruct + Domo combo in example_typed_integrations app](https://github.com/IvanRublev/Domo/tree/master/example_typed_integrations)
 
+<!-- Documentation1 -->
+
 ### Description
 
-Used in a struct's module, the library adds constructor, validation,
-and reflection functions. When called, constructor and validation functions
-guarantee the following:
+The library adds constructor, validation, and reflection functions to a struct module. 
+When called, constructor and validation functions guarantee the following:
 
 * A struct or a group of nested structs conforms to their `t()` types.
 * The struct's data consistently follows the business rules given 
-  by type-associated precondition functions.
+  by type-associated precondition functions registered via `precond` macro.
 
 If the conditions described above are not met, the constructor
 and validation functions return an error.
 
-The business rule expressed via the precondition function can be shared 
-across all structs referencing the appropriate type.
+The business rule expressed via the precondition function is type-associated, 
+which affects all structs referencing the appropriate type and using Domo.
 
 In terms of Domain Driven Design, types and associated precondition functions
 define the invariants relating structs to each other.
+
+> #### `use Domo` {: .info}
+>
+> When you `use Domo`, the `Domo` module will define the following functions:
+> * `new` and `new!` to create a valid struct
+> * `ensure_type` and `ensure_type!` to validate the existing struct
+> * reflection functions `required_fields` and `typed_fields`
+>
+> See the [Callbacks](#callbacks) section for more details.
+
+<!-- Documentation1 -->
 
 ## Tour
 
@@ -224,13 +238,13 @@ PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
 That output contains only a flattened list of precondition error messages
 from the deeply nested structure.
 
+<!-- Documentation2 -->
+
 ## Custom constructor function
 
-Sometimes a value for the struct's field can be generated during the construction.
-By default, Domo generates the `new(!)/1` constructor functions for you, 
-which can be composable with a custom one. 
-You can create the custom constructor function with the same name 
-by instructing Domo to use another one with `gen_constructor_name` option, 
+Sometimes a default value for the struct's field must be generated during the construction.
+To reuse the `new(!)/1` function's name and keep the generated value validated,
+instruct Domo to use another name for its constructor with `gen_constructor_name` option, 
 like the following:
 
 ```elixir
@@ -271,8 +285,10 @@ Foo.new!(15245)
 At the project's compile-time, Domo performs the following checks:
 
 * It automatically validates that the default values given with `defstruct/1`
-  conform to struct's type and fulfill preconditions (can be disabled, 
-  see `__using__/1` for more details).
+  conform to the struct's type and fulfil preconditions (can be disabled, 
+  see `__using__/1` for more details). You can turn off this behaviour 
+  by specifying `skip_defaults` option; see [Configuration](#configuration) section
+  for details.
 
 * It ensures that the struct using Domo built with `new(!)/1` function
   to be a default argument for a function or a default value for a struct's field
@@ -484,6 +500,20 @@ messages from domo in Interactive Elixir console.
 
 <!-- using_options -->
 
+## Limitations
+
+Parametrized types are not supported because it adds lots of complexity.
+Library returns `{:type_not_found, :key}` error 
+for `@type dict(key, value) :: [{key, value}]` definition.
+Library returns error for type referencing parametrized type like
+`@type field :: container(integer())`.
+
+Primitive types referencing themselves are not supported. 
+Library returns an error for `@type leaf :: leaf | nil` definition. 
+On the other hand, structs referencing themselves are supported. 
+The library will build `TypeEnsurer` for the following definition
+`@type t :: %__MODULE__{leaf: t | nil}` and validate.
+
 ## Performance 🐢
 
 ### Compilation-time
@@ -563,20 +593,6 @@ Domo.Changeset validate_type/1       238.69 MB - 0.97x memory usage -7.04444 MB
 **All measurements for memory usage were the same**
 ```
 
-## Limitations
-
-Parametrized types are not supported because it adds lots of complexity.
-Library returns `{:type_not_found, :key}` error 
-for `@type dict(key, value) :: [{key, value}]` definition.
-Library returns error for type referencing parametrized type like
-`@type field :: container(integer())`.
-
-Primitive types referencing themselves are not supported. 
-Library returns an error for `@type leaf :: leaf | nil` definition. 
-On the other hand, structs referencing themselves are supported. 
-The library will build `TypeEnsurer` for the following definition
-`@type t :: %__MODULE__{leaf: t | nil}` and validate.
-
 ## Migration
 
 To migrate to a new version of Domo, please, clean and recompile
@@ -603,7 +619,7 @@ Here's how:
 7. Remove `config :domo, :gen_constructor_name` configuration 
    because Domo generates constructor wiht `new` name by default.
 
-<!-- Documentation -->
+<!-- Documentation2 -->
 
 ## Callbacks
 
@@ -753,6 +769,12 @@ F.e. with `validate_required/2` call in the `Ecto` changeset.
 3. Make a PR to this repository
 
 ## Changelog
+
+## v1.5.13
+
+* Fix to create .mix directory to compile with Elixir 1.15
+* Fix to make uninvolved elixir compiler options to have original values instead of default ones during domo phase of compilation.
+* Fix to support binary term representation defaults in Erlang OTP 26
 
 ## v1.5.12
 

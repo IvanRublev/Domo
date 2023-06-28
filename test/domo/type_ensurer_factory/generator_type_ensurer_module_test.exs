@@ -6,23 +6,10 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
   alias Domo.ErrorBuilder
   alias Domo.TypeEnsurerFactory.Precondition
 
-  setup_all do
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(tmp_path())
-
-    on_exit(fn ->
-      File.rm_rf(tmp_path())
-      Code.compiler_options(ignore_module_conflict: false)
-    end)
-  end
-
   setup do
-    ResolverTestHelper.disable_raise_in_test_env()
-
     on_exit(fn ->
       :code.purge(TypeEnsurer)
       :code.delete(TypeEnsurer)
-      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     :ok
@@ -50,8 +37,6 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "Generated TypeEnsurer module" do
     setup do
-      ResolverTestHelper.disable_raise_in_test_env()
-
       load_type_ensurer_module_with_no_preconds(%{
         __example_meta_field__: [quote(do: atom())],
         __any_meta_field__: [quote(do: term())],

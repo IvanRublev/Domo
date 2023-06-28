@@ -3,6 +3,7 @@ defmodule Domo.CodeEvaluationTest do
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.MixProject
 
   @answer_holder_source """
   defmodule AnswerBaker do
@@ -20,32 +21,13 @@ defmodule Domo.CodeEvaluationTest do
   end
   """
 
-  setup do
-    ResolverTestHelper.disable_raise_in_test_env()
-
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(src_path())
-
-    on_exit(fn ->
-      File.rm_rf(tmp_path())
-      Code.compiler_options(ignore_module_conflict: false)
-      ResolverTestHelper.enable_raise_in_test_env()
-    end)
-
-    config = Mix.Project.config()
-    config = Keyword.put(config, :elixirc_paths, [src_path() | config[:elixirc_paths]])
-    allow Mix.Project.config(), meck_options: [:passthrough], return: config
-
-    :ok
-  end
-
   describe "in_mix_compile?" do
     test "returns true executed with `mix compile` command" do
-      path = src_path("/raising_on_mix_compile.ex")
+      path = MixProject.out_of_project_tmp_path("/raising_on_mix_compile.ex")
 
       File.write!(path, @answer_holder_source)
 
-      compile_with_elixir()
+      CompilerHelpers.compile_with_elixir()
       assert apply(AnswerHolder, :in_mix_compile_return_value, []) == true
     end
 
@@ -75,18 +57,5 @@ defmodule Domo.CodeEvaluationTest do
 
     CodeEvaluation.put_plan_collection(false)
     assert CodeEvaluation.in_plan_collection?() == false
-  end
-
-  defp src_path do
-    tmp_path("/src")
-  end
-
-  defp src_path(path) do
-    Path.join([src_path(), path])
-  end
-
-  defp compile_with_elixir do
-    command = Mix.Task.task_name(Mix.Tasks.Compile.Elixir)
-    Mix.Task.rerun(command, [])
   end
 end

@@ -1,8 +1,9 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
-  use Domo.FileCase
+  use Domo.FileCase, async: false
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.TermSerializer
   alias Domo.TypeEnsurerFactory.Error
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver
@@ -276,7 +277,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
 
       File.write!(
         deps_file,
-        :erlang.term_to_binary(%{
+        TermSerializer.term_to_binary(%{
           ModuleStoredBefore => {".../module_stored_before.ex", nested_dependant},
           AffectedModule => {".../affected_module.ex", some_module_dependant},
           LocalUserType => {".../previous_local_user.ex", previous_deps}

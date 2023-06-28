@@ -4,18 +4,6 @@ defmodule Domo.ChangesetTest do
 
   alias Domo.Changeset
 
-  setup_all do
-    Code.compiler_options(ignore_module_conflict: true)
-    File.mkdir_p!(tmp_path())
-
-    on_exit(fn ->
-      File.rm_rf(tmp_path())
-      Code.compiler_options(ignore_module_conflict: false)
-    end)
-
-    :ok
-  end
-
   describe "validate_type/1" do
     test "raises no schema module error if changeset has map data" do
       assert_raise RuntimeError,

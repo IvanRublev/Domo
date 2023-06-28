@@ -8,13 +8,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
   alias Domo.TypeEnsurerFactory.Precondition
 
   setup do
-    ResolverTestHelper.disable_raise_in_test_env()
     allow CodeEvaluation.in_mix_compile?(), return: true
 
     on_exit(fn ->
       :code.purge(TypeEnsurer)
       :code.delete(TypeEnsurer)
-      ResolverTestHelper.enable_raise_in_test_env()
     end)
 
     :ok
