@@ -448,6 +448,32 @@ defmodule DomoFuncTest do
     assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
   end
 
+  test "__t__/0 returns string of type definition for the struct" do
+    DomoMixTask.start_plan_collection()
+    compile_meta_fields_struct("MetaDefaults")
+    DomoMixTask.process_plan({:ok, []}, [])
+
+    descr = apply(MetaDefaults, :__t__, [])
+
+    case ElixirVersion.version() do
+      [1, minor, _] when minor < 12 ->
+        assert descr ==
+                 "%MetaDefaults{__hidden_any__: any(), __hidden_atom__: atom(), __meta__: String.t(), custom_struct: CustomStructUsingDomo.t(), placeholder: term(), title: Recipient.name()}"
+
+      [1, minor, _] when minor >= 12 ->
+        assert descr == """
+               %MetaDefaults{
+                 __hidden_any__: any(),
+                 __hidden_atom__: atom(),
+                 __meta__: String.t(),
+                 custom_struct: CustomStructUsingDomo.t(),
+                 placeholder: term(),
+                 title: Recipient.name()
+               }\
+               """
+    end
+  end
+
   defp compile_recipient_foreign_struct(module_name, use_arg \\ nil, pre_use \\ "") do
     path = MixProject.out_of_project_tmp_path("/recipient_foreign_#{Enum.random(100..100_000)}.ex")
 

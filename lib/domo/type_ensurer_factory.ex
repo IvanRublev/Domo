@@ -80,7 +80,7 @@ defmodule Domo.TypeEnsurerFactory do
   def collect_types_for_domo_compiler(plan_path, env, bytecode) do
     :ok = ResolvePlanner.keep_module_environment(plan_path, env.module, env)
 
-    {:"::", _, [{:t, _, _}, {:%, _, [_module_name, {:%{}, _, field_type_list}]}]} =
+    quoted_type =
       bytecode
       |> ModuleInspector.fetch_direct_types()
       |> elem(1)
@@ -89,6 +89,11 @@ defmodule Domo.TypeEnsurerFactory do
         _ -> nil
       end)
       |> Code.Typespec.type_to_quoted()
+
+    {:"::", _, [{:t, _, _}, {:%, _, [_module_name, {:%{}, _, field_type_list}]} = quoted_definition]} = quoted_type
+
+    t_reflection = Macro.to_string(quoted_definition)
+    :ok = ResolvePlanner.keep_struct_t_reflection(plan_path, env.module, t_reflection)
 
     if Enum.empty?(field_type_list) do
       ResolvePlanner.plan_empty_struct(plan_path, env.module)
@@ -252,30 +257,35 @@ defmodule Domo.TypeEnsurerFactory do
       fields: plan.filed_types_to_resolve,
       preconds: preconds,
       envs: plan.environments,
+      t_reflections: plan.t_reflections,
       anys_by_module: plan.remote_types_as_any_by_module
     }
 
     Resolver.resolve_plan(resolvable, :in_memory, verbose?)
   end
 
-  def resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
+  def resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, verbose?) do
     if verbose? do
       IO.puts("Domo resolve collected types. #{plan_path}")
     end
 
-    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?) do
+    case Resolver.resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, verbose?) do
       :ok -> :ok
       {:error, message} -> {:error, {:resolve, message}}
     end
   end
 
-  def build_type_ensurers(module_filed_types, ecto_assocs_by_module, verbose?) do
+  def build_type_ensurers(module_filed_types, ecto_assocs_by_module, t_reflection_by_module, verbose?) do
     if verbose? do
       IO.puts("Domo generates TypeEnsurer modules source code and load them into memory.")
     end
 
     module_filed_types
-    |> Enum.map(fn {module, field_types} -> Generator.generate_one(module, field_types, Map.get(ecto_assocs_by_module, module, [])) end)
+    |> Enum.map(fn {module, field_types} ->
+      ecto_assocs = Map.get(ecto_assocs_by_module, module, [])
+      t_reflection = Map.get(t_reflection_by_module, module)
+      Generator.generate_one(module, field_types, ecto_assocs, t_reflection)
+    end)
     |> Code.eval_quoted()
 
     :ok
@@ -287,14 +297,14 @@ defmodule Domo.TypeEnsurerFactory do
     |> Code.eval_quoted()
   end
 
-  def generate_type_ensurers(types_path, ecto_assocs_path, code_path, verbose?) do
+  def generate_type_ensurers(types_path, ecto_assocs_path, t_reflections_path, code_path, verbose?) do
     if verbose? do
       IO.puts("Domo generates TypeEnsurer modules source code.")
     end
 
-    case Generator.generate(types_path, ecto_assocs_path, code_path) do
+    case Generator.generate(types_path, ecto_assocs_path, t_reflections_path, code_path) do
       {:ok, _type_ensurer_paths} = ok -> ok
-      {:error, message} -> {:error, {:generate, message}}
+      %Error{} = error -> {:error, {:generate, error}}
     end
   end
 

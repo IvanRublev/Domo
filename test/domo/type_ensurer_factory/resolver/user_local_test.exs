@@ -15,13 +15,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, LocalUserType, :field, quote(context: LocalUserType, do: indirect_int()))
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                LocalUserType =>
@@ -37,7 +38,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -49,7 +51,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                LocalUserType =>
@@ -65,7 +67,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -77,7 +80,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.UserLocalTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                LocalUserType => {

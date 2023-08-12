@@ -9,6 +9,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
   @default_plan %{
     filed_types_to_resolve: %{},
     environments: %{},
+    t_reflections: %{},
     structs_to_ensure: [],
     struct_defaults_to_ensure: [],
     remote_types_as_any_by_module: %{}
@@ -111,6 +112,10 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
   def keep_module_environment(plan_path, module, env) do
     GenServer.call(via(plan_path), {:keep_env, module, env})
+  end
+
+  def keep_struct_t_reflection(plan_path, module, t_reflection) do
+    GenServer.call(via(plan_path), {:keep_t_reflection, module, t_reflection})
   end
 
   def keep_global_remote_types_to_treat_as_any(plan_path, remote_types_as_any) do
@@ -230,6 +235,12 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
     updated_envs = Map.put(state.plan.environments, module, env)
     updated_state = put_in(state, [:plan, :environments], updated_envs)
+    {:reply, :ok, updated_state}
+  end
+
+  def handle_call({:keep_t_reflection, module, t_reflection}, _from, state) do
+    updated_envs = Map.put(state.plan.t_reflections, module, t_reflection)
+    updated_state = put_in(state, [:plan, :t_reflections], updated_envs)
     {:reply, :ok, updated_state}
   end
 
@@ -394,6 +405,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlanner do
 
     plan.filed_types_to_resolve != %{} or
       plan.environments != %{} or
+      plan.t_reflections != %{} or
       plan.structs_to_ensure != [] or
       plan.struct_defaults_to_ensure != [] or
       state.preconds != %{}

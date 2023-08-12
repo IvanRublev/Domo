@@ -39,11 +39,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
            preconds_file: preconds_file,
            types_file: types_file,
            deps_file: deps_file,
-           ecto_assocs_file: ecto_assocs_file
+           ecto_assocs_file: ecto_assocs_file,
+           t_reflections_file: t_reflections_file
          } do
       plan_types([quote(do: integer)], planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
       assert true == File.exists?(deps_file)
     end
 
@@ -53,7 +54,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, quote(do: integer))
       keep_env(planner, __ENV__)
@@ -66,7 +68,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
                   file: ^deps_file,
                   message: {:deps_manifest_failed, :write_error}
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, FailingDepsFile, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, FailingDepsFile, false)
     end
 
     test "write resolved module => {its path, dependency modules with their type hashes and empty precondition descriptions hash} as value to a deps file",
@@ -76,7 +78,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
            preconds_file: preconds_file,
            types_file: types_file,
            deps_file: deps_file,
-           ecto_assocs_file: ecto_assocs_file
+           ecto_assocs_file: ecto_assocs_file,
+           t_reflections_file: t_reflections_file
          } do
       plan(
         planner,
@@ -88,7 +91,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected_dependants = [{ModuleNested, ModuleInspector.beam_types_hash(ModuleNested), nil}]
       assert %{LocalUserType => {path, ^expected_dependants}} = read_deps(deps_file)
@@ -102,7 +105,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
            preconds_file: preconds_file,
            types_file: types_file,
            deps_file: deps_file,
-           ecto_assocs_file: ecto_assocs_file
+           ecto_assocs_file: ecto_assocs_file,
+           t_reflections_file: t_reflections_file
          } do
       plan(
         planner,
@@ -122,7 +126,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected_dependants = [
         {
@@ -142,7 +146,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -169,7 +174,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected_dependants = [
         {
@@ -188,7 +193,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -200,7 +206,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{} == read_deps(deps_file)
     end
@@ -211,7 +217,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -238,7 +245,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, RemoteUserType, RemoteUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected_local_dependants = [
         {ModuleNested, ModuleInspector.beam_types_hash(ModuleNested), nil},
@@ -265,7 +272,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
            preconds_file: preconds_file,
            types_file: types_file,
            deps_file: deps_file,
-           ecto_assocs_file: ecto_assocs_file
+           ecto_assocs_file: ecto_assocs_file,
+           t_reflections_file: t_reflections_file
          } do
       nested_dependant = [{ModuleNested, ModuleInspector.beam_types_hash(ModuleNested), preconds_hash(mn_float: "function body 1")}]
       some_module_dependant = [{SomeModule, ModuleInspector.beam_types_hash(SomeModule), nil}]
@@ -300,7 +308,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                ModuleStoredBefore => {".../module_stored_before.ex", ^nested_dependant},
@@ -317,7 +325,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -329,7 +338,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.ModuleDepsTest do
       keep_env(planner, LocalUserType, LocalUserType.env())
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected_dependants = [
         {ModuleNested, ModuleInspector.beam_types_hash(ModuleNested), nil},

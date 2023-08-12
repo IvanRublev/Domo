@@ -7,8 +7,7 @@ defmodule BenchmarkEctoDomo.Application do
 
   def start(_type, _args) do
     children = [
-      # Start the Ecto repository
-      BenchmarkEctoDomo.Repo
+      # We don't need Ecto repository for benchmark
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

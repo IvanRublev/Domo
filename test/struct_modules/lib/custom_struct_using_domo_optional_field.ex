@@ -11,5 +11,8 @@ defmodule CustomStructUsingDomoOptionalField do
           tracks: Ecto.Schema.has_many(atom())
         }
 
+  def __schema__(:associations), do: [:tracks]
+  def __schema__(:embeds), do: []
+
   def env, do: __ENV__
 end

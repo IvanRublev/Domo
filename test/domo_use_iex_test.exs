@@ -136,6 +136,7 @@ defmodule DomoUseIexTest do
     setup do
       allow ResolvePlanner.plan_types_resolving(any(), any(), any(), any()), meck_options: [:passthrough], return: :ok
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), meck_options: [:passthrough], return: :ok
+      allow ResolvePlanner.keep_struct_t_reflection(any(), any(), any()), meck_options: [:passthrough], return: :ok
       allow ResolvePlanner.keep_global_remote_types_to_treat_as_any(any(), any()), meck_options: [:passthrough], return: :ok
       allow ModuleInspector.ensure_loaded?(any()), meck_options: [:passthrough], return: true
       allow ModuleInspector.has_type_ensurer?(any()), meck_options: [:passthrough], return: false
@@ -161,6 +162,8 @@ defmodule DomoUseIexTest do
       expected_types = @treat_as_any_optional_lib_modules |> Enum.map(&{&1, [:t]}) |> Enum.into(%{})
       assert_called ResolvePlanner.keep_global_remote_types_to_treat_as_any(:in_memory, expected_types)
     end
+
+    # we don't test keep struct t reflection because it's called from parallel call to _collect_types_for_domo_compiler
 
     test "register module types for resolves in depending in memory modules", %{env: env, bytecode: bytecode} do
       Domo._build_in_memory_type_ensurer(env, bytecode)

@@ -25,7 +25,7 @@ defmodule DomoInMemoryTest do
       allow ModuleInspector.has_type_ensurer?(any()), meck_options: [:passthrough], return: false
 
       allow Resolver.resolve_plan(any(), any(), any()), meck_options: [:passthrough], exec: &:meck.passthrough([&1, &2, &3])
-      allow Generator.generate_one(any(), any(), any()), meck_options: [:passthrough], exec: &:meck.passthrough([&1, &2, &3])
+      allow Generator.generate_one(any(), any(), any(), any()), meck_options: [:passthrough], exec: &:meck.passthrough([&1, &2, &3, &4])
 
       :ok
     end
@@ -41,7 +41,7 @@ defmodule DomoInMemoryTest do
       end
 
       assert_called Resolver.resolve_plan(any(), :in_memory, false)
-      assert_called Generator.generate_one(any(), any(), any())
+      assert_called Generator.generate_one(any(), any(), any(), any())
 
       assert %{__struct__: ModuleLocal, id: "1001"} = ModuleLocal.new!(id: "1001")
       assert {:error, _message} = ModuleLocal.new(id: 100)

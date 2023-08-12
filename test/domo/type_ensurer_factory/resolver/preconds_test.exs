@@ -23,9 +23,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
-      File.write!(plan_file, TermSerializer.term_to_binary(%{filed_types_to_resolve: nil, environments: nil, remote_types_as_any_by_module: nil}))
+      File.write!(plan_file, TermSerializer.term_to_binary(%{filed_types_to_resolve: nil, environments: nil, remote_types_as_any_by_module: nil, t_reflections: nil}))
 
       assert {:error,
               [
@@ -35,7 +36,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   struct_module: nil,
                   message: :no_preconds
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "register preconditions for struct's t type", %{
@@ -44,7 +45,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(do: %Recipient{field: atom()}))
       keep_env(planner, TwoFieldStruct, __ENV__)
@@ -53,7 +55,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       plan_precond_checks(planner, Recipient, t: "func_body2")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                TwoFieldStruct => {
@@ -76,7 +78,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(context: UserTypes, do: UserTypes.various_type()))
       keep_env(planner, TwoFieldStruct, __ENV__)
@@ -97,7 +100,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   definitions and set precond for each of it.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "register precondition for map type having an or typed field", %{
@@ -106,14 +109,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(context: TwoFieldStruct, do: UserTypes.map_field_or_typed()))
       keep_env(planner, TwoFieldStruct, __ENV__)
       plan_precond_checks(planner, UserTypes, map_field_or_typed: "func_body")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       precond = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body")
 
@@ -136,7 +140,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(
         planner,
@@ -156,7 +161,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       plan_precond_checks(planner, UserTypes, numbers: "func_body1", strings: "func_body2", two_elem_tuple: "func_body3")
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       numbers_precond = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
       strings_precond = Precondition.new(module: UserTypes, type_name: :strings, description: "func_body2")
@@ -202,7 +207,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(context: UserTypes, do: UserTypes.remote_mn_float()))
       plan(planner, TwoFieldStruct, :second, quote(context: UserTypes, do: UserTypes.remote_type()))
@@ -233,7 +239,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "return precondition conflict error for preconditions of two types referring each other in remote module", %{
@@ -242,7 +248,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(context: UserTypes, do: UserTypes.some_numbers()))
       keep_env(planner, TwoFieldStruct, __ENV__)
@@ -261,7 +268,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "register precondition for local type", %{
@@ -270,7 +277,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :first, quote(context: UserTypes, do: some_numbers()))
       plan(planner, UserTypes, :second, quote(context: UserTypes, do: map_field_or_typed()))
@@ -278,7 +286,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       plan_precond_checks(planner, UserTypes, numbers: "func_body1", map_field_or_typed: "func_body2")
       flush(planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       precond1 = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
       precond2 = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body2")
@@ -306,7 +314,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :first, quote(context: UserTypes, do: some_numbers()))
       keep_env(planner, UserTypes, UserTypes.env())
@@ -324,7 +333,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   referring one another. You can define only one precondition for either type.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "return precondition is not supported error for keyword(t) and as_boolean(t)", %{
@@ -333,7 +342,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :first, quote(context: UserTypes, do: atom_keyword()))
       plan(planner, UserTypes, :second, quote(context: UserTypes, do: atom_as_boolean()))
@@ -361,7 +371,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
                   You can extract t as a user @type and define precondition for it.\
                   """
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "return precondition is not supported error for complicated types", %{
@@ -370,7 +380,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :first, quote(context: UserTypes, do: a_timeout()))
       plan(planner, UserTypes, :second, quote(context: UserTypes, do: an_iolist()))
@@ -388,7 +399,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
 
       flush(planner)
 
-      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
       assert [
         %Error{struct_module: UserTypes, message: "Precondition for value of identifier() type is not allowed."},
         %Error{struct_module: UserTypes, message: "Precondition for value of iodata() type is not allowed."},
@@ -403,7 +414,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :first, quote(context: UserTypes, do: has_one_atom()))
       plan(planner, UserTypes, :second, quote(context: UserTypes, do: embeds_one_atom()))
@@ -425,7 +437,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
 
       flush(planner)
 
-      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
       assert [
         %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.belongs_to(t) type is not allowed."},
         %Error{struct_module: UserTypes, message: "Precondition for value of Ecto.Schema.embeds_many(t) type is not allowed."},
@@ -442,7 +454,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
       plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
@@ -478,7 +491,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
 
       flush(planner)
 
-      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
       assert [
         %Error{struct_module: UserTypes, message: "Precondition for value of %{} type is not allowed."},
         %Error{struct_module: UserTypes, message: "Precondition for value of 1 type is not allowed."},
@@ -501,7 +514,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       types_file: types_file,
       preconds_file: preconds_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, UserTypes, :field1, quote(context: UserTypes, do: an_any()))
       plan(planner, UserTypes, :field2, quote(context: UserTypes, do: a_term()))
@@ -509,7 +523,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do[]
       plan_precond_checks(planner, UserTypes, an_any: "func_body1", a_term: "func_body2")
       flush(planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       precond1 = Precondition.new(module: UserTypes, type_name: :an_any, description: "func_body1")
       precond2 = Precondition.new(module: UserTypes, type_name: :a_term, description: "func_body2")

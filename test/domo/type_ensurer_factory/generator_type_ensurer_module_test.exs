@@ -19,6 +19,10 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     apply(TypeEnsurer, :fields, [arg])
   end
 
+  def call_t_reflection() do
+    apply(TypeEnsurer, :t_reflection, [])
+  end
+
   def call_ensure_field_type({_field, _value} = subject) do
     apply(TypeEnsurer, :ensure_field_type, [subject, []])
   end
@@ -46,9 +50,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
         fourth: [quote(do: term())],
         ecto_assoc_1: [quote(do: [atom()])],
         ecto_assoc_2: [quote(do: atom())],
-      }, [:ecto_assoc_1, :ecto_assoc_2])
+      }, [:ecto_assoc_1, :ecto_assoc_2], "%Module{...}")
 
       :ok
+    end
+
+    test "t_reflection/0 returns string representation of t type of the struct" do
+      assert call_t_reflection() == "%Module{...}"
     end
 
     test "fields(:typed) returns fields sorted alphabetically with specific types with __meta fields__ rejected" do

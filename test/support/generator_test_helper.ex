@@ -9,15 +9,15 @@ defmodule GeneratorTestHelper do
     |> Code.eval_quoted()
   end
 
-  def load_type_ensurer_module_with_no_preconds(field_spec, ecto_assoc_fields \\ []) do
+  def load_type_ensurer_module_with_no_preconds(field_spec, ecto_assoc_fields \\ [], t_reflection \\ nil) do
     field_spec
     |> ResolverTestHelper.add_empty_precond_to_spec()
-    |> generate_type_ensurer_quoted(ecto_assoc_fields)
+    |> generate_type_ensurer_quoted(ecto_assoc_fields, t_reflection)
     |> Code.eval_quoted()
   end
 
-  def generate_type_ensurer_quoted(field_spec, ecto_assoc_fields \\ []) do
-    Generator.generate_one(Elixir, field_spec, ecto_assoc_fields)
+  def generate_type_ensurer_quoted(field_spec, ecto_assoc_fields \\ [], t_reflection \\ nil) do
+    Generator.generate_one(Elixir, field_spec, ecto_assoc_fields, t_reflection)
   end
 
   def types_by_module_content(fields_spec_by_module) do

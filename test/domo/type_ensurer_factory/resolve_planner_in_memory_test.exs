@@ -76,6 +76,15 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
       assert :ok == ResolvePlanner.keep_module_environment(:in_memory, TwoFieldStruct, __ENV__)
     end
 
+    test "accept struct t type reflection string" do
+      assert :ok ==
+               ResolvePlanner.keep_struct_t_reflection(
+                 :in_memory,
+                 TwoFieldStruct,
+                 "%TwoFieldStruct{...}"
+               )
+    end
+
     test "accept type names and module having precond functions handling the names" do
       assert :ok ==
                ResolvePlanner.plan_precond_checks(
@@ -107,6 +116,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
                  2
                )
     end
+
+
 
     test "accept types to treat as any" do
       assert :ok ==
@@ -145,6 +156,8 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
       env = __ENV__
       ResolvePlanner.keep_module_environment(:in_memory, TwoFieldStruct, env)
 
+      ResolvePlanner.keep_struct_t_reflection(:in_memory, TwoFieldStruct, "%TwoFieldStruct{...abc...}")
+
       ResolvePlanner.plan_struct_integrity_ensurance(
         :in_memory,
         TwoFieldStruct,
@@ -180,6 +193,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
                  EmptyStruct => %{}
                },
                environments: %{TwoFieldStruct => env},
+               t_reflections: %{TwoFieldStruct => "%TwoFieldStruct{...abc...}"},
                structs_to_ensure: [
                  {TwoFieldStruct, [title: "Hello", duration: 15], "/module_path.ex", 9}
                ],
@@ -199,6 +213,7 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
       assert %{
                filed_types_to_resolve: %{},
                environments: %{},
+               t_reflections: %{},
                structs_to_ensure: [],
                struct_defaults_to_ensure: [],
                remote_types_as_any_by_module: %{}

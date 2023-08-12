@@ -21,6 +21,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   @preconds_manifest "preconds.domo"
   @deps_manifest "modules_deps.domo"
   @ecto_assocs_manifest "ecto_assocs.domo"
+  @t_reflections_manifest "t_reflections.domo"
   @generated_code_directory "/domo_generated_code"
 
   @mix_project Application.compile_env(:domo, :mix_project, Mix.Project)
@@ -56,6 +57,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     types_path = manifest_path(@mix_project, :types)
     deps_path = manifest_path(@mix_project, :deps)
     ecto_assocs_path = manifest_path(@mix_project, :ecto_assocs)
+    t_reflections_path = manifest_path(@mix_project, :t_reflections)
     code_path = generated_code_path(@mix_project)
 
     TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(plan_path)
@@ -66,7 +68,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     prev_ignore_module_conflict = Code.get_compiler_option(:ignore_module_conflict)
     Code.put_compiler_option(:ignore_module_conflict, true)
 
-    paths = {plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, code_path}
+    paths = {plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, code_path}
     verbose? = Enum.member?(args, "--verbose")
     result = build_ensurer_modules(paths, verbose?)
 
@@ -105,12 +107,13 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
   end
 
   defp build_ensurer_modules(paths, verbose?) do
-    {plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, code_path} = paths
+    {plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, code_path} = paths
 
     with {:ok, deps_warns} <- TypeEnsurerFactory.recompile_depending_structs(plan_path, deps_path, preconds_path, verbose?),
          remove_ensurers_code_having_plan(plan_path, code_path, verbose?),
-         :ok <- TypeEnsurerFactory.resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, verbose?),
-         {:ok, type_ensurer_paths} <- TypeEnsurerFactory.generate_type_ensurers(types_path, ecto_assocs_path, code_path, verbose?),
+         :ok <- TypeEnsurerFactory.resolve_types(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, verbose?),
+         {:ok, type_ensurer_paths} <-
+           TypeEnsurerFactory.generate_type_ensurers(types_path, ecto_assocs_path, t_reflections_path, code_path, verbose?),
          {:ok, {modules, ens_warns}} <- TypeEnsurerFactory.compile_type_ensurers(type_ensurer_paths, verbose?),
          :ok <- TypeEnsurerFactory.ensure_struct_defaults(plan_path, verbose?),
          :ok <- TypeEnsurerFactory.ensure_structs_integrity(plan_path, verbose?) do
@@ -321,6 +324,7 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
       :types -> @types_manifest
       :deps -> @deps_manifest
       :ecto_assocs -> @ecto_assocs_manifest
+      :t_reflections -> @t_reflections_manifest
     end
   end
 

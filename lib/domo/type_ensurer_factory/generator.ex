@@ -10,11 +10,12 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   alias Domo.TypeEnsurerFactory.Precondition
   alias Kernel.ParallelCompiler
 
-  def generate(types_path, ecto_assocs_path, output_folder, file_module \\ File) do
+  def generate(types_path, ecto_assocs_path, t_reflections_path, output_folder, file_module \\ File) do
     with :ok <- make_output_folder(file_module, output_folder),
          {:ok, fields_by_module} <- decode_fields(file_module, types_path, {:read_types, :decode_types_file}),
-         {:ok, ecto_assocs_by_module} <- decode_fields(file_module, ecto_assocs_path, {:read_ecto_assocs, :decode_ecto_assocs_file}) do
-      case generate_many(fields_by_module, ecto_assocs_by_module, output_folder, file_module) do
+         {:ok, ecto_assocs_by_module} <- decode_fields(file_module, ecto_assocs_path, {:read_ecto_assocs, :decode_ecto_assocs_file}),
+         {:ok, t_reflections_by_module} <- decode_fields(file_module, t_reflections_path, {:read_t_reflections, :decode_t_reflections_file}) do
+      case generate_many(fields_by_module, ecto_assocs_by_module, t_reflections_by_module, output_folder, file_module) do
         {:ok, paths} -> {:ok, Enum.reverse(paths)}
         error -> error
       end
@@ -50,11 +51,12 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     end
   end
 
-  defp generate_many(fields_by_module, ecto_assocs_by_module, output_folder, file_module) do
+  defp generate_many(fields_by_module, ecto_assocs_by_module, t_reflection_by_module, output_folder, file_module) do
     Enum.reduce_while(fields_by_module, {:ok, []}, fn {parent_module, fields_spec}, acc ->
       ecto_assocs_fields = Map.get(ecto_assocs_by_module, parent_module, [])
+      t_reflection = Map.get(t_reflection_by_module, parent_module)
 
-      module_ast = generate_one(parent_module, fields_spec, ecto_assocs_fields)
+      module_ast = generate_one(parent_module, fields_spec, ecto_assocs_fields, t_reflection)
 
       module_path = Path.join(output_folder, module_filename(module_ast))
       module_binary = Macro.to_string(module_ast) |> Code.format_string!()
@@ -88,7 +90,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   # credo:disable-for-lines:118
-  def generate_one(parent_module, fields_spec_t_precond, ecto_assoc_fields) do
+  def generate_one(parent_module, fields_spec_t_precond, ecto_assoc_fields, t_reflection) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
     {fields_spec, t_precond} = fields_spec_t_precond
@@ -123,6 +125,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
         @moduledoc false
 
         def fields(kind), do: unquote(field_kinds) |> Map.get(kind)
+
+        def t_reflection, do: unquote(t_reflection)
 
         unquote(t_precond_quoted)
 

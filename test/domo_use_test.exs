@@ -339,6 +339,7 @@ defmodule DomoUseTest do
       allow ResolvePlanner.ensure_started(any(), any(), any()), return: {:ok, self()}
       allow ResolvePlanner.ensure_flushed_and_stopped(any()), return: :ok
       allow ResolvePlanner.keep_module_environment(any(), any(), any()), return: :ok
+      allow ResolvePlanner.keep_struct_t_reflection(any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_types_resolving(any(), any(), any(), any()), return: :ok
       allow ResolvePlanner.plan_empty_struct(any(), any()), return: :ok
       allow ResolvePlanner.plan_precond_checks(any(), any(), any()), return: :ok
@@ -378,6 +379,18 @@ defmodule DomoUseTest do
                       any(),
                       expected_module,
                       is(fn env -> env.module == expected_module end)
+                    )
+    end
+
+    test "keep the struct t reflection" do
+      module_empty()
+
+      expected_module = __MODULE__.Module
+
+      assert_called ResolvePlanner.keep_struct_t_reflection(
+                      any(),
+                      expected_module,
+                      is(&is_binary/1)
                     )
     end
 

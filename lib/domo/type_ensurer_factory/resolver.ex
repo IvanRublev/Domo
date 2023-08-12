@@ -7,12 +7,13 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Resolver.Fields
 
-  def resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, write_file_module \\ File, verbose?) do
+  def resolve(plan_path, preconds_path, types_path, deps_path, ecto_assocs_path, t_reflections_path, write_file_module \\ File, verbose?) do
     with {:ok, plan} <- read_plan(plan_path),
          {:ok, plan} <- join_preconds(preconds_path, plan),
-         {:ok, types, deps, ecto_assocs} <- resolve_plan(plan, plan_path, verbose?),
-         :ok <- write_resolved_types(types, types_path, write_file_module),
-         :ok <- write_ecto_assocs(ecto_assocs, ecto_assocs_path, write_file_module),
+         {:ok, types, deps, ecto_assocs, t_reflections} <- resolve_plan(plan, plan_path, verbose?),
+         :ok <- write_manifest(types, types_path, :types_manifest_failed, write_file_module),
+         :ok <- write_manifest(ecto_assocs, ecto_assocs_path, :ecto_assocs_manifest_failed, write_file_module),
+         :ok <- write_manifest(t_reflections, t_reflections_path, :ecto_t_reflections_manifest_failed, write_file_module),
          :ok <- append_modules_deps(deps, deps_path, write_file_module) do
       :ok
     else
@@ -30,7 +31,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
          [
            fields: map.filed_types_to_resolve,
            envs: map.environments,
-           anys_by_module: map.remote_types_as_any_by_module
+           anys_by_module: map.remote_types_as_any_by_module,
+           t_reflections: map.t_reflections
          ]}
 
       _err ->
@@ -53,6 +55,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     fields = plan[:fields]
     preconds = plan[:preconds]
     envs = plan[:envs]
+    t_reflections = plan[:t_reflections]
 
     if verbose? and map_size(plan[:anys_by_module]) > 0 do
       IO.puts("""
@@ -74,21 +77,25 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
 
         anys_by_module = plan[:anys_by_module]
 
-        case resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
-          {module_filed_types, [], module_deps, module_ecto_assocs} ->
-            if verbose? do
-              IO.puts("Dependencies: #{inspect(module_deps)}")
-            end
-
-            updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
-            {:ok, module_filed_types, updated_module_deps, module_ecto_assocs}
-
-          {_module_filed_types, module_errors, _module_deps, _module_ecto_assocs} ->
-            {:error, wrap_module_errors(module_errors, envs)}
-        end
+        resolve_plan_do(fields_envs, preconds, anys_by_module, t_reflections, envs, verbose?)
 
       {:error, {:no_env_in_plan = error, module}} ->
         {:error, %Error{file: plan_path, struct_module: module, message: error}}
+    end
+  end
+
+  defp resolve_plan_do(fields_envs, preconds, anys_by_module, t_reflections, envs, verbose?) do
+    case resolve_plan_envs(fields_envs, preconds, anys_by_module, verbose?) do
+      {module_filed_types, [], module_deps, module_ecto_assocs} ->
+        if verbose? do
+          IO.puts("Dependencies: #{inspect(module_deps)}")
+        end
+
+        updated_module_deps = add_type_hashes_to_dependant_modules(module_deps, preconds)
+        {:ok, module_filed_types, updated_module_deps, module_ecto_assocs, t_reflections}
+
+      {_module_filed_types, module_errors, _module_deps, _module_ecto_assocs} ->
+        {:error, wrap_module_errors(module_errors, envs)}
     end
   end
 
@@ -129,7 +136,9 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
           fn _key, type_names_lhs, type_names_rhs -> List.flatten([type_names_rhs | type_names_lhs]) end
         )
 
-      {module, field_types, field_errors, type_deps, ecto_assocs} = Fields.resolve(mfe, preconds, remote_types_as_any, resolvable_structs)
+      {module, field_types, field_errors, type_deps} = Fields.resolve(mfe, preconds, remote_types_as_any, resolvable_structs)
+
+      ecto_assocs = maybe_assocs_embeds_from_reflection_of_schema(module)
 
       updated_module_field_types = Map.put(module_field_types, module, field_types)
 
@@ -154,6 +163,16 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
         updated_module_ecto_assocs
       }
     end)
+  end
+
+  defp maybe_assocs_embeds_from_reflection_of_schema(module) do
+    Code.ensure_loaded(module)
+
+    if Kernel.function_exported?(module, :__schema__, 1) do
+      (module.__schema__(:associations) || []) ++ (module.__schema__(:embeds) || [])
+    else
+      []
+    end
   end
 
   defp join_module_if_nonempty(field_errors, module) do
@@ -205,21 +224,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
     end)
   end
 
-  defp write_resolved_types(map, types_path, file_module) do
+  defp write_manifest(map, path, error_key, file_module) do
     binary = TermSerializer.term_to_binary(map)
 
-    case file_module.write(types_path, binary) do
+    case file_module.write(path, binary) do
       :ok -> :ok
-      {:error, err} -> {:error, %Error{file: types_path, message: {:types_manifest_failed, err}}}
-    end
-  end
-
-  defp write_ecto_assocs(map, types_path, file_module) do
-    binary = TermSerializer.term_to_binary(map)
-
-    case file_module.write(types_path, binary) do
-      :ok -> :ok
-      {:error, err} -> {:error, %Error{file: types_path, message: {:ecto_assocs_manifest_failed, err}}}
+      {:error, err} -> {:error, %Error{file: path, message: {error_key, err}}}
     end
   end
 

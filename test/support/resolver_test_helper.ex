@@ -35,6 +35,7 @@ defmodule ResolverTestHelper do
     deps_file = DomoMixTask.manifest_path(@project_stub, :deps)
     preconds_file = DomoMixTask.manifest_path(@project_stub, :preconds)
     ecto_assocs_file = DomoMixTask.manifest_path(@project_stub, :ecto_assocs)
+    t_reflections_file = DomoMixTask.manifest_path(@project_stub, :t_reflections)
 
     stop_project_palnner()
 
@@ -51,7 +52,8 @@ defmodule ResolverTestHelper do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     }
   end
 
@@ -249,6 +251,10 @@ defmodule ResolverTestHelper do
     ResolvePlanner.keep_module_environment(planner, module, env)
   end
 
+  def keep_t_reflection(planner, module \\ TwoFieldStruct, t_reflection) do
+    ResolvePlanner.keep_struct_t_reflection(planner, module, t_reflection)
+  end
+
   def flush(planner), do: ResolvePlanner.flush(planner)
 
   def map_idx_list(list) do
@@ -399,6 +405,12 @@ defmodule ResolverTestHelper do
 
   def read_ecto_assocs(assocs_file) do
     assocs_file
+    |> File.read!()
+    |> TermSerializer.binary_to_term()
+  end
+
+  def read_t_reflections(t_reflections_file) do
+    t_reflections_file
     |> File.read!()
     |> TermSerializer.binary_to_term()
   end

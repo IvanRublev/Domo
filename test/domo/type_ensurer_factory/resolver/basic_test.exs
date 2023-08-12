@@ -26,7 +26,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       assert {:error,
               [
@@ -36,7 +37,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                   struct_module: nil,
                   message: :no_plan
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "return error when there is no environment for the struct's module in the plan file", %{
@@ -45,7 +46,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, LocalUserType, :field, quote(context: LocalUserType, do: int()))
       flush(planner)
@@ -58,7 +60,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                   struct_module: LocalUserType,
                   message: :no_env_in_plan
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "return :ok when there is environment for struct's module in plan file", %{
@@ -67,13 +69,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, LocalUserType, :field, quote(context: LocalUserType, do: int()))
       keep_env(planner, LocalUserType, __ENV__)
       flush(planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
     end
 
     test "write types file and return :ok when all types from plan file are resolved", %{
@@ -82,11 +85,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan_types([quote(do: integer)], planner)
 
-      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
       assert true == File.exists?(types_file)
     end
 
@@ -96,7 +100,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, quote(do: integer))
       keep_env(planner, __ENV__)
@@ -110,7 +115,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                   struct_module: nil,
                   message: {:types_manifest_failed, :write_error}
                 }
-              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, FailingFile, false)
+              ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, FailingFile, false)
     end
 
     test "return error encouraging to use domo for struct not using it yet", %{
@@ -119,7 +124,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan_types(
         [
@@ -131,7 +137,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
         planner
       )
 
-      assert {:error, [message]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      assert {:error, [message]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %Error{
                compiler_module: Resolver,
@@ -146,7 +152,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan(planner, TwoFieldStruct, :first, quote(do: integer()))
       plan(planner, AllDefaultsStruct, :first, quote(do: integer()))
@@ -155,7 +162,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       keep_env(planner, AllDefaultsStruct, __ENV__)
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{
                TwoFieldStruct =>
@@ -170,21 +177,44 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
              } == read_types(types_file)
     end
 
-    test "write Ecto.Schema types to a types file", %{
+    test "write Ecto.Schema types returned by the reflection function when @t type mention list instead of schema", %{
       planner: planner,
       plan_file: plan_file,
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
-      plan(planner, TwoFieldStruct, :first, quote(do: Ecto.Schema.has_many(atom())))
-      keep_env(planner, TwoFieldStruct, __ENV__)
+      plan(planner, EctoSchemaErsatz, :assoc_items, quote(do: [String.t()]))
+      plan(planner, EctoSchemaErsatz, :embed_items, quote(do: [integer()]))
+      keep_env(planner, EctoSchemaErsatz, __ENV__)
       flush(planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      # it reads reflections from the module __schema__
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
-      assert %{TwoFieldStruct => [:first]} == read_ecto_assocs(ecto_assocs_file)
+      assert %{EctoSchemaErsatz => types_list} = read_ecto_assocs(ecto_assocs_file)
+      assert MapSet.new(types_list) == MapSet.new([:assoc_items, :embed_items])
+    end
+
+    test "write struct t reflection info", %{
+      planner: planner,
+      plan_file: plan_file,
+      preconds_file: preconds_file,
+      types_file: types_file,
+      deps_file: deps_file,
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
+    } do
+      plan(planner, TwoFieldStruct, :first, quote(do: integer()))
+      keep_env(planner, TwoFieldStruct, __ENV__)
+      keep_t_reflection(planner, TwoFieldStruct, "%TwoFieldStruct{...}")
+      flush(planner)
+
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
+
+      assert %{TwoFieldStruct => "%TwoFieldStruct{...}"} == read_t_reflections(t_reflections_file)
     end
 
     test "keep literals and basic types as is", %{
@@ -193,11 +223,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan_types(literals_and_basic(), planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{TwoFieldStruct => map_idx_list(literals_and_basic())} ==
                read_types(types_file)
@@ -209,7 +240,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       typespec_with_metadata =
         Enum.map(literals_and_basic(), fn
@@ -219,7 +251,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
       plan_types(typespec_with_metadata, planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{TwoFieldStruct => map_idx_list(literals_and_basic())} ==
                read_types(types_file)
@@ -231,11 +263,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan_types(literals_and_basic_src() ++ built_in_src(), planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       assert %{TwoFieldStruct => map_idx_list(literals_and_basic_dst() ++ built_in_dst())} ==
                read_types(types_file)
@@ -247,11 +280,12 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
       preconds_file: preconds_file,
       types_file: types_file,
       deps_file: deps_file,
-      ecto_assocs_file: ecto_assocs_file
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file
     } do
       plan_types([quote(context: TwoFieldStruct, do: Enum.t())], planner)
 
-      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+      :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
       expected = [[{:any, [], []}]]
 
@@ -330,13 +364,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
         types_file: types_file,
         deps_file: deps_file,
         ecto_assocs_file: ecto_assocs_file,
+        t_reflections_file: t_reflections_file,
         registered: registered
       } do
         {src_types, dst_types} = registered.src_dst_types
 
         plan_types(src_types, planner)
 
-        :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+        :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
         assert %{TwoFieldStruct => map_idx_list(dst_types)} == read_types(types_file)
       end
@@ -349,7 +384,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     plan(planner, CustomStruct, :title, quote(do: [{:first, :atom}, {1, integer()}]))
     keep_env(planner, CustomStruct, CustomStruct.env())
@@ -365,7 +401,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
                 struct_module: CustomStruct,
                 message: :keyword_list_should_has_atom_keys
               }
-            ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+            ]} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
   end
 
   test "resolve a keyword list type spec", %{
@@ -374,13 +410,14 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     plan(planner, TwoFieldStruct, :first, quote(do: [first: :atom, second: integer()]))
     keep_env(planner, TwoFieldStruct, __ENV__)
     flush(planner)
 
-    assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+    assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
   end
 
   test "resolve keyword(t) built-in type to [{any(), appropriate t}]", %{
@@ -389,7 +426,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     types =
       for arg1 <- literals_basic_built_in_src() do
@@ -398,7 +436,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
     plan_types(types, planner)
 
-    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
     expected =
       for arg1 <- literals_basic_built_in_dst() do
@@ -414,7 +452,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     types =
       for arg1 <- literals_basic_built_in_src() do
@@ -423,7 +462,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
     plan_types(types, planner)
 
-    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
     expected =
       for arg1 <- literals_basic_built_in_dst() do
@@ -439,7 +478,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     types =
       for arg1 <- literals_basic_built_in_src() do
@@ -448,7 +488,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
     plan_types(types, planner)
 
-    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
     expected =
       for arg1 <- literals_basic_built_in_dst() do
@@ -464,7 +504,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
     preconds_file: preconds_file,
     types_file: types_file,
     deps_file: deps_file,
-    ecto_assocs_file: ecto_assocs_file
+    ecto_assocs_file: ecto_assocs_file,
+    t_reflections_file: t_reflections_file
   } do
     types =
       for arg1 <- literals_basic_built_in_src() do
@@ -473,7 +514,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
     plan_types(types, planner)
 
-    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, false)
+    :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
     expected =
       for arg1 <- literals_basic_built_in_dst() do

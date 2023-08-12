@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.13"
+  @version "1.5.14"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -77,7 +77,7 @@ defmodule Domo.MixProject do
 
   defp aliases do
     [
-      benchmark: "cmd --cd ./benchmark_ecto_domo mix benchmark",
+      benchmark: "cmd --cd ./benchmark_ecto_domo mix do deps.unlock --all + deps.get + benchmark",
       clean: ["clean", "cmd --cd ./benchmark_ecto_domo mix clean --deps", &clean_test_structs/1, &clean_out_of_project_tmp_path/1],
       test: [&clean_out_of_project_tmp_path/1, "test"]
     ]

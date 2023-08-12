@@ -13,6 +13,7 @@ defmodule Domo do
   @ensure_type_ok_doc Domo.Doc.readme_doc("<!-- ensure_type/2 -->")
   @typed_fields_doc Domo.Doc.readme_doc("<!-- typed_fields/1 -->")
   @required_fields_doc Domo.Doc.readme_doc("<!-- required_fields/1 -->")
+  @__t___doc Domo.Doc.readme_doc("<!-- __t__/0 -->")
 
   @callback new!() :: struct()
   @doc @new_raise_doc
@@ -32,6 +33,8 @@ defmodule Domo do
   @callback required_fields() :: [atom()]
   @doc @required_fields_doc
   @callback required_fields(opts :: keyword()) :: [atom()]
+  @doc @__t___doc
+  @callback __t__() :: binary()
 
   @mix_project Application.compile_env(:domo, :mix_project, Mix.Project)
 
@@ -354,6 +357,11 @@ defmodule Domo do
         unquote(type_ensurer).fields(field_kind)
       end
 
+      @doc unquote(@__t___doc)
+      def __t__ do
+        unquote(type_ensurer).t_reflection()
+      end
+
       @before_compile {Raises, :maybe_raise_incorrect_placement!}
       @before_compile {Domo, :_plan_struct_defaults_ensurance}
 
@@ -386,8 +394,9 @@ defmodule Domo do
 
     {:ok, plan, preconds} = TypeEnsurerFactory.get_plan_state(:in_memory)
 
-    with {:ok, module_filed_types, dependencies_by_module, ecto_assocs_by_module} <- TypeEnsurerFactory.resolve_plan(plan, preconds, verbose?),
-         TypeEnsurerFactory.build_type_ensurers(module_filed_types, ecto_assocs_by_module, verbose?),
+    with {:ok, module_filed_types, dependencies_by_module, ecto_assocs_by_module, t_reflection_by_module} <-
+           TypeEnsurerFactory.resolve_plan(plan, preconds, verbose?),
+         TypeEnsurerFactory.build_type_ensurers(module_filed_types, ecto_assocs_by_module, t_reflection_by_module, verbose?),
          :ok <- TypeEnsurerFactory.ensure_struct_defaults(plan, verbose?) do
       {:ok, dependants} = TypeEnsurerFactory.get_dependants(:in_memory, env.module)
 
