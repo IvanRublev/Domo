@@ -67,7 +67,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       allow ResolvePlanner.get_types(:in_memory, NonexistentModule), return: {:error, :no_types_registered}
 
       ModuleInspector.beam_types(NonexistentModule)
-      refute_called ResolvePlanner.get_types([:in_memory, NonexistentModule])
+      refute_called(ResolvePlanner.get_types([:in_memory, NonexistentModule]))
     end
   end
 
@@ -89,9 +89,13 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
     test "return no_beam_file error if no beam file can be found for module or no types can be loaded" do
       allow Code.Typespec.fetch_types(any()), meck_options: [:passthrough], return: :error
-      allow ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:no_beam_file, ModuleNested.Module.Submodule}
+
+      allow ResolvePlanner.get_types(:in_memory, NonexistentModule),
+        meck_options: [:passthrough],
+        return: {:no_beam_file, ModuleNested.Module.Submodule}
+
       assert {:error, {:no_beam_file, ModuleNested.Module.Submodule}} == ModuleInspector.beam_types(ModuleNested.Module.Submodule)
-      refute_called ResolvePlanner.get_types(:in_memory, ModuleNested.Module.Submodule)
+      refute_called(ResolvePlanner.get_types(:in_memory, ModuleNested.Module.Submodule))
     end
 
     test "return type_not_found error when can't find :t type in quoted types list" do
@@ -102,14 +106,14 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
       type_list = [
         {:"::", [], [{:my_atom, [], []}, {:atom, [line: 1], []}]},
         {:"::", [line: 11],
-          [
-            {:t, [line: 11], nil},
-            {:%, [line: 11],
-              [
-                {:__MODULE__, [line: 11], nil},
-                {:%{}, [line: 11], [title: {:title, [line: 11], []}]}
-              ]}
-          ]}
+         [
+           {:t, [line: 11], nil},
+           {:%, [line: 11],
+            [
+              {:__MODULE__, [line: 11], nil},
+              {:%{}, [line: 11], [title: {:title, [line: 11], []}]}
+            ]}
+         ]}
       ]
 
       assert {:ok, _, []} = ModuleInspector.find_t_type(type_list)
@@ -130,8 +134,16 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     end
 
     test "return hash of module types giving loadable module" do
-      assert <<165, 63, 215, 58, 173, 14, 220, 157, 192, 81, 20, 19, 68, 90, 147, 171>> ==
-               ModuleInspector.beam_types_hash(EmptyStruct)
+      module_hash =
+        case ElixirVersion.version() do
+          [1, minor, _] when minor < 16 ->
+            <<165, 63, 215, 58, 173, 14, 220, 157, 192, 81, 20, 19, 68, 90, 147, 171>>
+
+          [1, minor, _] when minor >= 16 ->
+            <<210, 153, 0, 251, 50, 73, 13, 33, 58, 87, 29, 116, 203, 250, 237, 148>>
+        end
+
+      assert module_hash == ModuleInspector.beam_types_hash(EmptyStruct)
     end
 
     test "return nil as hash of module types giving unloadable module" do
@@ -156,7 +168,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     test "find remote Elixir type referenced by private local type and return it in the quoted form" do
       type_list = [
         typep: {:rem_str, {:remote_type, 16, [{:atom, 0, String}, {:atom, 0, :t}, []]}, []},
-        type: {:ut, {:user_type, 17, :rem_str, []}, ''}
+        type: {:ut, {:user_type, 17, :rem_str, []}, ~c""}
       ]
 
       assert {:ok, {{:., [], [String, :t]}, [], []}, [:rem_str]} ==
@@ -175,7 +187,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     test "find local user type in the list recursively and return it in quoted form" do
       type_list = [
         {:typep, {:priv_atom, {:type, 16, :atom, []}, []}},
-        {:type, {:ut, {:user_type, 17, :priv_atom, []}, ''}}
+        {:type, {:ut, {:user_type, 17, :priv_atom, []}, ~c""}}
       ]
 
       assert {:ok, quote(do: atom()), [:priv_atom]} == ModuleInspector.find_beam_type_quoted(:ut, type_list)
@@ -201,7 +213,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
 
     test "should resolve types from memory if in-memory resolve planner is started" do
       allow ResolvePlanner.started?(:in_memory), meck_options: [:passthrough], return: true
-      expect ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered}
+      expect(ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered})
 
       TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, [])
       ModuleInspector.beam_types(NonexistentModule)
@@ -221,7 +233,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     end
 
     test "return error not finding module in memory or in beam" do
-      expect ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered}
+      expect(ResolvePlanner.get_types(:in_memory, NonexistentModule), meck_options: [:passthrough], return: {:error, :no_types_registered})
       TypeEnsurerFactory.start_resolve_planner(:in_memory, :in_memory, [])
       assert {:error, :no_types_registered} == ModuleInspector.beam_types(NonexistentModule)
     end

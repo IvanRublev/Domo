@@ -3,11 +3,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
-  alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TermSerializer
-
-  @max_arg_combinations_count 4096
 
   def resolve(mfe, preconds, remote_types_as_any, resolvable_structs) do
     {module, fields, env} = mfe
@@ -52,19 +49,30 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   # Literals
 
-  defp resolve_type({:|, _meta, [arg1, arg2]} = type, module, precond, resolving_context, {types, errs, deps} = acc) do
+  defp resolve_type({:|, _meta, [arg1, arg2]} = type, module, precond, resolving_context, {types, errs, deps}) do
     if is_nil(precond) do
       {res_types, res_errs, res_deps} =
         resolve_type(
-          arg2,
+          arg1,
           module,
-          precond,
+          nil,
           resolving_context,
-          resolve_type(arg1, module, nil, resolving_context, acc)
+          resolve_type(arg2, module, nil, resolving_context, {[], [], []})
         )
 
-      res_types = res_types |> Enum.find(res_types, &match?({:any, _, _}, &1)) |> List.wrap()
-      {res_types, res_errs, res_deps}
+      # reject other options for any()
+      res_types =
+        res_types
+        |> Enum.find(res_types, &match?({:any, _, _}, &1))
+        |> List.wrap()
+
+      or_type_precond =
+        case res_types do
+          [resolved_type1, resolved_type2] -> {quote(do: unquote(resolved_type1) | unquote(resolved_type2)), nil}
+          [any_type] -> any_type
+        end
+
+      {[or_type_precond | types], res_errs ++ errs, res_deps ++ deps}
     else
       type_string = Macro.to_string(type)
 
@@ -80,19 +88,15 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp resolve_type([{:..., _meta, _arg}], module, precond, _env_preconds, {types, errs, deps}) do
-    joint_type = {quote(context: module, do: nonempty_list(any())), precond}
+    any_type = {:any, [], []}
+    joint_type = {quote(context: module, do: nonempty_list(unquote(any_type))), precond}
     {[joint_type | types], errs, deps}
   end
 
-  defp resolve_type([type, {:..., _meta2, _arg2}], module, precond, resolving_context, acc) do
-    combine_or_args(
-      [type],
-      module,
-      resolving_context,
-      & &1,
-      fn [type] -> {quote(context: module, do: nonempty_list(unquote(type))), precond} end,
-      acc
-    )
+  defp resolve_type([type, {:..., _meta2, _arg2}], module, precond, resolving_context, {types, errs, deps}) do
+    {[el_type], el_errs, el_deps} = resolve_type(type, module, nil, resolving_context, {[], [], []})
+    list_type_precond = {quote(context: module, do: nonempty_list(unquote(el_type))), precond}
+    {[list_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
   # Ecto.Schema Types
@@ -127,35 +131,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
        )
        when many_type in [:has_many, :many_to_many, :embeds_many] do
     do_resolve_ecto_schema(:many, many_type, type, module, precond, resolving_context, acc)
-  end
-
-  defp do_resolve_ecto_schema(schema_kind, schema_type, type, module, precond, resolving_context, {types, errs, deps} = acc) do
-    type_to_resolve =
-      case schema_kind do
-        :one -> quote(do: unquote(type) | Ecto.Association.NotLoaded.t())
-        :many -> quote(do: [unquote(type)] | Ecto.Association.NotLoaded.t())
-      end
-
-    if is_nil(precond) do
-      {types, errors, deps} =
-        resolve_type(
-          type_to_resolve,
-          module,
-          precond,
-          resolving_context,
-          acc
-        )
-
-      {types, errors, deps}
-    else
-      error =
-        {:error,
-         """
-         Precondition for value of Ecto.Schema.#{Atom.to_string(schema_type)}(t) type is not allowed.\
-         """}
-
-      {types, [error | errs], deps}
-    end
   end
 
   # Remote Types
@@ -211,9 +186,19 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   # Basic and Built-in Types
 
-  defp resolve_type({:boolean = kind, _meta, _args}, _module, precond, _env_preconds, {types, errs, deps}) do
+  defp resolve_type({:boolean = kind, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
     if is_nil(precond) do
-      {[true, false | types], errs, deps}
+      joint_type =
+        or_type_quoted(
+          [
+            true,
+            false
+          ],
+          module,
+          [nil]
+        )
+
+      {[joint_type | types], errs, deps}
     else
       error = {:error, precondition_not_supported_message(kind)}
       {types, [error | errs], deps}
@@ -222,13 +207,18 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   defp resolve_type({:identifier = kind, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
     if is_nil(precond) do
-      joint_types = [
-        quote(context: module, do: reference()),
-        quote(context: module, do: port()),
-        quote(context: module, do: pid())
-      ]
+      joint_type =
+        or_type_quoted(
+          [
+            quote(context: module, do: pid()),
+            quote(context: module, do: reference()),
+            quote(context: module, do: port())
+          ],
+          module,
+          [nil, nil]
+        )
 
-      {joint_types ++ types, errs, deps}
+      {[joint_type | types], errs, deps}
     else
       error = {:error, precondition_not_supported_message(kind)}
       {types, [error | errs], deps}
@@ -266,22 +256,32 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp resolve_type({:number, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
-    joint_types = [
-      {quote(context: module, do: float()), precond},
-      {quote(context: module, do: integer()), precond}
-    ]
+    joint_type =
+      or_type_quoted(
+        [
+          {drop_line_metadata({:integer, [], []}), nil},
+          {drop_line_metadata({:float, [], []}), nil}
+        ],
+        module,
+        [precond]
+      )
 
-    {joint_types ++ types, errs, deps}
+    {[joint_type | types], errs, deps}
   end
 
   defp resolve_type({:timeout = kind, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
     if is_nil(precond) do
-      type_no_preconds = [
-        {quote(context: module, do: non_neg_integer()), nil},
-        quote(context: module, do: :infinity)
-      ]
+      joint_type =
+        or_type_quoted(
+          [
+            :infinity,
+            {quote(context: module, do: non_neg_integer()), nil}
+          ],
+          module,
+          [nil]
+        )
 
-      {type_no_preconds ++ types, errs, deps}
+      {[joint_type | types], errs, deps}
     else
       error = {:error, precondition_not_supported_message(kind)}
       {types, [error | errs], deps}
@@ -326,19 +326,21 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {[joint_type | types], errs, deps}
   end
 
-  defp resolve_type({:list, _meta, []}, module, precond, _env_preconds, {types, errs, deps}) do
-    joint_type = {quote(context: module, do: [any()]), precond}
+  defp resolve_type({:list, _meta, []}, _module, precond, _env_preconds, {types, errs, deps}) do
+    joint_type = {[{:any, [], []}], precond}
     {[joint_type | types], errs, deps}
   end
 
   defp resolve_type({:nonempty_list, _meta, []}, module, precond, _env_preconds, {types, errs, deps}) do
-    joint_type = {quote(context: module, do: nonempty_list(any())), precond}
+    any_type_precond = {:any, [], []}
+    joint_type = {quote(context: module, do: nonempty_list(unquote(any_type_precond))), precond}
     {[joint_type | types], errs, deps}
   end
 
   defp resolve_type({maybe_list_kind, _meta, []}, module, precond, _env_preconds, {types, errs, deps})
        when maybe_list_kind in [:maybe_improper_list, :nonempty_maybe_improper_list] do
-    joint_type = {quote(context: module, do: unquote(maybe_list_kind)(any(), any())), precond}
+    any = {:any, [], []}
+    joint_type = {quote(context: module, do: unquote(maybe_list_kind)(unquote(any), unquote(any))), precond}
     {[joint_type | types], errs, deps}
   end
 
@@ -355,9 +357,10 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
 
   defp resolve_type({:struct, _meta, _args}, module, precond, _env_preconds, {types, errs, deps}) do
     struct_attribute = ModuleInspector.struct_attribute()
+    any = {:any, [], []}
 
     joint_type = {
-      quote(context: module, do: %{unquote(struct_attribute) => {atom(), nil}, optional({atom(), nil}) => any()}),
+      quote(context: module, do: %{unquote(struct_attribute) => {atom(), nil}, optional({atom(), nil}) => unquote(any)}),
       precond
     }
 
@@ -378,20 +381,19 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   # Parametrized literals, basic, and built-in types
 
   defp resolve_type({:keyword, _meta, []}, module, precond, _env_preconds, {types, errs, deps}) do
-    joint_type = {quote(context: module, do: [{atom(), any()}]), precond}
+    atom_precond = {{:atom, [], []}, nil}
+    any = {:any, [], []}
+    joint_type = {quote(context: module, do: [{unquote(atom_precond), unquote(any)}]), precond}
     {[joint_type | types], errs, deps}
   end
 
-  defp resolve_type({:keyword, _meta, [type]}, module, precond, resolving_context, {types, errs, deps} = acc) do
+  defp resolve_type({:keyword, _meta, [type]}, module, precond, resolving_context, {types, errs, deps}) do
     if is_nil(precond) do
-      combine_or_args(
-        [type],
-        module,
-        resolving_context,
-        & &1,
-        fn [type] -> {quote(context: module, do: [{atom(), unquote(type)}]), nil} end,
-        acc
-      )
+      {[el_type], el_errs, el_deps} = resolve_type(type, module, nil, resolving_context, {[], [], []})
+
+      atom_precond = {{:atom, [], []}, nil}
+      kw_type = quote(context: module, do: [{unquote(atom_precond), unquote(el_type)}])
+      {[{kw_type, precond} | types], el_errs ++ errs, el_deps ++ deps}
     else
       error =
         {:error,
@@ -405,37 +407,18 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp resolve_type({:list, _meta, [arg]}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      [arg],
-      module,
-      resolving_context,
-      & &1,
-      &{quote(context: module, do: unquote(&1)), precond},
-      acc
-    )
+    resolve_type([arg], module, precond, resolving_context, acc)
   end
 
-  defp resolve_type({:nonempty_list, _meta, [arg]}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      [arg],
-      module,
-      resolving_context,
-      & &1,
-      fn [arg] -> {quote(context: module, do: nonempty_list(unquote(arg))), precond} end,
-      acc
-    )
+  defp resolve_type({:nonempty_list, _meta, [arg]}, module, precond, resolving_context, {types, errs, deps}) do
+    {[el_type], el_err, el_deps} = resolve_type(arg, module, nil, resolving_context, {[], [], []})
+    list_type_precond = {quote(context: module, do: nonempty_list(unquote(el_type))), precond}
+    {[list_type_precond | types], el_err ++ errs, el_deps ++ deps}
   end
 
   defp resolve_type({:as_boolean, _meta, [type]}, module, precond, resolving_context, {types, errs, deps} = acc) do
     if is_nil(precond) do
-      combine_or_args(
-        [type],
-        module,
-        resolving_context,
-        & &1,
-        fn [type] -> quote(context: module, do: unquote(type)) end,
-        acc
-      )
+      resolve_type(type, module, nil, resolving_context, acc)
     else
       error =
         {:error,
@@ -458,28 +441,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {[joint_type | types], errs, deps}
   end
 
-  defp resolve_type([{:->, _meta, [[_ | _] = args, _return_type]}], module, precond, resolving_context, acc) do
-    combine_or_args(
-      args,
-      module,
-      resolving_context,
-      & &1,
-      &{quote(context: module, do: (unquote_splicing(&1) -> any())), precond},
-      acc
-    )
-  end
-
-  defp resolve_type({:%{}, _meta, [{{kind, _km, [key_type]}, value_type}]}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      [key_type, value_type],
-      module,
-      resolving_context,
-      & &1,
-      fn [key_type, value_type] ->
-        {quote(context: module, do: %{unquote(kind)(unquote(key_type)) => unquote(value_type)}), precond}
-      end,
-      acc
-    )
+  defp resolve_type([{:->, _meta, [[_ | _] = args, _return_type]}], module, precond, resolving_context, {types, errs, deps}) do
+    {el_types, el_errs, el_deps} = parallel_resolve_type(Enum.reverse(args), module, nil, resolving_context, {[], [], []})
+    any = {:any, [], []}
+    fun_type_precond = {quote(context: module, do: (unquote_splicing(el_types) -> unquote(any))), precond}
+    {[fun_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
   defp resolve_type({:%{}, _meta, [{{kind, _, [_key]}, _value} | _] = kkv}, module, precond, resolving_context, {types, errs, deps})
@@ -504,15 +470,19 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {joint_types ++ types, resolved_errs ++ errs, deps ++ resolved_deps}
   end
 
-  defp resolve_type({:%{}, _meta, [{_key, _value} | _] = kv_list}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      kv_list,
-      module,
-      resolving_context,
-      &drop_kv_precond/1,
-      &{quote(context: module, do: %{unquote_splicing(&1)}), precond},
-      acc
-    )
+  defp resolve_type({:%{}, _meta, [{_key, _value} | _] = kv_list}, module, precond, resolving_context, {types, errs, deps}) do
+    {el_types, el_errs, el_deps} =
+      kv_list
+      |> Enum.reverse()
+      |> Enum.reduce({[], [], []}, fn {key, value}, {types, errs, deps} ->
+        {[key_type], key_errs, key_deps} = resolve_type(key, module, nil, resolving_context, {[], [], []})
+        {[value_type], value_errs, value_deps} = resolve_type(value, module, nil, resolving_context, {[], [], []})
+
+        {[{key_type, value_type} | types], key_errs ++ value_errs ++ errs, key_deps ++ value_deps ++ deps}
+      end)
+
+    map_type_precond = {{:%{}, [], el_types}, precond}
+    {[map_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
   defp resolve_type(
@@ -562,18 +532,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     end
   end
 
-  defp resolve_type([_] = args, module, precond, resolving_context, acc) do
-    combine_or_args(
-      args,
-      module,
-      resolving_context,
-      &drop_kv_precond/1,
-      &{quote(context: module, do: [unquote_splicing(&1)]), precond},
-      acc
-    )
-  end
-
-  defp resolve_type([_ | _] = list, module, precond, resolving_context, {types, errs, deps} = acc) do
+  defp resolve_type([{key, _value} | _] = list, module, precond, resolving_context, {types, errs, deps}) when is_atom(key) do
     keyword? =
       Enum.all?(list, fn
         {key, _value} -> is_atom(key)
@@ -581,41 +540,38 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
       end)
 
     if keyword? do
-      combine_or_args(
-        list,
-        module,
-        resolving_context,
-        &drop_kv_precond/1,
-        &{quote(context: module, do: [unquote_splicing(&1)]), precond},
-        acc
-      )
+      {keys, value_types} = Enum.unzip(list)
+      {resolved_value_types, resolved_errs, resolved_deps} = parallel_resolve_type(value_types, module, nil, resolving_context, {[], [], []})
+      kv_types = Enum.zip(keys, resolved_value_types)
+
+      {[{kv_types, precond} | types], resolved_errs ++ errs, resolved_deps ++ deps}
     else
       {types, [:keyword_list_should_has_atom_keys | errs], deps}
     end
   end
 
-  defp resolve_type({list_kind, _meta, [_elem_type, _tail_type] = el_types}, module, precond, resolving_context, acc)
+  defp resolve_type([el], module, precond, resolving_context, {types, errs, deps}) do
+    {[el_type], el_errs, el_deps} = resolve_type(el, module, nil, resolving_context, {[], [], []})
+    {[{[el_type], precond} | types], el_errs ++ errs, el_deps ++ deps}
+  end
+
+  defp resolve_type({list_kind, _meta, [_head_type, _tail_type] = ht_types}, module, precond, resolving_context, {types, errs, deps})
        when list_kind in [
               :maybe_improper_list,
               :nonempty_improper_list,
               :nonempty_maybe_improper_list
             ] do
-    combine_or_args(
-      el_types,
-      module,
-      resolving_context,
-      & &1,
-      fn [elem_type, tail_type] ->
-        {
-          quote(
-            context: module,
-            do: unquote(list_kind)(unquote(elem_type), unquote(tail_type))
-          ),
-          precond
-        }
-      end,
-      acc
-    )
+    {[head_type, tail_type], el_errs, el_deps} = parallel_resolve_type(Enum.reverse(ht_types), module, nil, resolving_context, {[], [], []})
+
+    list_type_precond = {
+      quote(
+        context: module,
+        do: unquote(list_kind)(unquote(head_type), unquote(tail_type))
+      ),
+      precond
+    }
+
+    {[list_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
   defp resolve_type({:{} = kind, _meta, []}, module, precond, _env_preconds, {types, errs, deps}) do
@@ -628,30 +584,21 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     end
   end
 
-  defp resolve_type({:{}, _meta, [_ | _] = args}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      args,
-      module,
-      resolving_context,
-      & &1,
-      &{quote(context: module, do: {unquote_splicing(&1)}), precond},
-      acc
-    )
+  defp resolve_type({:{}, _meta, [_ | _] = args}, module, precond, resolving_context, {types, errs, deps}) do
+    {el_types, el_errs, el_deps} = parallel_resolve_type(Enum.reverse(args), module, nil, resolving_context, {[], [], []})
+    tuple_type_precond = {quote(context: module, do: {unquote_splicing(el_types)}), precond}
+    {[tuple_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
-  defp resolve_type({arg1, arg2}, module, precond, resolving_context, acc) do
-    combine_or_args(
-      [arg1, arg2],
-      module,
-      resolving_context,
-      & &1,
-      fn [arg1, arg2] -> {quote(context: module, do: {unquote(arg1), unquote(arg2)}), precond} end,
-      acc
-    )
+  defp resolve_type({arg1, arg2}, module, precond, resolving_context, {types, errs, deps}) do
+    {[arg1_type, arg2_type], el_errs, el_deps} = parallel_resolve_type([arg2, arg1], module, nil, resolving_context, {[], [], []})
+    tuple_type_precond = {quote(context: module, do: {unquote(arg1_type), unquote(arg2_type)}), precond}
+    {[tuple_type_precond | types], el_errs ++ errs, el_deps ++ deps}
   end
 
   defp resolve_type({kind_any, _meta, args}, _module, precond, _env_preconds, {_types, errs, deps})
        when kind_any in [:term, :any] do
+    # we use this hack because for any as a type parameter and any from an external field type with precondition
     type = if is_nil(precond), do: {:any, [], args}, else: {{:any, [], args}, precond}
     {[type], errs, deps}
   end
@@ -773,43 +720,54 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {[joint_type | types], errs, deps}
   end
 
-  defp combine_or_args(args, module, resolving_context, map_resolved_fn, quote_fn, {types, errs, deps}) do
-    {args_resolved, errs_resolved, deps_resolved} =
-      args
-      |> Enum.map(&resolve_type(&1, module, nil, resolving_context, {[], [], []}))
-      |> Enum.reduce({[], [], []}, fn {args_el, errs_el, deps_el}, {args_resolved, errs_resolved, deps_resolved} ->
-        {[args_el | args_resolved], [errs_el | errs_resolved], [deps_el | deps_resolved]}
-      end)
+  defp do_resolve_ecto_schema(schema_kind, schema_type, type, module, precond, resolving_context, {types, errs, deps} = acc) do
+    type_to_resolve =
+      case schema_kind do
+        :one -> quote(do: unquote(type) | Ecto.Association.NotLoaded.t())
+        :many -> quote(do: [unquote(type)] | Ecto.Association.NotLoaded.t())
+      end
 
-    {args_resolved, errs_resolved, deps_resolved} = {
-      Enum.reverse(args_resolved) |> Enum.map(&map_resolved_fn.(&1)),
-      Enum.reverse(errs_resolved),
-      Enum.reverse(deps_resolved)
-    }
+    if is_nil(precond) do
+      {types, errors, deps} =
+        resolve_type(
+          type_to_resolve,
+          module,
+          precond,
+          resolving_context,
+          acc
+        )
 
-    args_combinations_count = Enum.reduce(args_resolved, 1, fn sublist, acc -> Enum.count(sublist) * acc end)
-
-    if args_combinations_count > @max_arg_combinations_count do
-      err =
+      {types, errors, deps}
+    else
+      error =
         {:error,
          """
-         Failed to generate #{args_combinations_count} type combinations with max. allowed #{@max_arg_combinations_count}. \
-         Consider reducing number of | options or change the container type to struct using Domo.\
+         Precondition for value of Ecto.Schema.#{Atom.to_string(schema_type)}(t) type is not allowed.\
          """}
 
-      {types, [err | errs], deps}
-    else
-      combined_types =
-        args_resolved
-        |> Arguments.all_combinations()
-        |> Enum.map(&quote_fn.(&1))
-
-      {
-        combined_types ++ types,
-        List.flatten(errs_resolved) ++ errs,
-        deps ++ List.flatten(deps_resolved)
-      }
+      {types, [error | errs], deps}
     end
+  end
+
+  # this one is for internal cases when we have several arguments to be resolved, f.e. from {a, b, c}
+  # it resolves each element independently so f.e. :any as one resolved element doesn't affect others
+  defp parallel_resolve_type([_ | _] = list, module, nil, resolving_context, acc) do
+    Enum.reduce(list, acc, fn type, {types, errs, deps} ->
+      {el_type, el_errs, el_deps} = resolve_type(type, module, nil, resolving_context, {[], [], []})
+      {el_type ++ types, el_errs ++ errs, el_deps ++ deps}
+    end)
+  end
+
+  defp or_type_quoted(types, module, preconds) when length(preconds) == length(types) - 1 do
+    do_or_type_quoted(types, module, preconds)
+  end
+
+  defp do_or_type_quoted([type_head], module, []) do
+    quote(context: module, do: unquote(type_head))
+  end
+
+  defp do_or_type_quoted([type_head | type_tail], module, [precond_head | precond_tail]) do
+    quote(context: module, do: {unquote(type_head) | unquote(or_type_quoted(type_tail, module, precond_tail)), unquote(precond_head)})
   end
 
   defp get_valid_precondition(preconditions) do
@@ -837,13 +795,6 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp drop_line_metadata(type), do: Macro.update_meta(type, &Keyword.delete(&1, :line))
-
-  defp drop_kv_precond(kv_list) do
-    Enum.map(kv_list, fn
-      {{_key, _value} = kv, _precond} -> kv
-      value -> value
-    end)
-  end
 
   defp ensurable_struct?(module, resolvable_structs) do
     MapSet.member?(resolvable_structs, module) or ModuleInspector.has_type_ensurer?(module)

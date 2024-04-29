@@ -160,8 +160,8 @@ po
 {:ok, %PurchaseOrder{approved_limit: 200, id: 1000, items: [%LineItem{amount: 150}]}}
 ```
 
-Domo returns the error if the precondition function attached to the `t()` type
-that validates invariants for the struct as a whole fails:
+Domo returns the error if the precondition function validating the `t()` type
+as a whole fails:
 
 ```elixir
 updated_po = %{po | items: [LineItem.new!(amount: 180), LineItem.new!(amount: 100)]}
@@ -169,6 +169,37 @@ PurchaseOrder.ensure_type(updated_po)
 ```
 ```output
 {:error, [t: "Sum of line item amounts should be <= to approved limit"]}
+```
+
+Domo supports sum types for struct fields, for example:
+
+```elixir
+defmodule FruitBasket do
+  use Domo
+  
+  defstruct fruits: []
+  
+  @type t() :: %__MODULE__{fruits: [String.t() | :banana]}
+end
+```
+
+```elixir
+FruitBasket.new(fruits: [:banana, "Maracuja"])
+```
+```output
+{:ok, %FruitBasket{fruits: [:banana, "Maracuja"]}}
+```
+
+```elixir
+{:error, [fruits: message]} = FruitBasket.new(fruits: [:banana, "Maracuja", nil])
+IO.puts(message)
+```
+```output
+Invalid value [:banana, "Maracuja", nil] for field :fruits of %FruitBasket{}. Expected the value matching the [<<_::_*8>> | :banana] type.
+Underlying errors:
+   - The element at index 2 has value nil that is invalid.
+   - Expected the value matching the <<_::_*8>> type.
+   - Expected the value matching the :banana type.
 ```
 
 Getting the list of the required fields of the struct that have type other
@@ -793,6 +824,11 @@ Domo compiled validation functions for the given struct based on the described t
 3. Make a PR to this repository
 
 ## Changelog
+
+## v1.5.15
+
+* Support sum types as element of a list: [a | b]
+* Improve compatibility with Elixir 1.16
 
 ## v1.5.14
 

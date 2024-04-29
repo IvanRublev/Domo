@@ -128,7 +128,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       assert %{RemoteUserType => expected} == read_types(types_file)
     end
 
-    test "resolve remote user type that has or | to list of primitive types", %{
+    test "resolve a and b in remote user type that is a | b", %{
       planner: planner,
       plan_file: plan_file,
       preconds_file: preconds_file,
@@ -152,10 +152,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       expected =
         types_content_empty_precond(%{
           field: [
-            quote(context: RemoteUserType, do: atom()),
-            quote(context: RemoteUserType, do: integer()),
-            quote(context: RemoteUserType, do: float()),
-            quote(context: RemoteUserType, do: [unquote({:any, [], []})])
+            quote(context: RemoteUserType, do: atom() | integer() | float() | [unquote({:any, [], []})])
           ]
         })
 
@@ -259,19 +256,21 @@ defmodule Domo.TypeEnsurerFactory.Resolver.RemoteTest do
       nonexisting_module_file = __ENV__.file
 
       assert {:error, list} = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
+
       assert [
-        %Error{
-          compiler_module: Resolver,
-          file: nonexisting_module_file,
-          struct_module: NonexistingModule,
-          message: {:no_beam_file, NonexistingModule}
-        },
-        %Error{
-        compiler_module: Resolver,
-        file: remote_user_type_file,
-        struct_module: RemoteUserType,
-        message: {:type_not_found, {RemoteUserType, "nonexistent_type", "RemoteUserType.nonexistent_type()"}}
-      }] == Enum.sort(list)
+               %Error{
+                 compiler_module: Resolver,
+                 file: nonexisting_module_file,
+                 struct_module: NonexistingModule,
+                 message: {:no_beam_file, NonexistingModule}
+               },
+               %Error{
+                 compiler_module: Resolver,
+                 file: remote_user_type_file,
+                 struct_module: RemoteUserType,
+                 message: {:type_not_found, {RemoteUserType, "nonexistent_type", "RemoteUserType.nonexistent_type()"}}
+               }
+             ] == Enum.sort(list)
     end
   end
 end

@@ -20,10 +20,12 @@ defmodule DomoTest do
       Airplane,
       Airplane.Seat,
       Article,
+      Apple,
       Arena,
       Book,
       Customer,
       EctoPassenger,
+      FruitBasket,
       Game,
       Leaf,
       LeafHolder,
@@ -33,6 +35,7 @@ defmodule DomoTest do
       Library.Shelve,
       MemonlyStruct,
       Money,
+      Orange,
       Order,
       PostFieldAndNestedPrecond,
       PostFieldPrecond,
@@ -179,7 +182,7 @@ defmodule DomoTest do
       end
     end
 
-    test "ensures data integrity of a struct with a sum type field" do
+    test "ensures data integrity of a struct with a sum | type field" do
       DomoMixTask.start_plan_collection()
       compile_game_struct()
       DomoMixTask.process_plan({:ok, []}, [])
@@ -204,6 +207,28 @@ defmodule DomoTest do
                    end
 
       assert %{__struct__: Game} = %{game | status: {:wining_player, "player2"}} |> Game.ensure_type!()
+    end
+
+    test "ensures data integrity of a struct with list field having sum | element type" do
+      DomoMixTask.start_plan_collection()
+      compile_fruit_structs()
+      DomoMixTask.process_plan({:ok, []}, [])
+
+      apple = Apple.new!()
+      orange = Orange.new!()
+
+      assert_raise ArgumentError, ~r/Invalid value nil for field :fruits/s, fn ->
+        _ = FruitBasket.new!(fruits: nil)
+      end
+
+      basket = FruitBasket.new!(fruits: [])
+
+      assert_raise ArgumentError, ~r/- The element at index 1 has value nil that is invalid./s, fn ->
+        _ = %{basket | fruits: [apple, nil]} |> FruitBasket.ensure_type!()
+      end
+
+      FruitBasket.new!(fruits: [apple, orange])
+      assert %{__struct__: FruitBasket} = %{basket | fruits: [apple, orange]} |> FruitBasket.ensure_type!()
     end
 
     test "ensures data integrity of a struct with a field referencing erlang type" do
@@ -358,7 +383,7 @@ defmodule DomoTest do
                    end
     end
 
-    test "ensures data integrity with struct field type's value preconditions" do
+    test "ensures data integrity with struct field type precondition" do
       DomoMixTask.start_plan_collection()
       compile_account_struct()
       {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
@@ -461,9 +486,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       account = AccountOpaquePrecond.new!(id: 101)
       assert %{__struct__: AccountOpaquePrecond} = account
 
-      assert_raise ArgumentError, ~r/Expected the value matching the integer\(\) type. And a true value from the precondition function/s, fn ->
-        _ = AccountOpaquePrecond.new!(id: -500)
-      end
+      assert_raise ArgumentError,
+                   ~r/Expected the value matching the integer\(\) | float\(\) type. And a true value from the precondition function/s,
+                   fn ->
+                     _ = AccountOpaquePrecond.new!(id: -500)
+                   end
 
       assert_raise ArgumentError,
                    ~r/Invalid value %AccountOpaquePrecond{id: 100}. Expected the value matching the AccountOpaquePrecond.t\(\) type. And a true value from the precondition function/s,
@@ -1109,23 +1136,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   describe "Domo library error messages should" do
-    test "have no underlying errors printed giving | type with primitive type arguments" do
-      DomoMixTask.start_plan_collection()
-      compile_receiver_struct()
-      DomoMixTask.process_plan({:ok, []}, [])
-
-      assert_raise ArgumentError,
-                   """
-                   the following values should have types defined for fields of the Receiver struct:
-                    * Invalid value nil for field :title of %Receiver{}. Expected the value \
-                   matching the :mr | :ms | :dr type.\
-                   """,
-                   fn ->
-                     _ = Receiver.new!(title: nil, name: "ok")
-                   end
-    end
-
-    test "have only underlying error for matching argument type with failed precondition giving | with user type arguments" do
+    test "have underlying error printed for | sum type" do
       DomoMixTask.start_plan_collection()
       compile_money_struct()
       DomoMixTask.process_plan({:ok, []}, [])
@@ -1136,8 +1147,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
                     * Invalid value 0.3 for field :amount of %Money{}. Expected the value \
                    matching the :none | float() | integer() type.
                    Underlying errors:
-                      - Expected the value matching the float() type. And a true value from the \
-                   precondition function "&(&1 > 0.5)" defined for Money.float_amount() type.\
+                      - Expected the value matching the :none type.
+                      - Expected the value matching the float() type. And a true value from the precondition function \"&(&1 > 0.5)\" defined for Money.float_amount() type.
+                      - Expected the value matching the integer() type.\
                    """,
                    fn ->
                      _ = Money.new!(amount: 0.3)
@@ -1149,23 +1161,29 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       compile_article_struct()
       {:ok, _} = DomoMixTask.process_plan({:ok, []}, [])
 
+      field_type_str =
+        case ElixirVersion.version() do
+          [1, minor, _] when minor < 12 ->
+            ":none | {:simple, %{author: <<_::_*8>>, published: <<_::_*8>>}} | {:detail, <<_::_*8>> | %{author: <<_::_*8>>, published_updated: :never | <<_::_*8>>}}"
+
+          [1, minor, _] when minor >= 12 ->
+            ":none\n| {:simple, %{author: <<_::_*8>>, published: <<_::_*8>>}}\n| {:detail, <<_::_*8>> | %{author: <<_::_*8>>, published_updated: :never | <<_::_*8>>}}"
+        end
+
       assert_raise ArgumentError,
                    """
                    the following values should have types defined for fields of the Article struct:
                     * Invalid value {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}} \
-                   for field :metadata of %Article{}. Expected the value matching the \
-                   :none \
-                   | {:simple, %{author: <<_::_*8>>, published: <<_::_*8>>}} \
-                   | {:detail, <<_::_*8>>} \
-                   | {:detail, %{author: <<_::_*8>>, published_updated: :never}} \
-                   | {:detail, %{author: <<_::_*8>>, published_updated: <<_::_*8>>}} type.
+                   for field :metadata of %Article{}. Expected the value matching the #{field_type_str} type.
                    Underlying errors:
+                      - Expected the value matching the :none type.
+                      - The element at index 0 has value :detail that is invalid.
+                      - Expected the value matching the :simple type.
                       - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
-                        - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
-                        - Expected the value matching the :never type.
-                      - The element at index 1 has value %{author: "John Smith", published_updated: {~D[2021-06-20], nil}} that is invalid.
-                        - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
-                        - Expected the value matching the <<_::_*8>> type.\
+                      - Expected the value matching the <<_::_*8>> type.
+                      - The field with key :published_updated has value {~D[2021-06-20], nil} that is invalid.
+                      - Expected the value matching the :never type.
+                      - Expected the value matching the <<_::_*8>> type.\
                    """,
                    fn ->
                      _ = Article.new!(metadata: {:detail, %{author: "John Smith", published_updated: {~D[2021-06-20], nil}}})
@@ -1658,6 +1676,33 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       @type t :: %__MODULE__{
             status: :not_started | {:in_progress, [player()]} | {:wining_player, player()}
           }
+    end
+    """)
+
+    CompilerHelpers.compile_with_elixir()
+    [path]
+  end
+
+  defp compile_fruit_structs do
+    path = MixProject.out_of_project_tmp_path("/fruits.ex")
+
+    File.write!(path, """
+    defmodule Apple do
+      use Domo, skip_defaults: true
+      defstruct []
+      @type t() :: %__MODULE__{}
+    end
+
+    defmodule Orange do
+      use Domo, skip_defaults: true
+      defstruct []
+      @type t() :: %__MODULE__{}
+    end
+
+    defmodule FruitBasket do
+      use Domo, skip_defaults: true
+      defstruct fruits: []
+      @type t() :: %__MODULE__{fruits: [Apple.t() | Orange.t()]}
     end
     """)
 

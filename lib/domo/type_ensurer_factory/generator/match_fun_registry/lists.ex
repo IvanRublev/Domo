@@ -152,45 +152,6 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
     {[match_spec_quoted, match_list_elements_quoted], [element_spec_precond]}
   end
 
-  defp match_el_quoted(type_spec_atom, head_attributes, tail_attributes) do
-    {head_spec_atom, head_precond_atom, head_spec_string} = head_attributes
-    {tail_spec_atom, tail_precond_atom, tail_spec_string} = tail_attributes
-
-    quote do
-      def do_match_list_elements(unquote(type_spec_atom), [head | tail], idx, opts) do
-        case do_match_spec({unquote(head_spec_atom), unquote(head_precond_atom)}, head, unquote(head_spec_string), opts) do
-          :ok ->
-            do_match_list_elements(unquote(type_spec_atom), tail, idx + 1, opts)
-
-          {:error, element_value, messages} ->
-            {:element_error,
-             [
-               {"The element at index %{idx} has value %{element_value} that is invalid.", [idx: idx, element_value: inspect(element_value)]}
-               | messages
-             ]}
-        end
-      end
-
-      def do_match_list_elements(unquote(type_spec_atom), [], idx, _opts) do
-        {:proper, idx}
-      end
-
-      def do_match_list_elements(unquote(type_spec_atom), tail, idx, opts) do
-        case do_match_spec({unquote(tail_spec_atom), unquote(tail_precond_atom)}, tail, unquote(tail_spec_string), opts) do
-          :ok ->
-            {:improper, idx}
-
-          {:error, element_value, messages} ->
-            {:element_error,
-             [
-               {"The tail element has value %{element_value} that is invalid.", [element_value: inspect(element_value)]}
-               | messages
-             ]}
-        end
-      end
-    end
-  end
-
   defp match_list_function_quoted(:maybe_improper_list, type_spec, precond) do
     {:maybe_improper_list, [], [head_spec_precond, tail_spec_precond]} = type_spec
     type_spec_atom = TypeSpec.to_atom(type_spec)
@@ -276,5 +237,44 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
       end
 
     {[match_spec_quoted, match_list_elements_quoted], [head_spec_precond, tail_spec_precond]}
+  end
+
+  defp match_el_quoted(type_spec_atom, head_attributes, tail_attributes) do
+    {head_spec_atom, head_precond_atom, head_spec_string} = head_attributes
+    {tail_spec_atom, tail_precond_atom, tail_spec_string} = tail_attributes
+
+    quote do
+      def do_match_list_elements(unquote(type_spec_atom), [head | tail], idx, opts) do
+        case do_match_spec({unquote(head_spec_atom), unquote(head_precond_atom)}, head, unquote(head_spec_string), opts) do
+          :ok ->
+            do_match_list_elements(unquote(type_spec_atom), tail, idx + 1, opts)
+
+          {:error, element_value, messages} ->
+            {:element_error,
+             [
+               {"The element at index %{idx} has value %{element_value} that is invalid.", [idx: idx, element_value: inspect(element_value)]}
+               | messages
+             ]}
+        end
+      end
+
+      def do_match_list_elements(unquote(type_spec_atom), [], idx, _opts) do
+        {:proper, idx}
+      end
+
+      def do_match_list_elements(unquote(type_spec_atom), tail, idx, opts) do
+        case do_match_spec({unquote(tail_spec_atom), unquote(tail_precond_atom)}, tail, unquote(tail_spec_string), opts) do
+          :ok ->
+            {:improper, idx}
+
+          {:error, element_value, messages} ->
+            {:element_error,
+             [
+               {"The tail element has value %{element_value} that is invalid.", [element_value: inspect(element_value)]}
+               | messages
+             ]}
+        end
+      end
+    end
   end
 end

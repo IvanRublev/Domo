@@ -7,7 +7,7 @@ defmodule ModuleNested do
   @moduledoc false
 
   @type mn_float :: float()
-  @type various_type :: atom() | integer() | float() | list()
+  @type various_type :: module() | integer() | float() | list()
 
   defmodule Module do
     @moduledoc false

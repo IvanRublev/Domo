@@ -32,6 +32,10 @@ defmodule DomoFuncTest do
                    the following values should have types defined for fields of the Recipient struct:
                     * Invalid value "mr" for field :title of %Recipient{}. Expected the value matching \
                    the :mr | :ms | :dr type.
+                   Underlying errors:
+                      - Expected the value matching the :mr type.
+                      - Expected the value matching the :ms type.
+                      - Expected the value matching the :dr type.
                     * Invalid value 27.5 for field :age of %Recipient{}. Expected the value matching \
                    the integer() type.\
                    """,
@@ -45,10 +49,7 @@ defmodule DomoFuncTest do
         """
         the following values should have types defined for fields of the RecipientNestedOrTypes struct:
          * Invalid value %Recipient{__fields_pattern__} for field :title of %RecipientNestedOrTypes{}. \
-        Expected the value matching the :mr | %Recipient{} | :dr type.
-        Underlying errors:
-           - Value of field :title is invalid due to Invalid value "mr" for field :title of %Recipient{}. \
-        Expected the value matching the :mr | :ms | :dr type.\
+        Expected the value matching the :mr | %Recipient{} | :dr type.\
         """
         |> Regex.escape()
         |> String.replace("__fields_pattern__", ".*age: 27.*")
@@ -215,7 +216,11 @@ defmodule DomoFuncTest do
       assert error == [
                title: """
                Invalid value "mr" for field :title of %Recipient{}. Expected the value matching \
-               the :mr | :ms | :dr type.\
+               the :mr | :ms | :dr type.
+               Underlying errors:
+                  - Expected the value matching the :mr type.
+                  - Expected the value matching the :ms type.
+                  - Expected the value matching the :dr type.\
                """,
                age: """
                Invalid value 27.5 for field :age of %Recipient{}. Expected the value matching \
@@ -259,7 +264,11 @@ defmodule DomoFuncTest do
       assert error == [
                title: """
                Invalid value nil for field :title of %Recipient{}. Expected the value matching \
-               the :mr | :ms | :dr type.\
+               the :mr | :ms | :dr type.
+               Underlying errors:
+                  - Expected the value matching the :mr type.
+                  - Expected the value matching the :ms type.
+                  - Expected the value matching the :dr type.\
                """
              ]
     end

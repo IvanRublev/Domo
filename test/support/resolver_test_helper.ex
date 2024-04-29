@@ -291,7 +291,7 @@ defmodule ResolverTestHelper do
         updated_values -> updated_values
       end
 
-    {[{:->, meta, [updated_args, return_type]}], nil}
+    {[{:->, meta, [updated_args, add_empty_precond(return_type)]}], nil}
   end
 
   def add_empty_precond([{:->, _, _}] = value) do
@@ -319,6 +319,16 @@ defmodule ResolverTestHelper do
       end
 
     {{list_kind, [], updated_values}, nil}
+  end
+
+  def add_empty_precond({:|, [], values}) do
+    updated_values =
+      case add_empty_precond(values) do
+        {updated_values, _} -> updated_values
+        updated_values -> updated_values
+      end
+
+    {{:|, [], updated_values}, nil}
   end
 
   def add_empty_precond([]) do
@@ -387,8 +397,16 @@ defmodule ResolverTestHelper do
     {field_type, [], [add_empty_precond(value)]}
   end
 
-  def add_empty_precond_key(key) do
+  def add_empty_precond_key({:|, [], values}) do
+    {{:|, [], add_empty_precond(values)}, nil}
+  end
+
+  def add_empty_precond_key(key) when is_atom(key) do
     key
+  end
+
+  def add_empty_precond_key(key) do
+    {key, nil}
   end
 
   def read_types(types_file) do

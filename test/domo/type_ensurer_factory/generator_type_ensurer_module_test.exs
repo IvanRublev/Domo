@@ -41,16 +41,20 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "Generated TypeEnsurer module" do
     setup do
-      load_type_ensurer_module_with_no_preconds(%{
-        __example_meta_field__: [quote(do: atom())],
-        __any_meta_field__: [quote(do: term())],
-        second: [quote(do: integer())],
-        first: [quote(do: integer()), quote(do: nil)],
-        third: [quote(do: any())],
-        fourth: [quote(do: term())],
-        ecto_assoc_1: [quote(do: [atom()])],
-        ecto_assoc_2: [quote(do: atom())],
-      }, [:ecto_assoc_1, :ecto_assoc_2], "%Module{...}")
+      load_type_ensurer_module_with_no_preconds(
+        %{
+          __example_meta_field__: [quote(do: atom())],
+          __any_meta_field__: [quote(do: term())],
+          second: [quote(do: integer())],
+          first: [quote(do: integer()), quote(do: nil)],
+          third: [quote(do: any())],
+          fourth: [quote(do: term())],
+          ecto_assoc_1: [quote(do: [atom()])],
+          ecto_assoc_2: [quote(do: atom())]
+        },
+        [:ecto_assoc_1, :ecto_assoc_2],
+        "%Module{...}"
+      )
 
       :ok
     end
@@ -72,7 +76,16 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "fields(:typed_with_meta_with_any) returns fields sorted alphabetically with specific types with __meta fields__ included" do
-      assert call_fields(:typed_with_meta_with_any) == [:__any_meta_field__, :__example_meta_field__, :ecto_assoc_1, :ecto_assoc_2, :first, :fourth, :second, :third]
+      assert call_fields(:typed_with_meta_with_any) == [
+               :__any_meta_field__,
+               :__example_meta_field__,
+               :ecto_assoc_1,
+               :ecto_assoc_2,
+               :first,
+               :fourth,
+               :second,
+               :third
+             ]
     end
 
     test "fields(:required) returns fields having no any or nil type sorted alphabetically with __meta fields__ rejected" do
@@ -652,14 +665,14 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     test "port" do
       load_type_ensurer_module_with_no_preconds(%{first: [quote(do: port())]})
 
-      assert :ok == call_ensure_field_type({:first, :erlang.list_to_port('#Port<0.0>')})
+      assert :ok == call_ensure_field_type({:first, :erlang.list_to_port(~c"#Port<0.0>")})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_port})
     end
 
     test "reference" do
       load_type_ensurer_module_with_no_preconds(%{first: [quote(do: reference())]})
 
-      assert :ok == call_ensure_field_type({:first, :erlang.list_to_ref('#Ref<0.0.0.0>')})
+      assert :ok == call_ensure_field_type({:first, :erlang.list_to_ref(~c"#Ref<0.0.0.0>")})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_ref})
     end
 
@@ -813,7 +826,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
     test "function" do
       load_type_ensurer_module_with_no_preconds(%{
-        first: [quote(do: (() -> any()))],
+        # quote(do: (() -> any()))
+        first: [[{:->, [], [[], {:any, [], []}]}]],
         second: [quote(do: (... -> any()))]
       })
 
@@ -913,7 +927,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
-  describe "Generated TypeEnsurer module verifies basic/listeral typed" do
+  describe "Generated TypeEnsurer module verifies basic/literal typed" do
     test "proper [t]" do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: [atom()])]
@@ -925,6 +939,20 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       assert {:error, _} = call_ensure_field_type({:first, [1]})
       assert {:error, _} = call_ensure_field_type({:first, [:one | 1]})
       assert {:error, _} = call_ensure_field_type({:first, [:one | :two]})
+      assert {:error, _} = call_ensure_field_type({:first, [:first, :second, "third", :forth]})
+      assert {:error, _} = call_ensure_field_type({:first, :not_a_list})
+    end
+
+    test "proper [a | b]" do
+      load_type_ensurer_module_with_no_preconds(%{
+        first: [quote(do: [atom() | integer()])]
+      })
+
+      assert :ok == call_ensure_field_type({:first, []})
+      assert :ok == call_ensure_field_type({:first, [:one]})
+      assert :ok == call_ensure_field_type({:first, [1]})
+      assert :ok == call_ensure_field_type({:first, [:one, :two, :three]})
+      assert :ok == call_ensure_field_type({:first, [:one, 2, 3]})
       assert {:error, _} = call_ensure_field_type({:first, [:first, :second, "third", :forth]})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_list})
     end
@@ -1048,7 +1076,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
-  describe "Generated TypeEnsurer module verifies basic/listeral typed tuples of" do
+  describe "Generated TypeEnsurer module verifies basic/literal typed tuples of" do
     test "one element" do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: {atom()})]
@@ -1115,7 +1143,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
-  describe "Generated TypeEnsurer module verifies basic/listeral typed maps of" do
+  describe "Generated TypeEnsurer module verifies basic/literal typed maps of" do
     test "given keys and value types" do
       load_type_ensurer_module_with_no_preconds(%{
         first: [quote(do: %{former: atom()})],

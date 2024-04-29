@@ -117,8 +117,6 @@ defmodule Domo.TypeEnsurerFactory.ResolvePlannerInMemoryTest do
                )
     end
 
-
-
     test "accept types to treat as any" do
       assert :ok ==
                ResolvePlanner.keep_global_remote_types_to_treat_as_any(

@@ -5,8 +5,8 @@ locals_without_parens = [precond: 1, allow: :*, assert_called: :*]
     "{mix,.iex,.formatter,.credo}.exs",
     "{config,lib}/**/*.{ex,exs}",
     "test/*.{ex,exs}",
-    "test/{domo,support}/*.{ex,exs}",
-    "test/struct_modules/lib/*.{ex,exs}"
+    "test/{domo,support}/**/*.{ex,exs}",
+    "test/struct_modules/lib/**/*.{ex,exs}"
   ],
   locals_without_parens: locals_without_parens,
   export: [

@@ -166,11 +166,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.BasicsTest do
 
       assert %{
                TwoFieldStruct =>
-               types_content_empty_precond(%{
+                 types_content_empty_precond(%{
                    first: [quote(do: integer())]
                  }),
                AllDefaultsStruct =>
-               types_content_empty_precond(%{
+                 types_content_empty_precond(%{
                    first: [quote(do: integer())],
                    second: [quote(do: float())]
                  })

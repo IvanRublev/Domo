@@ -4,6 +4,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.{
     Lists,
     Literals,
+    OrElements,
     Tuples,
     Maps,
     Structs
@@ -63,6 +64,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry do
     else
       {match_fun, underlying_type_spec_preconds} =
         cond do
+          OrElements.or_element_spec?(type_spec_precond) -> OrElements.match_spec_function_quoted(type_spec_precond)
           Lists.list_spec?(type_spec_precond) -> Lists.match_spec_function_quoted(type_spec_precond)
           Tuples.tuple_spec?(type_spec_precond) -> Tuples.match_spec_function_quoted(type_spec_precond)
           Maps.map_spec?(type_spec_precond) -> Maps.match_spec_function_quoted(type_spec_precond)

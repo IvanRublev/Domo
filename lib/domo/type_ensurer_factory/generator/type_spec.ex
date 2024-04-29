@@ -6,6 +6,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
 
   alias Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.{
     Lists,
+    OrElements,
     Tuples,
     Maps
   }
@@ -40,6 +41,9 @@ defmodule Domo.TypeEnsurerFactory.Generator.TypeSpec do
   def filter_preconds(type_spec_precond) do
     result =
       cond do
+        OrElements.or_element_spec?(type_spec_precond) ->
+          OrElements.map_value_type(type_spec_precond, &filter_preconds/1)
+
         Lists.list_spec?(type_spec_precond) ->
           Lists.map_value_type(type_spec_precond, &filter_preconds/1)
 

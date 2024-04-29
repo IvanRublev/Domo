@@ -78,6 +78,7 @@ defmodule Domo.ErrorBuilder do
   end
 
   def pretty_error({:error, {:type_mismatch, struct_module, field, value, expected_types, error_templates}}, filter_preconds?, bypass_preconds?) do
+    error_templates = Enum.reject(error_templates, &is_nil/1)
     underlying_errors = collect_deepest_underlying_errors(error_templates)
 
     precond_errors =

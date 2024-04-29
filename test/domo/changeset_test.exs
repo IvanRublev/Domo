@@ -37,7 +37,7 @@ defmodule Domo.ChangesetTest do
 
       Changeset.validate_type(changeset, trim: true)
 
-      assert_receive {:validate_required_was_called, ^changeset, [:subtitle, :title], [trim: true]}
+      assert_receive {:validate_required_was_called, ^changeset, [:age, :subtitle, :title], [trim: true]}
     end
 
     test "does not call validate_required/2 with Ecto.Schema typed fields of @t" do
@@ -74,6 +74,10 @@ defmodule Domo.ChangesetTest do
     test "validates each given field of struct by type ensurer in call to Ecto.Changeset.validate_change/3" do
       me = self()
 
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
         exec: fn changeset, field, fun ->
@@ -99,6 +103,10 @@ defmodule Domo.ChangesetTest do
 
     test "ignores __meta__ Ecto field in calling to Ecto.Changeset.validate_change/3" do
       me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
 
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
@@ -215,6 +223,10 @@ defmodule Domo.ChangesetTest do
     test "returns empty list for ok or error list back to Ecto.Changeset.validate_change/3 call on validation" do
       me = self()
 
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
         exec: fn changeset, field, fun ->
@@ -237,7 +249,10 @@ defmodule Domo.ChangesetTest do
                       [
                         title: """
                         Invalid value :hello for field :title of %CustomStructUsingDomo{}. \
-                        Expected the value matching the <<_::_*8>> | nil type.\
+                        Expected the value matching the <<_::_*8>> | nil type.
+                        Underlying errors:
+                           - Expected the value matching the <<_::_*8>> type.
+                           - Expected the value matching the nil type.\
                         """
                       ]}
     end
@@ -367,6 +382,10 @@ defmodule Domo.ChangesetTest do
     test "validates each field of struct by type ensurer in call to Ecto.Changeset.validate_change/3" do
       me = self()
 
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
         exec: fn changeset, field, fun ->
@@ -393,6 +412,10 @@ defmodule Domo.ChangesetTest do
     test "returns empty list for ok or error list back to Ecto.Changeset.validate_change/3 call on validation" do
       me = self()
 
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
+
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],
         exec: fn changeset, field, fun ->
@@ -415,7 +438,10 @@ defmodule Domo.ChangesetTest do
                       [
                         title: """
                         Invalid value :hello for field :title of %CustomStructUsingDomo{}. \
-                        Expected the value matching the <<_::_*8>> | nil type.\
+                        Expected the value matching the <<_::_*8>> | nil type.
+                        Underlying errors:
+                           - Expected the value matching the <<_::_*8>> type.
+                           - Expected the value matching the nil type.\
                         """
                       ]}
     end
@@ -431,6 +457,10 @@ defmodule Domo.ChangesetTest do
 
     test "validates each given field by type ensurer in call to Ecto.Changeset.validate_change/3" do
       me = self()
+
+      allow Ecto.Changeset.validate_required(any(), any(), any()),
+        meck_options: [:passthrough],
+        exec: fn changeset, _fields, _opts -> changeset end
 
       allow Ecto.Changeset.validate_change(any(), any(), any()),
         meck_options: [:passthrough],

@@ -42,7 +42,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
   end
 
   describe "generate/2" do
-    test "makes code directory", %{types_file: types_file, ecto_assocs_file: ecto_assocs_file, t_reflections_file: t_reflections_file, code_path: code_path} do
+    test "makes code directory", %{
+      types_file: types_file,
+      ecto_assocs_file: ecto_assocs_file,
+      t_reflections_file: t_reflections_file,
+      code_path: code_path
+    } do
       File.rm_rf(code_path)
 
       Generator.generate(types_file, ecto_assocs_file, t_reflections_file, code_path)
@@ -67,11 +72,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
              } = Generator.generate(types_file, ecto_assocs_file, t_reflections_file, code_path, FailingMkdirFile)
     end
 
-    @tag types_content: types_by_module_content(%{
-           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]},
-           EmptyStruct => %{}
-         })
+    @tag types_content:
+           types_by_module_content(%{
+             Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+             Some.Nested.Module1 => %{former: [quote(do: integer())]},
+             EmptyStruct => %{}
+           })
     test "writes TypeEnsurer source code to code_path for each module from types file", %{
       types_file: types_file,
       ecto_assocs_file: ecto_assocs_file,
@@ -93,11 +99,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       assert size2 > 0
     end
 
-    @tag types_content: types_by_module_content(%{
-           Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-           Some.Nested.Module1 => %{former: [quote(do: integer())]},
-           EmptyStruct => %{}
-         })
+    @tag types_content:
+           types_by_module_content(%{
+             Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+             Some.Nested.Module1 => %{former: [quote(do: integer())]},
+             EmptyStruct => %{}
+           })
     test "returns list of TypeEnsurer modules source code file paths", %{
       types_file: types_file,
       ecto_assocs_file: ecto_assocs_file,
@@ -109,11 +116,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       type_ensurer2_path = Path.join(code_path, "/empty_struct_type_ensurer.ex")
 
       assert {:ok, list} = Generator.generate(types_file, ecto_assocs_file, t_reflections_file, code_path)
+
       assert [
-        type_ensurer2_path,
-        type_ensurer_path,
-        type_ensurer1_path
-      ] == Enum.sort(list)
+               type_ensurer2_path,
+               type_ensurer_path,
+               type_ensurer1_path
+             ] == Enum.sort(list)
     end
 
     @tag types_content: nil
@@ -133,11 +141,12 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
              } = Generator.generate(types_file, ecto_assocs_file, t_reflections_file, code_path)
     end
 
-    @tag types_content: types_by_module_content(%{
-      Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
-      Some.Nested.Module1 => %{former: [quote(do: integer())]},
-      EmptyStruct => %{}
-    })
+    @tag types_content:
+           types_by_module_content(%{
+             Module => %{first: [quote(do: integer())], second: [quote(do: float())]},
+             Some.Nested.Module1 => %{former: [quote(do: integer())]},
+             EmptyStruct => %{}
+           })
     @tag ecto_assocs_content: nil
     test "returns error if read of ecto assocs file failed", %{
       types_file: types_file,
@@ -216,9 +225,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
 
         def read(_path) do
           {:ok,
-           TermSerializer.term_to_binary(types_by_module_content(%{
-             Some.Nested.Module1 => %{former: [quote(do: integer())]}
-           }))}
+           TermSerializer.term_to_binary(
+             types_by_module_content(%{
+               Some.Nested.Module1 => %{former: [quote(do: integer())]}
+             })
+           )}
         end
 
         def write(_path, _content), do: {:error, :eaccess}
