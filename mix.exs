@@ -69,7 +69,7 @@ defmodule Domo.MixProject do
       {:placebo, "~> 1.2", only: :test},
       {:ecto, ">= 0.0.0", optional: true},
       {:decimal, ">= 0.0.0", optional: true},
-      {:nimble_parsec, "1.1.0"},
+      {:nimble_parsec, "~> 1.1"},
 
       # Documentation dependencies
       {:ex_doc, "0.26.0", only: :docs, runtime: false}
