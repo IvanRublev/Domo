@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.15"
+  @version "1.5.16"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -62,18 +62,30 @@ defmodule Domo.MixProject do
     [
       # Development and test dependencies
       {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.3", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
       {:placebo, "~> 1.2", only: :test},
       {:ecto, ">= 0.0.0", optional: true},
       {:decimal, ">= 0.0.0", optional: true},
-      {:nimble_parsec, "1.1.0"},
-
+      {:nimble_parsec, if(ex_before_12?(), do: "1.1.0", else: "~> 1.1")},
       # Documentation dependencies
-      {:ex_doc, "0.26.0", only: :docs, runtime: false}
+      {:ex_doc, if(ex_before_12?(), do: "0.26.0", else: "~> 0.26.0"), only: :docs, runtime: false}
     ]
+  end
+
+  defp ex_before_12? do
+    [1, minor, _] = ex_version()
+    minor < 12
+  end
+
+  defp ex_version do
+    :elixir
+    |> Application.spec(:vsn)
+    |> to_string()
+    |> String.replace(~r/-.*$/, "")
+    |> String.split(".")
+    |> Enum.map(&String.to_integer/1)
   end
 
   defp aliases do
