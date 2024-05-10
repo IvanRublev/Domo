@@ -825,6 +825,10 @@ Domo compiled validation functions for the given struct based on the described t
 
 ## Changelog
 
+## v1.5.16
+
+* Allow latest dependencies for projects with Elixir > 12
+
 ## v1.5.15
 
 * Support sum types as element of a list: [a | b]
