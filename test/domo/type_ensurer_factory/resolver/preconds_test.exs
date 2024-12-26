@@ -67,11 +67,11 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
                    first: [
                      {
                        quote(do: %Recipient{}),
-                       Precondition.new(module: Recipient, type_name: :t, description: "func_body2")
+                       Precondition.new_escaped(module: Recipient, type_name: :t, description: "func_body2")
                      }
                    ]
                  },
-                 Precondition.new(module: TwoFieldStruct, type_name: :t, description: "func_body1")
+                 Precondition.new_escaped(module: TwoFieldStruct, type_name: :t, description: "func_body1")
                }
              } == read_types(types_file)
     end
@@ -123,7 +123,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
-      precond = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body")
+      precond = Precondition.new_escaped(module: UserTypes, type_name: :map_field_or_typed, description: "func_body")
 
       assert %{
                TwoFieldStruct => {
@@ -166,31 +166,38 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       :ok = Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
-      numbers_precond = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
-      strings_precond = Precondition.new(module: UserTypes, type_name: :strings, description: "func_body2")
-      two_elem_tuple_precond = Precondition.new(module: UserTypes, type_name: :two_elem_tuple, description: "func_body3")
+      numbers_precond = Precondition.new_escaped(module: UserTypes, type_name: :numbers, description: "func_body1")
+      strings_precond = Precondition.new_escaped(module: UserTypes, type_name: :strings, description: "func_body2")
+      two_elem_tuple_precond = Precondition.new_escaped(module: UserTypes, type_name: :two_elem_tuple, description: "func_body3")
 
       # interesting enough that remote two element tuple is represented in general form for tuples instead of keeping as is.
       atom_list_tuple = {:{}, [], [quote(do: {atom(), nil}), quote(do: {[unquote({:any, [], []})], nil})]}
 
       assert %{
-               TwoFieldStruct => {
-                 %{
-                   first: [
-                     {
-                       quote(
-                         context: String,
-                         do: %{
-                           required({atom(), nil}) => {{integer(), nil} | {float(), nil}, unquote(numbers_precond)},
-                           optional({<<_::_*8>>, unquote(strings_precond)}) => {unquote(atom_list_tuple), unquote(two_elem_tuple_precond)}
+               TwoFieldStruct =>
+                 maybe_replace_atoms_with_preconds(
+                   {
+                     %{
+                       first: [
+                         {
+                           quote(
+                             context: String,
+                             do: %{
+                               required({atom(), nil}) => {{integer(), nil} | {float(), nil}, :numbers_precond},
+                               optional({<<_::_*8>>, :strings_precond}) => {:atom_list_tuple, :two_elem_tuple_precond}
+                             }
+                           ),
+                           nil
                          }
-                       ),
-                       nil
-                     }
-                   ]
-                 },
-                 nil
-               }
+                       ]
+                     },
+                     nil
+                   },
+                   numbers_precond: numbers_precond,
+                   strings_precond: strings_precond,
+                   two_elem_tuple_precond: two_elem_tuple_precond,
+                   atom_list_tuple: atom_list_tuple
+                 )
              } == read_types(types_file)
     end
 
@@ -281,8 +288,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
-      precond1 = Precondition.new(module: UserTypes, type_name: :numbers, description: "func_body1")
-      precond2 = Precondition.new(module: UserTypes, type_name: :map_field_or_typed, description: "func_body2")
+      precond1 = Precondition.new_escaped(module: UserTypes, type_name: :numbers, description: "func_body1")
+      precond2 = Precondition.new_escaped(module: UserTypes, type_name: :map_field_or_typed, description: "func_body2")
 
       assert %{
                UserTypes => {
@@ -519,8 +526,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.PrecondsTest do
 
       assert :ok == Resolver.resolve(plan_file, preconds_file, types_file, deps_file, ecto_assocs_file, t_reflections_file, false)
 
-      precond1 = Precondition.new(module: UserTypes, type_name: :an_any, description: "func_body1")
-      precond2 = Precondition.new(module: UserTypes, type_name: :a_term, description: "func_body2")
+      precond1 = Precondition.new_escaped(module: UserTypes, type_name: :an_any, description: "func_body1")
+      precond2 = Precondition.new_escaped(module: UserTypes, type_name: :a_term, description: "func_body2")
 
       assert %{
                UserTypes => {

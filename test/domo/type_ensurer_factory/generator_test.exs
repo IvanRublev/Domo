@@ -221,15 +221,24 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
       code_path: code_path
     } do
       defmodule FailingWriteFile do
+        @t_reflections_file t_reflections_file
+
         def mkdir_p(_path), do: :ok
 
-        def read(_path) do
-          {:ok,
-           TermSerializer.term_to_binary(
-             types_by_module_content(%{
-               Some.Nested.Module1 => %{former: [quote(do: integer())]}
-             })
-           )}
+        def read(path) do
+          if path == @t_reflections_file do
+            {:ok,
+             TermSerializer.term_to_binary(%{
+               Some.Nested.Module1 => "reflection"
+             })}
+          else
+            {:ok,
+             TermSerializer.term_to_binary(
+               types_by_module_content(%{
+                 Some.Nested.Module1 => %{former: [quote(do: integer())]}
+               })
+             )}
+          end
         end
 
         def write(_path, _content), do: {:error, :eaccess}
@@ -252,7 +261,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                ParentModule,
                types_content_empty_precond(%{first: [quote(do: integer())]}),
                [],
-               nil
+               ""
              )
   end
 
@@ -262,7 +271,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTest do
                ParentModule,
                types_content_empty_precond(%{first: [[{:atom, [closing: [line: 355, column: 51], column: 46], []}]]}),
                [],
-               nil
+               ""
              )
   end
 

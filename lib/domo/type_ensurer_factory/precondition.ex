@@ -7,10 +7,16 @@ defmodule Domo.TypeEnsurerFactory.Precondition do
   @enforce_keys [:module, :type_name, :description]
   defstruct @enforce_keys
 
-  def new(fields), do: struct!(__MODULE__, fields)
+  def new_escaped(fields), do: Macro.escape(struct!(__MODULE__, fields))
 
-  def to_atom(%__MODULE__{} = precondition) do
+  def unescape(ast) do
+    {precondition, _} = Code.eval_quoted(ast)
     precondition
+  end
+
+  def to_atom(precondition) do
+    precondition
+    |> unescape()
     |> type_string()
     |> Atomizer.to_atom_maybe_shorten_via_sha256()
   end
@@ -25,14 +31,16 @@ defmodule Domo.TypeEnsurerFactory.Precondition do
     :ok
   end
 
-  def ok_or_precond_call_quoted(%__MODULE__{} = precond, spec_string, value) do
+  def ok_or_precond_call_quoted(precondition, spec_string, value) do
+    precondition = unescape(precondition)
+
     quote do
-      return_value = unquote(precond.module).__precond__(unquote(precond.type_name), unquote(value))
+      return_value = unquote(precondition.module).__precond__(unquote(precondition.type_name), unquote(value))
 
       opts = [
         spec_string: unquote(spec_string),
-        precond_description: unquote(precond.description),
-        precond_type: unquote(type_string(precond)),
+        precond_description: unquote(precondition.description),
+        precond_type: unquote(type_string(precondition)),
         value: unquote(value)
       ]
 

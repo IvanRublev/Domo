@@ -44,7 +44,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   end
 
   defp cast_to_precondition({type, description}, module) do
-    Precondition.new(module: module, type_name: type, description: description)
+    Precondition.new_escaped(module: module, type_name: type, description: description)
   end
 
   # Literals
@@ -774,8 +774,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     preconditions = Enum.reject(preconditions, &is_nil/1)
 
     if Enum.count(preconditions) >= 2 do
-      refferal_precond = Enum.at(preconditions, 0)
-      refferring_precond = Enum.at(preconditions, 1)
+      refferal_precond = preconditions |> Enum.at(0) |> Precondition.unescape()
+      refferring_precond = preconditions |> Enum.at(1) |> Precondition.unescape()
       refferal_type = Alias.string_by_concat(refferal_precond.module, refferal_precond.type_name) <> "()"
       refferring_type = Alias.string_by_concat(refferring_precond.module, refferring_precond.type_name) <> "()"
 

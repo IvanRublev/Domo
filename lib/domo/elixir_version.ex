@@ -1,4 +1,4 @@
-defmodule ElixirVersion do
+defmodule Domo.ElixirVersion do
   @moduledoc false
 
   def version do

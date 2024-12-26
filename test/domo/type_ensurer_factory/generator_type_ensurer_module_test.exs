@@ -3,6 +3,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   import GeneratorTestHelper
 
+  alias Domo.ElixirVersion
   alias Domo.ErrorBuilder
   alias Domo.TypeEnsurerFactory.Precondition
 
@@ -111,7 +112,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "has ensure_t_precondition/1 function" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module(
         {%{
@@ -179,7 +180,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "For type level invariant errors generated TypeEnsurer module" do
     test "returns :ok when t precondition function returns true" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
         %{
@@ -193,7 +194,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns :error with reference to precond function having t precondition false result" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
         %{
@@ -213,7 +214,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns :error with message from the t precondition function" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
 
       load_type_ensurer_module({
         %{
@@ -273,7 +274,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "For field level precondition with No custom errors Generated TypeEnsurer module" do
     test "returns :error when value matches field's type and precondition returns false" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
 
       response = call_ensure_field_type({:first, -1})
@@ -288,8 +289,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns :error when field's containerized value matches the type and precondition returns false" do
-      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-      tuple_precondition = Precondition.new(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
+      int_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      tuple_precondition = Precondition.new_escaped(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
 
       load_type_ensurer_module({
         %{
@@ -316,13 +317,13 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns :ok when value matches type and precondition returns true" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
       assert :ok == call_ensure_field_type({:first, 1})
     end
 
     test "returns :error when value matches the | type and precondition returns false" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
         %{first: [{quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
@@ -342,7 +343,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "return :ok when field's value matches the | type and precondition return true" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
         %{first: [{quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
@@ -356,7 +357,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "For field level precondition custom errors Generated TypeEnsurer module" do
     test "bypasses :error from precondition function for containerized | type" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+      precondition =
+        Precondition.new_escaped(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
 
       load_type_ensurer_module({
         %{
@@ -384,7 +386,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "bypasses :error from the precondition for | nil type" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+      precondition =
+        Precondition.new_escaped(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
 
       load_type_ensurer_module({
         %{first: [{quote(do: float()), nil}, {quote(do: integer()), precondition}, nil]},
@@ -405,7 +408,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
 
   describe "For type level invariant errors generated TypeEnsurer module with maybe_filter_precond_errors: true option" do
     test "returns list of errors with reference to precond function having t precondition false result" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t, description: "t_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t, description: "t_func")
 
       load_type_ensurer_module({
         %{
@@ -428,7 +431,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors with message from the t precondition function" do
-      precondition = Precondition.new(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :t_custom_msg, description: "t_custom_msg_func")
 
       load_type_ensurer_module({
         %{
@@ -480,7 +483,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors when value matches field's type and precondition returns false" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
       load_type_ensurer_module({%{first: [{quote(do: integer()), precondition}]}, nil})
 
       response = call_ensure_field_type({:first, -1})
@@ -498,8 +501,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors when field's containerized value matches the type and precondition returns false" do
-      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-      tuple_precondition = Precondition.new(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
+      int_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      tuple_precondition = Precondition.new_escaped(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
 
       load_type_ensurer_module({
         %{
@@ -526,7 +529,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors when value matches the | type and precondition returns false" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
 
       load_type_ensurer_module({
         %{first: [{quote(do: non_neg_integer()), precondition}, {quote(do: integer()), precondition}, {quote(do: atom()), nil}]},
@@ -551,7 +554,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors from precondition function for containerized | type" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+      precondition =
+        Precondition.new_escaped(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
 
       load_type_ensurer_module({
         %{
@@ -574,7 +578,8 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "returns list of errors from the precondition for | nil type" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
+      precondition =
+        Precondition.new_escaped(module: UserTypes, type_name: :positive_integer_custom_msg, description: "positive_integer_custom_msg_func")
 
       load_type_ensurer_module({
         %{first: [{quote(do: float()), nil}, {quote(do: integer()), precondition}, nil]},
@@ -702,7 +707,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "precondition for float" do
-      precondition = Precondition.new(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
 
       load_type_ensurer_module({%{first: [{quote(do: float()), precondition}]}, nil})
 
@@ -766,7 +771,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "precondition for binary" do
-      precondition = Precondition.new(module: UserTypes, type_name: :binary_6, description: "binary_6_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :binary_6, description: "binary_6_func")
 
       load_type_ensurer_module({%{first: [{quote(do: <<_::_*8>>), precondition}]}, nil})
 
@@ -874,6 +879,21 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
   end
 
+  @range3__1 (case ElixirVersion.version() do
+                [1, minor, _] when minor >= 18 -> Range.new(3, 1, -1)
+                _ -> Range.new(3, 1)
+              end)
+
+  @range7__6 (case ElixirVersion.version() do
+                [1, minor, _] when minor >= 18 -> Range.new(7, 6, -1)
+                _ -> Range.new(7, 6)
+              end)
+
+  @range9__7 (case ElixirVersion.version() do
+                [1, minor, _] when minor >= 18 -> Range.new(9, 7, -1)
+                _ -> Range.new(9, 7)
+              end)
+
   describe "Generated TypeEnsurer module verifies Kernel struct type" do
     test "Range.t() with no precondition" do
       load_type_ensurer_module_with_no_preconds(
@@ -892,7 +912,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       )
 
       assert :ok == call_ensure_field_type({:first, 1..3})
-      assert :ok == call_ensure_field_type({:first, 3..1})
+      assert :ok == call_ensure_field_type({:first, @range3__1})
       assert :ok == call_ensure_field_type({:first, -5..2})
       assert {:error, _} = call_ensure_field_type({:first, [:one]})
       assert {:error, _} = call_ensure_field_type({:first, %{one: 1}})
@@ -900,7 +920,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "Range.t() with precondition" do
-      precondition = Precondition.new(module: UserTypes, type_name: :inner_range_5_8, description: "inner_range")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :inner_range_5_8, description: "inner_range")
 
       load_type_ensurer_module(
         case ElixirVersion.version() do
@@ -918,11 +938,11 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
       )
 
       assert :ok == call_ensure_field_type({:first, 6..7})
-      assert :ok == call_ensure_field_type({:first, 7..6})
+      assert :ok == call_ensure_field_type({:first, @range7__6})
       assert :ok == call_ensure_field_type({:first, 7..7})
       assert {:error, _} = call_ensure_field_type({:first, 5..7})
       assert {:error, _} = call_ensure_field_type({:first, 0..2})
-      assert {:error, _} = call_ensure_field_type({:first, 9..7})
+      assert {:error, _} = call_ensure_field_type({:first, @range9__7})
       assert {:error, _} = call_ensure_field_type({:first, :not_a_range})
     end
   end
@@ -1031,26 +1051,28 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "precondition for lists" do
-      list_precondition = Precondition.new(module: UserTypes, type_name: :hd_gt_7, description: "hd_gt_7_func")
-      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-      float_precondition = Precondition.new(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
+      list_precondition = Precondition.new_escaped(module: UserTypes, type_name: :hd_gt_7, description: "hd_gt_7_func")
+      int_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      float_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
 
       load_type_ensurer_module(
         {%{
            first: [
-             {[quote(do: {integer(), unquote(int_precondition)})], list_precondition}
+             {[quote(do: {integer(), :int_precondition})], :list_precondition}
            ],
            second: [
-             {quote(do: maybe_improper_list({integer(), unquote(int_precondition)}, {float(), unquote(float_precondition)})), list_precondition}
+             {quote(do: maybe_improper_list({integer(), :int_precondition}, {float(), :float_precondition})), :list_precondition}
            ],
            third: [
-             {quote(do: nonempty_improper_list({integer(), unquote(int_precondition)}, {float(), unquote(float_precondition)})), list_precondition}
+             {quote(do: nonempty_improper_list({integer(), :int_precondition}, {float(), :float_precondition})), :list_precondition}
            ],
            fourth: [
-             {quote(do: nonempty_maybe_improper_list({integer(), unquote(int_precondition)}, {float(), unquote(float_precondition)})),
-              list_precondition}
+             {quote(do: nonempty_maybe_improper_list({integer(), :int_precondition}, {float(), :float_precondition})), :list_precondition}
            ]
-         }, nil}
+         }, nil},
+        int_precondition: int_precondition,
+        float_precondition: float_precondition,
+        list_precondition: list_precondition
       )
 
       assert :ok == call_ensure_field_type({:first, [8]})
@@ -1115,7 +1137,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "precondition for 1, 2, 3 or any number of elements tuple" do
-      precondition = Precondition.new(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
+      precondition = Precondition.new_escaped(module: UserTypes, type_name: :first_elem_gt_5, description: "first_elem_gt_5_func")
 
       load_type_ensurer_module(
         {%{
@@ -1211,9 +1233,9 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "required, optional with preconditions" do
-      map_precondition = Precondition.new(module: UserTypes, type_name: :map_value_sum_2_4, description: "map_value_sum_2_4_func")
-      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-      float_precondition = Precondition.new(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
+      map_precondition = Precondition.new_escaped(module: UserTypes, type_name: :map_value_sum_2_4, description: "map_value_sum_2_4_func")
+      int_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      float_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
 
       load_type_ensurer_module(
         {%{
@@ -1221,25 +1243,28 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
              {
                quote do
                  %{
-                   integer: {integer(), unquote(int_precondition)},
-                   float: {float(), unquote(float_precondition)}
+                   integer: {integer(), :int_precondition},
+                   float: {float(), :float_precondition}
                  }
                end,
-               map_precondition
+               :map_precondition
              }
            ],
            second: [
              {
                quote do
                  %{
-                   required({float(), unquote(float_precondition)}) => {integer(), unquote(int_precondition)},
-                   optional({integer(), unquote(int_precondition)}) => {float(), unquote(float_precondition)}
+                   required({float(), :float_precondition}) => {integer(), :int_precondition},
+                   optional({integer(), :int_precondition}) => {float(), :float_precondition}
                  }
                end,
-               map_precondition
+               :map_precondition
              }
            ]
-         }, nil}
+         }, nil},
+        int_precondition: int_precondition,
+        float_precondition: float_precondition,
+        map_precondition: map_precondition
       )
 
       assert :ok == call_ensure_field_type({:first, %{integer: 2, float: 1.2}})
@@ -1273,15 +1298,14 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleTest do
     end
 
     test "verifies value with precondition" do
-      kw_precondition = Precondition.new(module: UserTypes, type_name: :kw_length_2, description: "kw_length_2_func")
-      int_precondition = Precondition.new(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
-      float_precondition = Precondition.new(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
+      kw_precondition = Precondition.new_escaped(module: UserTypes, type_name: :kw_length_2, description: "kw_length_2_func")
+      int_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_integer, description: "positive_integer_func")
+      float_precondition = Precondition.new_escaped(module: UserTypes, type_name: :positive_float, description: "positive_float_func")
 
       load_type_ensurer_module(
         {%{
            first: [
-             {[quote(do: {:key1, {float(), unquote(float_precondition)}}), quote(do: {:key2, {integer(), unquote(int_precondition)}})],
-              kw_precondition}
+             {[{:key1, {quote(do: float()), float_precondition}}, {:key2, {quote(do: integer()), int_precondition}}], kw_precondition}
            ]
          }, nil}
       )

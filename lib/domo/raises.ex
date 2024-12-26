@@ -177,13 +177,9 @@ defmodule Domo.Raises do
         )
       end
     else
-      has_parametrized_types? = Enum.any?(quoted_types, &match?({:"::", _, [_, [_ | _]]}, &1))
-
-      unless has_parametrized_types? do
-        raise CompileError,
-          line: line,
-          description: "use Domo should be called from within the module defining a struct."
-      end
+      raise CompileError,
+        line: line,
+        description: "use Domo should be called from within the module defining a struct."
     end
   end
 

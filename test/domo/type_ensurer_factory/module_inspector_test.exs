@@ -3,6 +3,7 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
   use Placebo
 
   alias Domo.CodeEvaluation
+  alias Domo.ElixirVersion
   alias Domo.TypeEnsurerFactory
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.ResolvePlanner
@@ -23,18 +24,9 @@ defmodule Domo.TypeEnsurerFactory.ModuleInspectorTest do
     end
 
     test "detect struct module" do
-      case ElixirVersion.version() do
-        [1, minor, _] when minor < 12 ->
-          defmodule PrevModule do
-            Module.put_attribute(__MODULE__, :struct, true)
-            assert ModuleInspector.struct_module?(__MODULE__)
-          end
-
-        _ ->
-          defmodule CurrentModule do
-            Module.put_attribute(__MODULE__, :__struct__, true)
-            assert ModuleInspector.struct_module?(__MODULE__)
-          end
+      defmodule StructModule do
+        defstruct [:hello]
+        assert ModuleInspector.struct_module?(__MODULE__)
       end
 
       defmodule NonstructModule do

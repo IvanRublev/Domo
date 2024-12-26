@@ -1,7 +1,7 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.16"
+  @version "1.5.17"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
@@ -61,8 +61,8 @@ defmodule Domo.MixProject do
   defp deps do
     [
       # Development and test dependencies
-      {:ex_check, ">= 0.0.0", only: :dev, runtime: false},
-      {:credo, "~> 1.6", only: :dev, runtime: false},
+      {:ex_check, if(ex_before_12?(), do: "0.15.0", else: ">= 0.0.0"), only: :dev, runtime: false},
+      {:credo, if(ex_before_12?(), do: "1.6.0", else: "~> 1.6"), only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.4", only: :test, runtime: false},
       {:mix_test_watch, "~> 1.0", only: :test, runtime: false},
       {:placebo, "~> 1.2", only: :test},

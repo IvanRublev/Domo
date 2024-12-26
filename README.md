@@ -825,6 +825,10 @@ Domo compiled validation functions for the given struct based on the described t
 
 ## Changelog
 
+## v1.5.17
+
+* Improve compatibility with Elixir 1.18
+
 ## v1.5.16
 
 * Allow latest dependencies for projects with Elixir > 12

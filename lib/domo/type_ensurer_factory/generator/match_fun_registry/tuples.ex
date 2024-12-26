@@ -39,8 +39,8 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Tuples do
       element_spec_preconds
       |> Enum.reduce({[], [], []}, &append_match_spec_attributes_to_lists(&1, &2))
       |> reverse_in_tuple()
-      |> Tuple.append(elem_vars_quoted)
       |> Tuple.to_list()
+      |> List.insert_at(-1, elem_vars_quoted)
       |> Enum.zip()
       |> Enum.with_index()
       |> Enum.map(fn {{el_spec_atom, el_precond_atom, el_spec_string, var}, idx} ->

@@ -7,6 +7,7 @@ defmodule DomoTest do
   alias Mix.Task.Compiler.Diagnostic
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias Domo.CodeEvaluation
+  alias Domo.ElixirVersion
   alias Domo.MixProject
 
   CompilerHelpers.join_compiler_option(

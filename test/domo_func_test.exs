@@ -5,6 +5,7 @@ defmodule DomoFuncTest do
   import ExUnit.CaptureIO
 
   alias Domo.CodeEvaluation
+  alias Domo.ElixirVersion
   alias Mix.Tasks.Compile.DomoCompiler, as: DomoMixTask
   alias Domo.MixProject
 

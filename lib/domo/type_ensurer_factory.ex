@@ -181,23 +181,16 @@ defmodule Domo.TypeEnsurerFactory do
   end
 
   defp do_plan_struct_defaults_ensurance(plan_path, env) do
-    struct_attribute = ModuleInspector.struct_attribute()
-    struct = Module.get_attribute(env.module, struct_attribute)
-    # Elixir ignores default values for enforced keys during the construction of the struct anyway
-    enforce_keys = Module.get_attribute(env.module, :enforce_keys) || []
-    keys_to_drop = [struct_attribute | enforce_keys]
-
-    defaults =
-      struct
-      |> Map.from_struct()
-      |> Enum.reject(fn {key, _value} -> key in keys_to_drop end)
+    default_kv =
+      env.module
+      |> ModuleInspector.default_kv_from_struct(env)
       |> Enum.sort_by(fn {key, _value} -> key end)
 
     :ok ==
       ResolvePlanner.plan_struct_defaults_ensurance(
         plan_path,
         env.module,
-        defaults,
+        default_kv,
         to_string(env.file),
         env.line
       )
@@ -316,7 +309,6 @@ defmodule Domo.TypeEnsurerFactory do
     case Generator.compile(type_ensurer_paths, verbose?) do
       {:ok, modules, te_warns} -> {:ok, {modules, te_warns}}
       {:error, ex_errors, ex_warnings} -> {:error, {:compile, {ex_errors, ex_warnings}}}
-      {:error, message} -> {:error, {:compile, message}}
     end
   end
 

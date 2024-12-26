@@ -33,4 +33,4 @@ domo-*.tar
 
 # Misc.
 .tool-versions
-mix.lock
+*.lock

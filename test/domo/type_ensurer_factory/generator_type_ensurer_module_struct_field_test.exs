@@ -42,7 +42,7 @@ defmodule Domo.TypeEnsurerFactory.GeneratorTypeEnsurerModuleStructFieldTest do
     end
 
     test "ensures field's value by delegating to struct's TypeEnsurer and using precondition" do
-      struct_precondition = Precondition.new(module: UserTypes, type_name: :capital_title, description: "capital_title_func")
+      struct_precondition = Precondition.new_escaped(module: UserTypes, type_name: :capital_title, description: "capital_title_func")
 
       load_type_ensurer_module(
         {%{

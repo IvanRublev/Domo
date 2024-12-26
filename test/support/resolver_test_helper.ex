@@ -273,6 +273,50 @@ defmodule ResolverTestHelper do
      |> Enum.into(%{}), nil}
   end
 
+  def maybe_replace_atoms_with_preconds(fields_spec_precond, atom_to_precond) do
+    {fields_spec, precond} = fields_spec_precond
+    precond = ResolverTestHelper.maybe_replace_atom_with_precond(precond, atom_to_precond)
+
+    fields_spec =
+      fields_spec
+      |> Enum.map(fn {key, key_spec_precond} ->
+        # we iterate through each filed spec, split it at replace atoms with preconds
+        # spec here is a valid AST returned by quote/1
+        key_spec_precond =
+          Enum.map(key_spec_precond, fn
+            {key_spec, key_precond} ->
+              key_spec = ResolverTestHelper.inject_preconds_to_spec(key_spec, atom_to_precond)
+              key_precond = ResolverTestHelper.maybe_replace_atom_with_precond(key_precond, atom_to_precond)
+              {key_spec, key_precond}
+
+            nil ->
+              nil
+          end)
+
+        {key, key_spec_precond}
+      end)
+      |> Enum.into(%{})
+
+    {fields_spec, precond}
+  end
+
+  # atom_to_precond is a keyword list of atoms that should be replaced with precondition structs
+  def inject_preconds_to_spec(fields, atom_to_precond) do
+    Macro.prewalk(fields, fn
+      key when is_atom(key) -> maybe_replace_atom_with_precond(key, atom_to_precond)
+      ast -> ast
+    end)
+  end
+
+  def maybe_replace_atom_with_precond(value, atom_to_precond) when is_atom(value) and not is_nil(value) do
+    Keyword.get(atom_to_precond, value, value)
+  end
+
+  def maybe_replace_atom_with_precond(value, _atom_to_precond) do
+    # maybe Precondition struct or nil
+    value
+  end
+
   def add_empty_precond_to_spec(fields) do
     {fields
      |> Enum.map(fn {field, spec_list} -> {field, Enum.map(spec_list, &add_empty_precond/1)} end)

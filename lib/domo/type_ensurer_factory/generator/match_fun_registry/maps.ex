@@ -108,7 +108,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Maps do
 
     key_value_specs =
       Enum.flat_map(rkv_specs, fn {_requirement, key_spec_precond, {value_spec, value_precond}} ->
-        [key_spec_precond, quote(do: [{unquote(value_spec), unquote(value_precond)}])]
+        [key_spec_precond, [{quote(do: unquote(value_spec)), value_precond}]]
       end)
 
     rkvl_spec_atoms =

@@ -54,7 +54,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   defp generate_many(fields_by_module, ecto_assocs_by_module, t_reflection_by_module, output_folder, file_module) do
     Enum.reduce_while(fields_by_module, {:ok, []}, fn {parent_module, fields_spec}, acc ->
       ecto_assocs_fields = Map.get(ecto_assocs_by_module, parent_module, [])
-      t_reflection = Map.get(t_reflection_by_module, parent_module)
+      t_reflection = Map.get(t_reflection_by_module, parent_module, "")
 
       module_ast = generate_one(parent_module, fields_spec, ecto_assocs_fields, t_reflection)
 
@@ -90,7 +90,7 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   # credo:disable-for-lines:118
-  def generate_one(parent_module, fields_spec_t_precond, ecto_assoc_fields, t_reflection) do
+  def generate_one(parent_module, fields_spec_t_precond, ecto_assoc_fields, t_reflection) when is_binary(t_reflection) do
     {:ok, pid} = MatchFunRegistry.start_link()
 
     {fields_spec, t_precond} = fields_spec_t_precond
