@@ -37,7 +37,7 @@ defmodule Domo.ChangesetTest do
 
       Changeset.validate_type(changeset, trim: true)
 
-      assert_receive {:validate_required_was_called, ^changeset, [:age, :subtitle, :title], [trim: true]}
+      assert_receive {:validate_required_was_called, ^changeset, [:subtitle, :title], [trim: true]}
     end
 
     test "does not call validate_required/2 with Ecto.Schema typed fields of @t" do

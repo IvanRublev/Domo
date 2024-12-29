@@ -195,15 +195,36 @@ defmodule Domo.TypeEnsurerFactory.Generator do
   end
 
   defp any_nil_typed?(field_types) do
-    Enum.reduce_while(field_types, {false, false}, fn field_type, {any?, nil?} ->
-      updated_any? = any? or (match?({:term, _, _}, field_type) or match?({:any, _, _}, field_type))
-      updated_nil? = nil? or is_nil(field_type)
+    # traverses each type and returns whether any or nil were met in the list
+    # if one of them has been met, continues until another one is found
+    # any or nil types comes without precondition, other comes wrapped in tuple with precondition
+    Enum.reduce_while(field_types, {_any? = false, _nil? = false}, fn
+      # in case of or we don't expect any to come as an argument, because any? type always comes as only field type
+      {{:|, _, _args_list}, _precond}, {false, true} ->
+        # bypass if nil has already being found in one of the or arguments
+        {:cont, {false, true}}
 
-      if updated_any? and updated_nil? do
-        {:halt, {true, true}}
-      else
-        {:cont, {updated_any?, updated_nil?}}
-      end
+      {{:|, _, [or_type1, or_type2]}, _precond}, {false, false} when is_nil(or_type1) or is_nil(or_type2) ->
+        # we check if nil is one of the or's arguments
+        {:cont, {false, true}}
+
+      {{:|, _, [or_type1, or_type2]}, _precond}, {false, false} ->
+        # it might be nested ors as or's argument, we go recursively in them
+        {_, arg1_nil?} = any_nil_typed?(List.wrap(or_type1))
+        {_, arg2_nil?} = any_nil_typed?(List.wrap(or_type2))
+        updated_nil? = arg1_nil? or arg2_nil?
+        {:cont, {false, updated_nil?}}
+
+      # general case
+      field_type, {any?, nil?} ->
+        updated_any? = any? or (match?({:term, _, _}, field_type) or match?({:any, _, _}, field_type))
+        updated_nil? = nil? or is_nil(field_type)
+
+        if updated_any? and updated_nil? do
+          {:halt, {true, true}}
+        else
+          {:cont, {updated_any?, updated_nil?}}
+        end
     end)
   end
 

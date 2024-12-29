@@ -142,8 +142,8 @@ defmodule UserTypes do
 
   def __precond__(:inner_range_5_8, value) do
     apply(
-      fn first..last ->
-        [first, last] = Enum.sort([first, last])
+      fn r = %Range{} ->
+        [first, last] = Enum.sort([r.first, r.last])
         first > 5 and last < 8
       end,
       [value]

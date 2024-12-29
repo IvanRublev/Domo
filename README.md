@@ -265,9 +265,10 @@ defmodule PublicLibrary do
   @type t :: %__MODULE__{shelves: [Shelf.t()]}
 end
 
-library = struct!(PublicLibrary, %{shelves: [struct!(Shelf, %{books: [struct!(Book, %{title: "", pages: 1})]})]})
-
-PublicLibrary.ensure_type(library, maybe_filter_precond_errors: true)
+PublicLibrary.new(
+  %{shelves: [struct!(Shelf, %{books: [struct!(Book, %{title: "", pages: 1})]})]}, 
+  maybe_filter_precond_errors: true
+)
 ```
 
 ```output
@@ -824,6 +825,12 @@ Domo compiled validation functions for the given struct based on the described t
 3. Make a PR to this repository
 
 ## Changelog
+
+## v1.5.18
+
+* Fix `required_fields/1` generated for structs using Domo to stop returning fields 
+  having nillable `something | nil` types
+* Fix `Domo.Changeset.validate_type/2` to skip automatic validation of nillable fields in Ecto changesets as required
 
 ## v1.5.17
 

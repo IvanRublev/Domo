@@ -434,18 +434,48 @@ defmodule DomoFuncTest do
     compile_meta_fields_struct("MetaDefaults")
     DomoMixTask.process_plan({:ok, []}, [])
 
-    assert apply(MetaDefaults, :typed_fields, []) == [:custom_struct, :title]
-    assert apply(MetaDefaults, :typed_fields, [[include_any_typed: true]]) == [:custom_struct, :placeholder, :title]
+    assert apply(MetaDefaults, :typed_fields, []) == [:alt_nil, :custom_struct, :enf_nil, :imp_int, :imp_nil, :title]
 
-    assert apply(MetaDefaults, :typed_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
+    assert apply(MetaDefaults, :typed_fields, [[include_any_typed: true]]) == [
+             :alt_any,
+             :alt_nil,
+             :alt_term,
+             :custom_struct,
+             :enf_nil,
+             :imp_int,
+             :imp_nil,
+             :imp_term,
+             :placeholder,
+             :title,
+             :untyped
+           ]
+
+    assert apply(MetaDefaults, :typed_fields, [[include_meta: true]]) == [
+             :__hidden_atom__,
+             :__meta__,
+             :alt_nil,
+             :custom_struct,
+             :enf_nil,
+             :imp_int,
+             :imp_nil,
+             :title
+           ]
 
     assert apply(MetaDefaults, :typed_fields, [[include_meta: true, include_any_typed: true]]) == [
              :__hidden_any__,
              :__hidden_atom__,
              :__meta__,
+             :alt_any,
+             :alt_nil,
+             :alt_term,
              :custom_struct,
+             :enf_nil,
+             :imp_int,
+             :imp_nil,
+             :imp_term,
              :placeholder,
-             :title
+             :title,
+             :untyped
            ]
   end
 
@@ -454,8 +484,8 @@ defmodule DomoFuncTest do
     compile_meta_fields_struct("MetaDefaults")
     DomoMixTask.process_plan({:ok, []}, [])
 
-    assert apply(MetaDefaults, :required_fields, []) == [:custom_struct, :title]
-    assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :title]
+    assert apply(MetaDefaults, :required_fields, []) == [:custom_struct, :imp_int, :title]
+    assert apply(MetaDefaults, :required_fields, [[include_meta: true]]) == [:__hidden_atom__, :__meta__, :custom_struct, :imp_int, :title]
   end
 
   test "__t__/0 returns string of type definition for the struct" do
@@ -468,7 +498,7 @@ defmodule DomoFuncTest do
     case ElixirVersion.version() do
       [1, minor, _] when minor < 12 ->
         assert descr ==
-                 "%MetaDefaults{__hidden_any__: any(), __hidden_atom__: atom(), __meta__: String.t(), custom_struct: CustomStructUsingDomo.t(), placeholder: term(), title: Recipient.name()}"
+                 "%MetaDefaults{__hidden_any__: any(), __hidden_atom__: atom(), __meta__: String.t(), alt_any: integer() | atom() | any(), alt_nil: integer() | atom() | nil, alt_term: integer() | atom() | term(), custom_struct: CustomStructUsingDomo.t(), enf_nil: nil, imp_int: integer(), imp_nil: nil, imp_term: term(), placeholder: term(), title: Recipient.name(), untyped: term()}"
 
       [1, minor, _] when minor >= 12 ->
         assert descr == """
@@ -476,9 +506,17 @@ defmodule DomoFuncTest do
                  __hidden_any__: any(),
                  __hidden_atom__: atom(),
                  __meta__: String.t(),
+                 alt_any: integer() | atom() | any(),
+                 alt_nil: integer() | atom() | nil,
+                 alt_term: integer() | atom() | term(),
                  custom_struct: CustomStructUsingDomo.t(),
+                 enf_nil: nil,
+                 imp_int: integer(),
+                 imp_nil: nil,
+                 imp_term: term(),
                  placeholder: term(),
-                 title: Recipient.name()
+                 title: Recipient.name(),
+                 untyped: term()
                }\
                """
     end
@@ -518,17 +556,34 @@ defmodule DomoFuncTest do
     defmodule #{module_name} do
       use Domo, skip_defaults: true
 
-      @enforce_keys [:placeholder, :__hidden_any__, :__hidden_atom__, :__meta__, :custom_struct, :title]
-      defstruct @enforce_keys
+      @enforce_keys [:__hidden_any__, :__hidden_atom__, :__meta__, :custom_struct, :title, :placeholder, :enf_nil]
+      defstruct @enforce_keys ++ [:imp_int, :imp_term, :imp_nil, :alt_any, :alt_term, :alt_nil, :untyped]
+      # :untyped is considered as any typed
 
       @type t :: %__MODULE__{
-              placeholder: term(),
+              #### meta ####
               __hidden_any__: any(),
               __hidden_atom__: atom(),
               __meta__: String.t(),
+              #### enforced ####
+              ## with value type -> required
               custom_struct: CustomStructUsingDomo.t(),
-              title: Recipient.name()
-            }
+              title: Recipient.name(),
+              ## nillable -> optional
+              placeholder: term(),
+              enf_nil: nil,
+              #### not enforced ####
+              ## with value type -> required
+              imp_int: integer(),
+              ## nillable -> optional
+              imp_term: term(),
+              imp_nil: nil,
+              ## nillable as part of or type -> optional
+              alt_any: integer() | atom() | any(),
+              alt_term: integer() | atom() | term(),
+              # term is same as any
+              alt_nil: integer() | atom() | nil
+              }
     end
     """)
 
