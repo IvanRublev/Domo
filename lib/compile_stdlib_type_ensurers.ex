@@ -13,6 +13,11 @@ wait_for_list =
   |> Enum.map(&(&1 |> Path.basename() |> String.replace_suffix(extension, "") |> Macro.camelize()))
   |> Enum.map(&Module.concat(parent_module, &1))
 
+# Also ensure all required modules are compiled
+Code.ensure_compiled(Domo.TypeEnsurerFactory.Atomizer)
+Code.ensure_compiled(Domo.TypeEnsurerFactory.Precondition)
+Code.ensure_compiled(Domo.TypeEnsurerFactory.Generator.TypeSpec)
+
 Enum.each(wait_for_list, &Code.ensure_compiled/1)
 
 verbose? = false

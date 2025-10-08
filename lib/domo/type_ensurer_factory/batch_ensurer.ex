@@ -52,7 +52,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp wrap_error(errors) do
     errors
     |> List.wrap()
-    |> Enum.map(&%Error{&1 | compiler_module: __MODULE__})
+    |> Enum.map(&Map.put(&1, :compiler_module, __MODULE__))
   end
 
   defp do_ensure_structs_integrity([{module, fields, file, line} | tail]) do
