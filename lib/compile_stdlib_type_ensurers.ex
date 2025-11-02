@@ -7,11 +7,21 @@ cwd = File.cwd!()
 modules_path = Path.relative_to(Path.join("lib", Macro.underscore(parent_module)), cwd)
 extension = ".ex"
 
-wait_for_list =
+match_fun_submodules =
   "#{modules_path}/**/*#{extension}"
   |> Path.wildcard()
   |> Enum.map(&(&1 |> Path.basename() |> String.replace_suffix(extension, "") |> Macro.camelize()))
   |> Enum.map(&Module.concat(parent_module, &1))
+
+match_fun_deps = [
+  Domo.TypeEnsurerFactory.Generator.TypeSpec,
+  Domo.TypeEnsurerFactory.Atomizer,
+  Domo.TypeEnsurerFactory.Precondition,
+  Domo.ErrorBuilder,
+  Domo
+]
+
+wait_for_list = match_fun_deps ++ match_fun_submodules
 
 Enum.each(wait_for_list, &Code.ensure_compiled/1)
 
@@ -44,8 +54,15 @@ File.write!(t_reflections_path, binary)
 {:ok, type_ensurer_paths} = TypeEnsurerFactory.generate_type_ensurers(types_path, ecto_assocs_path, t_reflections_path, code_path, verbose?)
 {:ok, {_modules, ens_warns}} = TypeEnsurerFactory.compile_type_ensurers(type_ensurer_paths, verbose?)
 
-unless Enum.empty?(ens_warns) do
-  IO.puts(inspect(ens_warns))
+compile_warnings =
+  if is_map(ens_warns) do
+    Map.get(ens_warns, :compile_warnings)
+  else
+    ens_warns
+  end
+
+unless is_nil(compile_warnings) or Enum.empty?(compile_warnings) do
+  IO.puts(inspect(compile_warnings))
 end
 
 File.rm_rf!(types_path)

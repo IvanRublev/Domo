@@ -61,7 +61,10 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     code_path = generated_code_path(@mix_project)
 
     TypeEnsurerFactory.maybe_collect_lib_structs_to_treat_as_any_to_existing_plan(plan_path)
-    TypeEnsurerFactory.print_global_anys(plan_path)
+
+    if Application.get_env(:domo, :print_types_as_any_list, true) do
+      TypeEnsurerFactory.print_global_anys(plan_path)
+    end
 
     stop_plan_collection()
 
@@ -162,6 +165,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
     diagnostic
   end
 
+  defp wrap_diagnostic(%{message: message, file: path, position: position, severity: severity}) do
+    %Diagnostic{
+      compiler_name: "Elixir",
+      file: path,
+      position: position,
+      message: message,
+      severity: severity
+    }
+  end
+
   defp wrap_diagnostic({path, position, message}) do
     %Diagnostic{
       compiler_name: "Elixir",
@@ -244,6 +257,16 @@ defmodule Mix.Tasks.Compile.DomoCompiler do
 
   defp diagnostic(%Diagnostic{} = diagnostic) do
     diagnostic
+  end
+
+  # For the new shape of errors got from return_diagnostics: true
+  defp diagnostic(:compile, %{message: message, file: path}) do
+    message = """
+    Elixir compiler failed to compile a TypeEnsurer module code due to \
+    #{message}\
+    """
+
+    diagnostic(path, message)
   end
 
   defp diagnostic(:compile, {path, _line, error}) do

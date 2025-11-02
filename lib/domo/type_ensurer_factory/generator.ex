@@ -351,11 +351,22 @@ defmodule Domo.TypeEnsurerFactory.Generator do
     dest = Mix.Project.compile_path(project)
     opts = opts(verbose?)
 
-    ParallelCompiler.compile_to_path(
-      paths,
-      dest,
-      opts
-    )
+    result =
+      ParallelCompiler.compile_to_path(
+        paths,
+        dest,
+        opts
+      )
+
+    extract_warnings(result)
+  end
+
+  defp extract_warnings({kind, modules_or_errors, %{compile_warnings: warns}}) do
+    {kind, modules_or_errors, warns}
+  end
+
+  defp extract_warnings(result) do
+    result
   end
 
   defp opts(false = _verbose?) do
@@ -364,7 +375,8 @@ defmodule Domo.TypeEnsurerFactory.Generator do
 
     [
       long_compilation_threshold: threshold_sec,
-      each_long_compilation: &each_long_compilation(&1, cwd, threshold_sec)
+      each_long_compilation: &each_long_compilation(&1, cwd, threshold_sec),
+      return_diagnostics: true
     ]
   end
 

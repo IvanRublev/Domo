@@ -18,7 +18,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver do
       :ok
     else
       {:error, errors} ->
-        {:error, errors |> List.wrap() |> Enum.map(&%Error{&1 | compiler_module: __MODULE__})}
+        {:error, errors |> List.wrap() |> Enum.map(&Error.update(&1, %{compiler_module: __MODULE__}))}
     end
   end
 

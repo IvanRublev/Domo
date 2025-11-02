@@ -373,7 +373,7 @@ dynamically as the last step of struct's module definition.
 
 In mix compile mode Domo generates all `TypeEnsurer` modules after elixir compiler
 finishes its job. The generated code can be found 
-in `_build/MIX_ENV/domo_generated_code` folder. However, that is for information
+in `_build/MIX_ENV/lib/_your_project_/.mix/domo_generated_code` folder. However, that is for information
 purposes only. The following compilation will overwrite all changes there.
 
 ## Depending types tracking
@@ -540,6 +540,12 @@ with `use Domo, option: value` overrides the global setting.
 * `remote_types_as_any` - keyword list of type lists by modules that should
   be treated as `any()`. F.e. `[{ExternalModule, [:t, :name]}, {OtherModule, :t}]`
   Default is `nil`.
+
+The following options can be set only globally in the configuration
+with `config :domo, option: value`.
+
+* `print_types_as_any_list` - if set to `false` disables the *Domo will treat the following types as any()* message
+   which Domo outputs to the console at the compile time. Default is `true`.
 
 Run the `Application.put_env(:domo, :verbose_in_iex, true)` to enable verbose
 messages from domo in Interactive Elixir console.
@@ -825,6 +831,11 @@ Domo compiled validation functions for the given struct based on the described t
 3. Make a PR to this repository
 
 ## Changelog
+
+## v1.5.19
+
+* Improve compatibility with Elixir 1.19
+* Add `:print_types_as_any_list` global configuration flag
 
 ## v1.5.18
 

@@ -109,6 +109,7 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Lists do
             end)
 
           if is_list(reduced_list) do
+            _ = spec_string
             unquote(Precondition.ok_or_precond_call_quoted(precond, quote(do: spec_string), quote(do: value)))
           else
             reduced_list

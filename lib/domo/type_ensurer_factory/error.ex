@@ -10,4 +10,9 @@ defmodule Domo.TypeEnsurerFactory.Error do
           struct_module: module | nil,
           message: tuple | atom
         }
+
+  def update(err, map) do
+    %__MODULE__{} = err
+    Map.merge(err, map)
+  end
 end

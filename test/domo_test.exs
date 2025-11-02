@@ -810,8 +810,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert _ = Airplane.new!(seats: [seat])
 
       File.rm!(seat_path)
-      :code.purge(Airplane.Seat)
-      :code.delete(Airplane.Seat)
+      :code.purge(Airplane.Seat.TypeEnsurer)
+      :code.delete(Airplane.Seat.TypeEnsurer)
 
       DomoMixTask.start_plan_collection([])
       compile_seat_with_atom_id()
@@ -1068,7 +1068,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       Application.delete_env(:domo, :ensure_struct_defaults)
     end
 
-    test "recompile module that builds struct using Domo at compile time when the struct's type changes" do
+    test "fail to compile with const struct attributes not matching the changed type" do
       :code.purge(Elixir.Game.TypeEnsurer)
       :code.delete(Elixir.Game.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Game.TypeEnsurer.beam"))
@@ -1080,8 +1080,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
 
       assert %{__struct__: Arena, game: %{__struct__: Game, status: :not_started}} = struct!(Arena)
 
-      :code.purge(Game)
-      :code.delete(Game)
+      :code.purge(Elixir.Game.TypeEnsurer)
+      :code.delete(Elixir.Game.TypeEnsurer)
 
       DomoMixTask.start_plan_collection()
       compile_game_with_string_status()
@@ -1118,13 +1118,13 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       assert _ = Airplane.new!(seats: [seat])
 
       File.rm!(seat_path)
-      :code.purge(Airplane.Seat)
-      :code.delete(Airplane.Seat)
+      :code.purge(Airplane.Seat.TypeEnsurer)
+      :code.delete(Airplane.Seat.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.Seat.TypeEnsurer.beam"))
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.Seat.beam"))
       File.rm!(airplane_path)
-      :code.purge(Airplane)
-      :code.delete(Airplane)
+      :code.purge(Airplane.TypeEnsurer)
+      :code.delete(Airplane.TypeEnsurer)
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.TypeEnsurer.beam"))
       File.rm(Path.join(Mix.Project.compile_path(), "Elixir.Airplane.beam"))
 
@@ -1454,6 +1454,11 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   defp compile_line_item_order_structs(precond_line_item_id, precond_line_item_t, precond_ref_t) do
+    :code.purge(Elixir.LineItem.TypeEnsurer)
+    :code.delete(Elixir.LineItem.TypeEnsurer)
+    :code.purge(Elixir.Order.TypeEnsurer)
+    :code.delete(Elixir.Order.TypeEnsurer)
+
     path = MixProject.out_of_project_tmp_path("/line_order.ex")
 
     File.write!(path, """
@@ -1483,6 +1488,8 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     """)
 
     CompilerHelpers.compile_with_elixir()
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.LineItem"))
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.Order"))
     [path]
   end
 
@@ -1681,6 +1688,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     """)
 
     CompilerHelpers.compile_with_elixir()
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.Game"))
     [path]
   end
 
@@ -1726,6 +1734,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     """)
 
     CompilerHelpers.compile_with_elixir()
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.Game"))
     [path]
   end
 
@@ -1741,6 +1750,7 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
     """)
 
     CompilerHelpers.compile_with_elixir()
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.Arena"))
     [path]
   end
 
@@ -1984,6 +1994,9 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
   end
 
   defp compile_struct_with_defaults(fields, opts) do
+    :code.purge(Bar.TypeEnsurer)
+    :code.delete(Bar.TypeEnsurer)
+
     path = MixProject.out_of_project_tmp_path("/valid_bar_default.ex")
 
     File.write!(path, """

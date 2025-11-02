@@ -7,9 +7,13 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TypeEnsurerFactory.Error
 
-  def ensure_struct_integrity(plan_path) do
+  def ensure_struct_integrity(plan_path, verbose?) do
     with {:ok, plan_map} <- read_plan(plan_path),
          {:ok, structs_to_ensure} <- read_field(plan_map, plan_path, :structs_to_ensure),
+         verbose? &&
+           IO.puts(
+             "Domo validates structs constant values made at compile time in: #{Enum.map_join(structs_to_ensure, ", ", fn {mod, _st, _pt, _lc} -> mod end)}"
+           ),
          :ok <- do_ensure_structs_integrity(structs_to_ensure) do
       :ok
     else
@@ -52,7 +56,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurer do
   defp wrap_error(errors) do
     errors
     |> List.wrap()
-    |> Enum.map(&%Error{&1 | compiler_module: __MODULE__})
+    |> Enum.map(&Error.update(&1, %{compiler_module: __MODULE__}))
   end
 
   defp do_ensure_structs_integrity([{module, fields, file, line} | tail]) do

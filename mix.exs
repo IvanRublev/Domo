@@ -1,14 +1,14 @@
 defmodule Domo.MixProject do
   use Mix.Project
 
-  @version "1.5.18"
+  @version "1.5.19"
   @repo_url "https://github.com/IvanRublev/Domo"
 
   def project do
     [
       app: :domo,
       version: @version,
-      elixir: ">= 1.11.0",
+      elixir: ">= 1.15.0",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: compilers(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -17,7 +17,7 @@ defmodule Domo.MixProject do
 
       # Tools
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: cli_env(),
+      test_ignore_filters: [~r"^test/struct_modules/.*"],
 
       # Docs
       name: "Domo",
@@ -35,6 +35,12 @@ defmodule Domo.MixProject do
       # Package
       package: package(),
       description: "A library to validate values of nested structs with their type spec `t()` and associated precondition functions."
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: cli_env()
     ]
   end
 

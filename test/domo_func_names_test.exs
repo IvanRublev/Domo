@@ -49,5 +49,6 @@ defmodule DomoFuncNamesTest do
     """)
 
     CompilerHelpers.compile_with_elixir()
+    Code.ensure_loaded!(String.to_existing_atom("Elixir.#{module_name}"))
   end
 end

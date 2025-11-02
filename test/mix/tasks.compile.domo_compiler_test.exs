@@ -87,7 +87,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     allow DependencyResolver.maybe_recompile_depending_structs(any(), any(), any()), return: {:ok, []}
 
     allow BatchEnsurer.ensure_struct_defaults(any()), return: :ok
-    allow BatchEnsurer.ensure_struct_integrity(any()), return: :ok
+    allow BatchEnsurer.ensure_struct_integrity(any(), any()), return: :ok
 
     allow Resolver.resolve(any(), any(), any(), any(), any(), any(), any()), return: :ok
 
@@ -371,6 +371,8 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
                message: "Elixir compiler failed to compile a TypeEnsurer module" <> _,
                severity: :error
              } = diagnostic
+
+      on_exit(fn -> File.rm(file_path) end)
     end
 
     @tag empty_plan_on_disk?: true
@@ -382,7 +384,7 @@ defmodule Domo.MixTasksCompileDomoCompilerTest do
     test "ensures struct defaults and struct integrity" do
       DomoMixTask.process_plan({:ok, []}, [])
       assert_called BatchEnsurer.ensure_struct_defaults(any()), return: :ok
-      assert_called BatchEnsurer.ensure_struct_integrity(any()), return: :ok
+      assert_called BatchEnsurer.ensure_struct_integrity(any(), any()), return: :ok
     end
 
     test "remove plan and types files on successful compilation", %{plan_file: plan_file, types_file: types_file} do

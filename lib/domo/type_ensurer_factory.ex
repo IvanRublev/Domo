@@ -331,11 +331,7 @@ defmodule Domo.TypeEnsurerFactory do
   end
 
   def ensure_structs_integrity(plan_path, verbose?) do
-    if verbose? do
-      IO.puts("Domo validates structs constant values made at compile time.")
-    end
-
-    case BatchEnsurer.ensure_struct_integrity(plan_path) do
+    case BatchEnsurer.ensure_struct_integrity(plan_path, verbose?) do
       :ok -> :ok
       {:error, messages} -> {:error, {:batch_ensurer, messages}}
     end

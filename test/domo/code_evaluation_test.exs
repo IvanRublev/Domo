@@ -28,6 +28,7 @@ defmodule Domo.CodeEvaluationTest do
       File.write!(path, @answer_holder_source)
 
       CompilerHelpers.compile_with_elixir()
+      Code.ensure_loaded!(String.to_existing_atom("Elixir.AnswerHolder"))
       assert apply(AnswerHolder, :in_mix_compile_return_value, []) == true
     end
 

@@ -62,7 +62,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
                   struct_module: nil,
                   message: :no_plan
                 }
-              ]} = BatchEnsurer.ensure_struct_integrity(plan_file)
+              ]} = BatchEnsurer.ensure_struct_integrity(plan_file, false)
     end
 
     test "return the error if no fields in plan are found", %{plan_file: plan_file} do
@@ -76,7 +76,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
                   struct_module: nil,
                   message: {:no_field_in_plan, :structs_to_ensure}
                 }
-              ]} = BatchEnsurer.ensure_struct_integrity(plan_file)
+              ]} = BatchEnsurer.ensure_struct_integrity(plan_file, false)
 
       assert {:error,
               [
@@ -103,7 +103,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
 
       ResolverTestHelper.flush(planner)
 
-      assert :ok == BatchEnsurer.ensure_struct_integrity(plan_file)
+      assert :ok == BatchEnsurer.ensure_struct_integrity(plan_file, false)
     end
 
     test "return error with a first structure not matching its type", %{
@@ -130,7 +130,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
 
       ResolverTestHelper.flush(planner)
 
-      assert {:error, {^file, 9, message}} = BatchEnsurer.ensure_struct_integrity(plan_file)
+      assert {:error, {^file, 9, message}} = BatchEnsurer.ensure_struct_integrity(plan_file, false)
 
       assert message =~ "CustomStructUsingDomo"
       assert message =~ "Invalid value :hello for field :title of %CustomStructUsingDomo{}."
@@ -174,7 +174,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
       other_mtime = mtime(@second_path)
       third_mtime = mtime(@third_path)
 
-      BatchEnsurer.ensure_struct_integrity(plan_file)
+      BatchEnsurer.ensure_struct_integrity(plan_file, false)
 
       assert mtime(@first_path) == some_mtime
       assert mtime(@second_path) > other_mtime
@@ -195,7 +195,7 @@ defmodule Domo.TypeEnsurerFactory.BatchEnsurerTest do
 
       ResolverTestHelper.flush(planner)
 
-      BatchEnsurer.ensure_struct_integrity(plan_file)
+      BatchEnsurer.ensure_struct_integrity(plan_file, false)
     end
 
     @first_path Path.join(@source_dir, "/some_caller_module.ex")

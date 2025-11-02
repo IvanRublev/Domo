@@ -23,8 +23,8 @@ defmodule ExampleTypedIntegrations.MixProject do
   defp deps do
     [
       {:domo, path: ".."},
-      {:typed_struct, "~> 0.2.1"},
-      {:typed_ecto_schema, "~> 0.3.0"}
+      {:typed_struct, ">= 0.0.0"},
+      {:typed_ecto_schema, ">= 0.0.0"}
     ]
   end
 end

@@ -109,6 +109,18 @@ defmodule DomoFuncTest do
       Application.delete_env(:domo, :unexpected_type_error_as_warning)
     end
 
+    test "prints types treated as any by default" do
+      DomoMixTask.start_plan_collection()
+      assert capture_io(:stdio, fn -> DomoMixTask.process_plan({:ok, []}, []) end) =~ "Domo will treat the following types as any() globally:"
+    end
+
+    test "doesn't print types treated as any given global option" do
+      DomoMixTask.start_plan_collection()
+      Application.put_env(:domo, :print_types_as_any_list, false)
+
+      refute capture_io(:stdio, fn -> DomoMixTask.process_plan({:ok, []}, []) end) =~ "Domo will treat the following types as any() globally:"
+    end
+
     test "ensures remote types as any type listing them in `remote_types_as_any` option or overridden with use Domo" do
       DomoMixTask.start_plan_collection()
 

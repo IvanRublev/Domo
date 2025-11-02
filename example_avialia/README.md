@@ -40,6 +40,17 @@ alias ExampleAvialia.Cargos.Shipment
 Shipment.ensure_type(%{s | kind: {:passenger_baggage, "invalid"}}, maybe_filter_precond_errors: true)
 ```
 
+### To install prerequisite PostgreSQL server
+
+```
+docker run --name postgres-domo \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d \
+  postgres:latest
+```
+
 ### To start your Phoenix server:
 
   * Install dependencies with `mix deps.get`
